@@ -1,0 +1,26 @@
+# 系统文件
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# 临时文件
+*.tmp
+*.temp
+*.~*
+~$*
+
+# Office 临时文件
+~$*.doc*
+~$*.xls*
+~$*.ppt*
+
+# 编辑器
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# 图片缓存
+*.jpg.meta
+*.png.meta
