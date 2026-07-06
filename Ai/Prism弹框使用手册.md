@@ -8,8 +8,8 @@
 4. [弹框 View](#4-弹框-view)
 5. [打开与关闭弹框](#5-打开与关闭弹框)
 6. [传参与返回结果](#6-传参与返回结果)
-7. [确认弹框——内置实现](#7-确认弹框内置实现)
-8. [通知弹框——内置实现](#8-通知弹框内置实现)
+7. [确认弹框——自己实现](#7-确认弹框自己实现)
+8. [通知弹框——自己实现](#8-通知弹框自己实现)
 9. [自定义弹框窗口样式](#9-自定义弹框窗口样式)
 10. [非模态弹框](#10-非模态弹框)
 11. [弹框的注册方式](#11-弹框的注册方式)
@@ -350,19 +350,21 @@ public partial class UserEditDialog : UserControl
 }
 ```
 
-### 4.2 使用 Prism 内置样式
+### 4.2 使用第三方 UI 库样式（可选）
+
+弹框 View 本身是普通 UserControl，你可以搭配任何 WPF UI 库来美化，例如 **MaterialDesignInXaml**、**HandyControl**、**AdonisUI** 等。
 
 ```xml
-<!-- 引用 Prism 内置弹框样式 -->
+<!-- 搭配 MaterialDesignInXaml 美化弹框 -->
 <UserControl x:Class="MyApp.Views.MyDialog"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:prism="http://prismlibrary.com/"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              prism:ViewModelLocator.AutoWireViewModel="True"
              Width="450" Height="300">
 
     <UserControl.Resources>
-        <!-- Prism 弹框常用样式 -->
         <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}"/>
     </UserControl.Resources>
 
@@ -560,11 +562,151 @@ var parameters = new DialogParameters
 
 ---
 
-## 7. 确认弹框——内置实现
+## 7. 确认弹框——自己实现
 
-Prism 自带确认弹框，不需要自己写 View 和 ViewModel。
+> ⚠️ **Prism 不自带确认弹框。** `ConfirmationDialog` 及其 ViewModel 需要自己创建。下面给出完整实现，创建后即可在项目中复用。
 
-### 7.1 基本用法
+### 7.1 确认弹框 ViewModel
+
+```csharp
+// ConfirmationDialogViewModel.cs
+public class ConfirmationDialogViewModel : BindableBase, IDialogAware
+{
+    // ==================== 绑定属性 ====================
+
+    private string _title = "确认";
+    public string Title
+    {
+        get => _title;
+        set => SetProperty(ref _title, value);
+    }
+
+    private string _message;
+    public string Message
+    {
+        get => _message;
+        set => SetProperty(ref _message, value);
+    }
+
+    private string _okButtonText = "确定";
+    public string OKButtonText
+    {
+        get => _okButtonText;
+        set => SetProperty(ref _okButtonText, value);
+    }
+
+    private string _cancelButtonText;
+    public string CancelButtonText
+    {
+        get => _cancelButtonText;
+        set => SetProperty(ref _cancelButtonText, value);
+    }
+
+    // 控制取消按钮是否可见（仅确认时隐藏）
+    private bool _showCancelButton = true;
+    public bool ShowCancelButton
+    {
+        get => _showCancelButton;
+        set => SetProperty(ref _showCancelButton, value);
+    }
+
+    // ==================== IDialogAware ====================
+
+    public event Action<IDialogResult> RequestClose;
+
+    public bool CanCloseDialog() => true;
+
+    public void OnDialogOpened(IDialogParameters parameters)
+    {
+        // 从调用方接收参数
+        if (parameters.ContainsKey("Title"))
+            Title = parameters.GetValue<string>("Title");
+
+        if (parameters.ContainsKey("Message"))
+            Message = parameters.GetValue<string>("Message");
+
+        if (parameters.ContainsKey("OKButtonText"))
+            OKButtonText = parameters.GetValue<string>("OKButtonText");
+
+        if (parameters.ContainsKey("CancelButtonText"))
+            CancelButtonText = parameters.GetValue<string>("CancelButtonText");
+
+        if (parameters.ContainsKey("ShowCancelButton"))
+            ShowCancelButton = parameters.GetValue<bool>("ShowCancelButton");
+    }
+
+    public void OnDialogClosed() { }
+
+    // ==================== 命令 ====================
+
+    public DelegateCommand OKCommand => new DelegateCommand(() =>
+    {
+        RequestClose?.Invoke(new DialogResult(ButtonResult.Yes));
+    });
+
+    public DelegateCommand CancelCommand => new DelegateCommand(() =>
+    {
+        RequestClose?.Invoke(new DialogResult(ButtonResult.No));
+    });
+}
+```
+
+### 7.2 确认弹框 View
+
+```xml
+<!-- ConfirmationDialog.xaml -->
+<UserControl x:Class="MyApp.Views.ConfirmationDialog"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:prism="http://prismlibrary.com/"
+             prism:ViewModelLocator.AutoWireViewModel="True"
+             Width="380" Height="180">
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 内容消息 -->
+        <TextBlock Grid.Row="0"
+                   Text="{Binding Message}"
+                   FontSize="14"
+                   TextWrapping="Wrap"
+                   Margin="0,10,0,20"/>
+
+        <!-- 按钮 -->
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right">
+            <Button Content="{Binding OKButtonText}"
+                    Command="{Binding OKCommand}"
+                    Width="80" Height="32"
+                    Margin="0,0,10,0"
+                    IsDefault="True"/>
+            <Button Content="{Binding CancelButtonText}"
+                    Command="{Binding CancelCommand}"
+                    Width="80" Height="32"
+                    IsCancel="True"
+                    Visibility="{Binding ShowCancelButton, Converter={StaticResource BoolToVisibility}}"/>
+        </StackPanel>
+    </Grid>
+</UserControl>
+```
+
+```csharp
+// ConfirmationDialog.xaml.cs
+public partial class ConfirmationDialog : UserControl
+{
+    public ConfirmationDialog()
+    {
+        InitializeComponent();
+    }
+}
+```
+
+### 7.3 调用确认弹框
 
 ```csharp
 public class MainViewModel : BindableBase
@@ -589,65 +731,191 @@ public class MainViewModel : BindableBase
 }
 ```
 
-### 7.2 可自定义的确认弹框参数
+### 7.4 可自定义的参数
+
+所有参数都是可选的，未传入时使用默认值：
 
 ```csharp
 var parameters = new DialogParameters
 {
     { "Title", "退出确认" },
     { "Message", "有未保存的修改，确定退出吗？" },
-    { "OKButtonText", "保存并退出" },    // 自定义确定按钮文字
-    { "CancelButtonText", "继续编辑" }   // 自定义取消按钮文字
+    { "OKButtonText", "保存并退出" },     // 默认 "确定"
+    { "CancelButtonText", "继续编辑" },    // 默认 "取消"
+    { "ShowCancelButton", false }         // 隐藏取消按钮（仅通知模式）
 };
 
 var result = await _dialogService.ShowDialogAsync("ConfirmationDialog", parameters);
-
-if (result.Result == ButtonResult.OK)  // 点了"保存并退出"
-{
-    // ...
-}
-```
-
-### 7.3 确认弹框的 ButtonResult
-
-```
-MessageBoxButton.YesNo    → ButtonResult.Yes 或 ButtonResult.No
-MessageBoxButton.OKCancel → ButtonResult.OK 或 ButtonResult.Cancel
 ```
 
 ---
 
-## 8. 通知弹框——内置实现
+## 8. 通知弹框——自己实现
 
-### 8.1 基本用法
+> ⚠️ **Prism 不自带通知弹框。** `NotificationDialog`、`WarningDialog`、`ErrorDialog` 都需要自己创建。推荐写一个通用的 `MessageDialog`，通过参数控制图标和样式，一个弹框覆盖所有通知场景。
+
+### 8.1 通用消息弹框 ViewModel
+
+```csharp
+// MessageDialogViewModel.cs
+public class MessageDialogViewModel : BindableBase, IDialogAware
+{
+    // ==================== 绑定属性 ====================
+
+    private string _title = "提示";
+    public string Title
+    {
+        get => _title;
+        set => SetProperty(ref _title, value);
+    }
+
+    private string _message;
+    public string Message
+    {
+        get => _message;
+        set => SetProperty(ref _message, value);
+    }
+
+    private MessageDialogType _dialogType = MessageDialogType.Info;
+    public MessageDialogType DialogType
+    {
+        get => _dialogType;
+        set => SetProperty(ref _dialogType, value);
+    }
+
+    // 用于在 XAML 中触发不同图标样式
+    public bool IsInfo => DialogType == MessageDialogType.Info;
+    public bool IsWarning => DialogType == MessageDialogType.Warning;
+    public bool IsError => DialogType == MessageDialogType.Error;
+
+    // ==================== IDialogAware ====================
+
+    public event Action<IDialogResult> RequestClose;
+
+    public bool CanCloseDialog() => true;
+
+    public void OnDialogOpened(IDialogParameters parameters)
+    {
+        if (parameters.ContainsKey("Title"))
+            Title = parameters.GetValue<string>("Title");
+
+        if (parameters.ContainsKey("Message"))
+            Message = parameters.GetValue<string>("Message");
+
+        if (parameters.ContainsKey("DialogType"))
+        {
+            DialogType = parameters.GetValue<MessageDialogType>("DialogType");
+            // 重新触发图标属性变更通知
+            RaisePropertyChanged(nameof(IsInfo));
+            RaisePropertyChanged(nameof(IsWarning));
+            RaisePropertyChanged(nameof(IsError));
+        }
+    }
+
+    public void OnDialogClosed() { }
+
+    // ==================== 命令 ====================
+
+    public DelegateCommand OKCommand => new DelegateCommand(() =>
+    {
+        RequestClose?.Invoke(new DialogResult(ButtonResult.OK));
+    });
+}
+
+// 枚举：消息类型
+public enum MessageDialogType
+{
+    Info,
+    Warning,
+    Error
+}
+```
+
+### 8.2 通用消息弹框 View
+
+```xml
+<!-- MessageDialog.xaml -->
+<UserControl x:Class="MyApp.Views.MessageDialog"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:prism="http://prismlibrary.com/"
+             prism:ViewModelLocator.AutoWireViewModel="True"
+             Width="400" Height="180">
+
+    <Grid Margin="20">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="48"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 图标 -->
+        <TextBlock Grid.Column="0" Grid.Row="0"
+                   FontSize="32"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Top"
+                   Margin="0,5,10,0">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsInfo}" Value="True">
+                            <Setter Property="Text" Value="ℹ"/>
+                            <Setter Property="Foreground" Value="#0078D4"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding IsWarning}" Value="True">
+                            <Setter Property="Text" Value="⚠"/>
+                            <Setter Property="Foreground" Value="#FF8C00"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding IsError}" Value="True">
+                            <Setter Property="Text" Value="✖"/>
+                            <Setter Property="Foreground" Value="#D32F2F"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
+
+        <!-- 消息文本 -->
+        <TextBlock Grid.Column="1" Grid.Row="0"
+                   Text="{Binding Message}"
+                   FontSize="13"
+                   TextWrapping="Wrap"
+                   VerticalAlignment="Center"/>
+
+        <!-- 确定按钮 -->
+        <Button Grid.Column="1" Grid.Row="1"
+                Content="确定"
+                Command="{Binding OKCommand}"
+                Width="80" Height="32"
+                HorizontalAlignment="Right"
+                Margin="0,15,0,0"
+                IsDefault="True"/>
+    </Grid>
+</UserControl>
+```
+
+### 8.3 调用方式
 
 ```csharp
 // 信息通知
-var parameters = new DialogParameters
+await _dialogService.ShowDialogAsync("MessageDialog", new DialogParameters
 {
     { "Title", "提示" },
-    { "Message", "操作成功完成！" }
-};
-await _dialogService.ShowDialogAsync("NotificationDialog", parameters);
+    { "Message", "操作成功完成！" },
+    { "DialogType", MessageDialogType.Info }
+});
 
-// 不需要任何返回值，用户点确认就关闭
-```
-
-### 8.2 警告弹框
-
-```csharp
 // 警告通知
-var parameters = new DialogParameters
+await _dialogService.ShowDialogAsync("MessageDialog", new DialogParameters
 {
     { "Title", "警告" },
-    { "Message", "电池电压过低，即将断电关机！" }
-};
-await _dialogService.ShowDialogAsync("WarningDialog", parameters);
-```
+    { "Message", "电池电压过低，即将断电关机！" },
+    { "DialogType", MessageDialogType.Warning }
+});
 
-### 8.3 错误弹框
-
-```csharp
 // 错误通知
 try
 {
@@ -655,13 +923,26 @@ try
 }
 catch (Exception ex)
 {
-    var parameters = new DialogParameters
+    await _dialogService.ShowDialogAsync("MessageDialog", new DialogParameters
     {
         { "Title", "错误" },
-        { "Message", $"保存失败：{ex.Message}" }
-    };
-    await _dialogService.ShowDialogAsync("ErrorDialog", parameters);
+        { "Message", $"保存失败：{ex.Message}" },
+        { "DialogType", MessageDialogType.Error }
+    });
 }
+```
+
+### 8.4 也可以用第 7 章的确认弹框代替
+
+如果不想单独创建消息弹框，也可以复用确认弹框并隐藏取消按钮：
+
+```csharp
+await _dialogService.ShowDialogAsync("ConfirmationDialog", new DialogParameters
+{
+    { "Title", "提示" },
+    { "Message", "操作成功！" },
+    { "ShowCancelButton", false }   // 隐藏取消按钮 → 变成纯通知弹框
+});
 ```
 
 ---
@@ -905,11 +1186,9 @@ protected override void RegisterTypes(IContainerRegistry containerRegistry)
     containerRegistry.RegisterDialog<UserEditDialog, UserEditDialogViewModel>();
     containerRegistry.RegisterDialog<UserDetailDialog, UserDetailDialogViewModel>();
 
-    // 确认/通知弹框（使用 Prism 内置）
+    // 确认/通知弹框（自己实现的，参考第 7、8 章）
     containerRegistry.RegisterDialog<ConfirmationDialog, ConfirmationDialogViewModel>();
-    containerRegistry.RegisterDialog<NotificationDialog, NotificationDialogViewModel>();
-    containerRegistry.RegisterDialog<WarningDialog, WarningDialogViewModel>();
-    containerRegistry.RegisterDialog<ErrorDialog, ErrorDialogViewModel>();
+    containerRegistry.RegisterDialog<MessageDialog, MessageDialogViewModel>();
 
     // 设置弹框
     containerRegistry.RegisterDialog<SettingsDialog, SettingsDialogViewModel>();
