@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 8 课 · ExecutionContext 与 AsyncLocal</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <header class="lesson-head">
+    <div class="kicker">Lesson 0008 · 运行时内部</div>
+    <h1>ExecutionContext 与 AsyncLocal
+      <span class="subtitle">线程都换了，HttpContext 为什么还读得到？环境数据怎么「跟」着 await 走？这是最后一块拼图。</span>
+    </h1>
+  </header>
+
+  <p><a href="0007-async-streams-iasyncenumerable.html">← 上一课：异步流</a></p>
+
+  <h2>一个反直觉的问题</h2>
+  <p>第 3 课说过：async 的续延可能跑在<strong>完全不同的线程池线程</strong>上。那问题来了——</p>
+  <div class="key">
+    <span class="callout-label">提问</span>
+    <code>HttpContext</code>、<code>AsyncLocal&lt;T&gt;</code> 这些「当前环境数据」，为什么 await 之后（线程都换了）还能读到<strong>正确</strong>的值？数据是怎么「跟过来」的？
+  </div>
+
+  <h2>同步时代：靠线程</h2>
+  <p>以前没有 async 时，「环境数据」都是靠线程区分的：<code>[ThreadStatic]</code> 字段、<code>ThreadLocal&lt;T&gt;</code>。同一个线程内读写一致，换个线程就读不到了。</p>
+  <p>但 async 一来，这个方法可能「上半段在 A 线程、下半段在 B 线程」，只靠线程，数据就丢了：</p>
+  <pre><code>[ThreadStatic] static string _threadValue;                  // 跟线程走
+static AsyncLocal&lt;string&gt; _asyncValue = new();             // 跟逻辑上下文走
+
+async Task DoWorkAsync()
+{
+    _threadValue = "hello";
+    _asyncValue.Value = "hello";
+
+    await Task.Delay(100);                     // 续延通常跑在别的线程池线程
+
+    Console.WriteLine(_threadValue);           // 大概率 null（线程换了）
+    Console.WriteLine(_asyncValue.Value);      // 稳定输出 "hello"
+}</code></pre>
+
+  <h2>答案：ExecutionContext</h2>
+  <p><code>ExecutionContext</code> 是「<strong>逻辑上下文</strong>」的容器，装着环境数据（AsyncLocal 的值、安全信息等）。它的机制就两个动作：</p>
+  <ul>
+    <li><strong>捕获（Capture）</strong>：async 方法 await 一个未完成的 Task 时，把当前 ExecutionContext 快照下来。</li>
+    <li><strong>恢复（Restore/Run）</strong>：续延被调度到别的线程时，先把这个 ExecutionContext 恢复，再执行续延。</li>
+  </ul>
+  <p>所以续延虽然换了线程，但读到的环境数据还是原来那份。.NET 里几乎所有异步 API（<code>Task.Run</code>、<code>ThreadPool.QueueUserWorkItem</code>、<code>await</code>…）都会自动捕获并恢复 ExecutionContext。</p>
+
+  <h2>AsyncLocal&lt;T&gt;：构建在它之上的环境变量</h2>
+  <p><code>AsyncLocal&lt;T&gt;</code> 就是「跨 await 流动的环境变量」：写入后，整个异步逻辑流里都能读到（含续延），且<strong>各异步流之间互相隔离</strong>。</p>
+  <p>谁在用？举几个你天天见的：</p>
+  <ul>
+    <li><strong><code>HttpContext</code> / <code>HttpContextAccessor</code></strong>（ASP.NET Core）：靠 AsyncLocal 存当前请求上下文。</li>
+    <li><strong><code>Activity</code></strong> / 分布式追踪（OpenTelemetry）：把 trace id 带进异步流。</li>
+    <li><strong><code>CultureInfo.CurrentCulture</code></strong>：当前语言区域，默认也会跨 await 保持。</li>
+  </ul>
+
+  <h2>一个关键误解：ConfigureAwait(false) 断不断它？</h2>
+  <div class="key">
+    <span class="callout-label">记住</span>
+    <code>ConfigureAwait(false)</code> 只断开 <strong>SynchronizationContext</strong>（续延回不回原上下文），<strong>断不开 ExecutionContext</strong>。所以即使 <code>ConfigureAwait(false)</code>，<code>AsyncLocal&lt;T&gt;</code>、<code>HttpContext</code> 这些环境数据照样跟着走。
+  </div>
+  <p>很多人以为 <code>ConfigureAwait(false)</code> 会「切断上下文、数据就没了」——这是两个不同的「上下文」被混淆了。一个是「调度回哪」，一个是「数据带不带」。</p>
+
+  <h2>一个坑：Parallel.For 不自动流动</h2>
+  <p>大部分高层 API（<code>await</code>、<code>Task.Run</code>）自动处理 ExecutionContext，但<strong>手动并行要小心</strong>——<code>Parallel.For</code> 不会自动捕获/恢复它，需要你手动包一层：</p>
+  <pre><code>var ec = ExecutionContext.Capture();          // 手动捕获
+Parallel.For(0, 30, _ =&gt;
+{
+    ExecutionContext.Run(ec, _ =&gt;            // 手动恢复
+    {
+        _asyncValue.Value = DoWork();
+    }, null);
+});</code></pre>
+  <p>业务代码一般碰不到这个，但理解了「高层 API 自动帮你 Capture/Run」，你就知道为什么它无处不在却看不见。</p>
+
+  <h2>练习：检验一下 ExecutionContext</h2>
+  <div class="quiz" data-quiz='{"questions":[{"type":"single","prompt":"AsyncLocal 和 ThreadLocal 的关键区别是什么？","options":["AsyncLocal 随逻辑上下文跨 await 流动，ThreadLocal 跟线程走","两者完全一样","ThreadLocal 跨 await 流动，AsyncLocal 不"],"answer":0,"explanation":"AsyncLocal 构建在 ExecutionContext 上，跨 await 存活；ThreadLocal/ThreadStatic 跟物理线程走，换线程就丢。"},{"type":"single","prompt":"async 续延跑在不同线程时，环境数据靠什么流动？","options":["ExecutionContext 的捕获与恢复","SynchronizationContext","线程本地存储"],"answer":0,"explanation":"ExecutionContext 在 await 时捕获、续延执行前恢复，让环境数据跨线程跟着走。"},{"type":"single","prompt":"ConfigureAwait(false) 会影响 AsyncLocal/HttpContext 的流动吗？","options":["不会，它只断开 SynchronizationContext","会，环境数据就丢了","会，而且会抛异常"],"answer":0,"explanation":"ConfigureAwait(false) 只断开调度层面的 SynchronizationContext，断不开数据层面的 ExecutionContext，环境数据照样流动。"},{"type":"single","prompt":"HttpContextAccessor 底层靠什么实现跨 await 访问？","options":["AsyncLocal（构建在 ExecutionContext 上）","ThreadStatic 字段","全局静态字段"],"answer":0,"explanation":"ASP.NET Core 用 AsyncLocal 存当前请求上下文，靠 ExecutionContext 跨 await 流动，所以 HttpContextAccessor 随时能取到。"},{"type":"single","prompt":"下面哪个 API 不自动流动 ExecutionContext？","options":["Parallel.For","Task.Run","await"],"answer":0,"explanation":"Parallel.For 不自动捕获/恢复 ExecutionContext，需要手动 ExecutionContext.Capture() + Run()；而 Task.Run、await 都自动处理。"}]}'></div>
+
+  <h2>必读主来源</h2>
+  <div class="note">
+    <span class="callout-label">Primary source</span>
+    <a href="https://devblogs.microsoft.com/pfxteam/executioncontext-vs-synchronizationcontext/">Stephen Toub — "ExecutionContext vs SynchronizationContext"</a>。这篇文章把两个容易混淆的「上下文」讲得最清楚。AsyncLocal 的细节可配合 Stephen Cleary 的 <a href="https://blog.stephencleary.com/2013/04/implicit-async-context-asynclocal.html">"Implicit Async Context (AsyncLocal)"</a>。
+  </div>
+
+  <h2>整条线，到此闭环</h2>
+  <p>恭喜，八课走完。回头看这条线：</p>
+  <pre><code>1 心智模型（续延≠线程）
+   ↓
+2 状态机（编译器怎么实现「续延」）
+   ↓
+3 SynchronizationContext（续延回到哪）＋ 死锁
+   ↓
+4 异常/取消（异常怎么传播、async void、CancellationToken）
+   ↓
+5 Task 家族与线程池（Task.Run、ValueTask）
+   ↓
+6 IValueTaskSource（零分配的地基）
+   ↓
+7 异步流（逐条产出的异步）
+   ↓
+8 ExecutionContext / AsyncLocal（环境数据怎么流动）</code></pre>
+  <p>下一步是一课「<strong>实战决策清单</strong>」收尾：把八课浓缩成你写代码时能直接对照的检查表（同步还是异步、async void 自查、ConfigureAwait 自查、Task.Run 自查、取消自查）。</p>
+  <p>相关术语见 <a href="../reference/glossary.html">词汇表</a>。</p>
+
+  <footer class="lesson-foot">
+    <p>有任何不清楚的——比如「ExecutionContext 和 SynchronizationContext 到底差在哪」——<strong>直接问我</strong>，这是最后一课，值得问透。</p>
+    <a class="next-link" href="../reference/glossary.html">查词汇表 →</a>
+  </footer>
+</main>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

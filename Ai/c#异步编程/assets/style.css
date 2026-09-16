@@ -1,0 +1,272 @@
+/* ==========================================================================
+   Shared stylesheet — C# async/await course
+   Tufte-inspired: paper, ink, one accent, generous measure, print-ready.
+   Every lesson links this file.
+   ========================================================================== */
+
+:root {
+  --paper: #fffffb;
+  --ink: #1c1b1a;
+  --muted: #6f6a63;
+  --faint: #9a948c;
+  --accent: #a23b2e;          /* deep brick red */
+  --accent-soft: #f6e9e6;
+  --rule: #e4ded6;            /* hairline */
+  --code-bg: #f5f2ed;
+  --code-ink: #3a3430;
+  --good: #2e7d32;
+  --bad: #b3261e;
+  --good-bg: #edf5ee;
+  --bad-bg: #fbecea;
+
+  --measure: 42rem;           /* ~72ch for the body */
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia,
+           "Noto Serif SC", "Songti SC", "SimSun", serif;
+  --sans: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC",
+          "Noto Sans SC", "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas,
+          "Courier New", monospace;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 17px;
+  line-height: 1.65;
+  text-rendering: optimizeLegibility;
+}
+
+/* ---- Layout ----------------------------------------------------------- */
+main {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 3rem 1.5rem 6rem;
+}
+
+.lesson-head { margin-bottom: 2.5rem; }
+
+.kicker {
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+h1 {
+  font-size: 2.2rem;
+  line-height: 1.15;
+  margin: 0.4rem 0 0.6rem;
+  font-weight: 600;
+}
+
+h1 .subtitle {
+  display: block;
+  font-size: 1.05rem;
+  font-weight: 400;
+  color: var(--muted);
+  margin-top: 0.5rem;
+  line-height: 1.5;
+}
+
+h2 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  margin: 2.4rem 0 0.7rem;
+  padding-top: 0.4rem;
+}
+
+h3 { font-size: 1.05rem; font-weight: 600; margin: 1.6rem 0 0.5rem; }
+
+p { margin: 0.8rem 0; }
+
+strong { font-weight: 600; }
+
+em { font-style: italic; }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ---- Inline code & code blocks --------------------------------------- */
+code {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  background: var(--code-bg);
+  color: var(--code-ink);
+  padding: 0.12em 0.35em;
+  border-radius: 3px;
+}
+
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  padding: 0.9rem 1.1rem;
+  overflow-x: auto;
+  line-height: 1.5;
+  margin: 1rem 0;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.82rem;
+  color: var(--code-ink);
+}
+
+/* ---- Callouts --------------------------------------------------------- */
+.note, .key, .warn {
+  border-radius: 4px;
+  padding: 0.8rem 1.1rem;
+  margin: 1.1rem 0;
+  font-size: 0.95rem;
+}
+
+.note  { background: var(--code-bg); border-left: 3px solid var(--faint); }
+.key   { background: var(--accent-soft); border-left: 3px solid var(--accent); }
+.warn  { background: #fbf0d9; border-left: 3px solid #c98a1b; }
+
+.callout-label {
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 700;
+  display: block;
+  margin-bottom: 0.2rem;
+}
+.note  .callout-label { color: var(--muted); }
+.key   .callout-label { color: var(--accent); }
+.warn  .callout-label { color: #8a5f12; }
+
+/* ---- Footnotes / margin notes ---------------------------------------- */
+.footnote { font-size: 0.85rem; color: var(--muted); }
+
+/* ---- Quiz ------------------------------------------------------------- */
+.quiz {
+  margin: 2rem 0;
+  border-top: 1px solid var(--rule);
+  padding-top: 1.2rem;
+}
+
+.quiz-score {
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 1rem;
+}
+
+.quiz-q { margin-bottom: 1.6rem; }
+
+.quiz-prompt { font-weight: 600; margin-bottom: 0.5rem; }
+
+.quiz-options { list-style: none; margin: 0; padding: 0; }
+
+.quiz-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-family: var(--serif);
+  font-size: 0.95rem;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 0.55rem 0.9rem;
+  margin-bottom: 0.45rem;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.quiz-option:hover { background: var(--code-bg); }
+
+.quiz-option.selected { border-color: var(--accent); background: var(--accent-soft); }
+.quiz-option.correct   { border-color: var(--good); background: var(--good-bg); }
+.quiz-option.wrong     { border-color: var(--bad);  background: var(--bad-bg); }
+.quiz-option:disabled  { cursor: default; opacity: 0.9; }
+
+.quiz-explain {
+  display: none;
+  font-size: 0.9rem;
+  color: var(--ink);
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: 0.7rem 0.9rem;
+  margin-top: 0.6rem;
+}
+.quiz-explain.show { display: block; }
+
+.quiz-actions { margin-top: 0.5rem; }
+
+.quiz-btn {
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.45rem 0.9rem;
+  cursor: pointer;
+}
+.quiz-btn:hover { filter: brightness(1.08); }
+.quiz-btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--rule); }
+.quiz-btn.ghost:hover { color: var(--ink); }
+
+/* ---- Footer ----------------------------------------------------------- */
+.lesson-foot {
+  margin-top: 3rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--rule);
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.lesson-foot .primary-source { color: var(--ink); }
+
+.next-link {
+  display: inline-block;
+  margin-top: 1rem;
+  font-family: var(--sans);
+  font-weight: 600;
+}
+
+/* ---- Tables ------------------------------------------------------------ */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0;
+  font-size: 0.92rem;
+}
+
+th, td {
+  border: 1px solid var(--rule);
+  padding: 0.5rem 0.7rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: var(--code-bg);
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---- Print ------------------------------------------------------------ */
+@media print {
+  body { font-size: 11pt; }
+  main { max-width: none; padding: 0; }
+  .quiz-option, .quiz-btn { border-color: #999; }
+  a { color: var(--ink); }
+  pre { page-break-inside: avoid; }
+}

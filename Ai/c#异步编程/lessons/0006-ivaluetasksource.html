@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 6 课 · IValueTaskSource：让异步完成也零分配</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <header class="lesson-head">
+    <div class="kicker">Lesson 0006 · 运行时内部</div>
+    <h1>IValueTaskSource：让异步完成也零分配
+      <span class="subtitle">ValueTask 的第三种形态。读懂它，你就看穿了 Channel、Socket、Pipelines 为什么能快到这个地步。</span>
+    </h1>
+  </header>
+
+  <p><a href="0005-task-family-and-thread-pool.html">← 上一课：Task 家族与线程池</a></p>
+
+  <div class="note">
+    <span class="callout-label">先说清楚</span>
+    这是最硬核的一课。诚实讲：<strong>绝大多数人一辈子都不会自己实现 IValueTaskSource</strong>。但读懂它，你就真正理解了 .NET 高性能异步的地基——那些「零分配」「池化」不再是玄学。
+  </div>
+
+  <h2>ValueTask 的第三种形态</h2>
+  <p>上一课说 ValueTask 同步完成零分配、异步完成要包 Task。但 ValueTask 内部其实是一个<strong>判别联合</strong>，可能是三种东西之一：</p>
+  <ul>
+    <li><code>TResult</code> —— 同步结果，零分配。</li>
+    <li><code>Task&lt;T&gt;</code> —— 异步完成时的传统 Task。</li>
+    <li><code>IValueTaskSource&lt;T&gt;</code> —— <strong>第三种：对象自己就是「结果 + 调度器」</strong>。</li>
+  </ul>
+  <p>第三种形态，就是「异步完成也零分配」的关键。做法是：<strong>对象复用（池化）</strong>，每次操作不 new Task，而是让一个可复用的对象自己负责「完成时通知续延」。</p>
+
+  <h2>IValueTaskSource 接口长什么样</h2>
+  <pre><code>public interface IValueTaskSource&lt;out TResult&gt;
+{
+    ValueTaskSourceStatus GetStatus(short token);
+    TResult GetResult(short token);
+    void OnCompleted(Action&lt;object&gt; continuation, object state,
+                     short token, ValueTaskSourceOnCompletedFlags flags);
+}</code></pre>
+  <p>三个方法，职责分明：</p>
+  <ul>
+    <li><code>OnCompleted</code>：<strong>登记续延</strong>——await 时，编译器就是调它把「后面那段」挂上去。</li>
+    <li><code>GetResult</code>：完成时<strong>取结果</strong>（出错就抛异常）。</li>
+    <li><code>GetStatus</code>：查状态（Pending / Succeeded / Faulted / Canceled）。</li>
+  </ul>
+  <p>注意那个 <code>short token</code>——它是<strong>版本号</strong>。因为对象被池化复用，同一个对象可能先后服务很多次操作；token 用来区分「这次返回的 ValueTask 对应的是第几次」。旧 ValueTask 拿旧 token 去取结果，会得到 <code>InvalidOperationException</code>，而不是错拿别人的结果。</p>
+
+  <h2>最小例子：用现成的样板</h2>
+  <p>手写 IValueTaskSource 很繁琐，但 .NET 提供了一个现成的样板结构体 <code>ManualResetValueTaskSourceCore&lt;T&gt;</code>（在 <code>System.Threading.Tasks.Sources</code> 命名空间）。你只需要转发三个方法：</p>
+  <pre><code>using System.Threading.Tasks.Sources;
+
+class PooledAsyncOp : IValueTaskSource&lt;int&gt;
+{
+    private ManualResetValueTaskSourceCore&lt;int&gt; _core;
+
+    public ValueTask&lt;int&gt; RunAsync()
+    {
+        _core.Reset();                          // 复用前复位，版本号 +1
+        QueueWork(() =&gt; _core.SetResult(42));   // 真正的工作，完成时设结果
+        return new ValueTask&lt;int&gt;(this, _core.Version);  // 用当前版本号包起来
+    }
+
+    // 下面三行是纯样板，直接转发给 _core
+    public int GetResult(short token) =&gt; _core.GetResult(token);
+    public ValueTaskSourceStatus GetStatus(short token) =&gt; _core.GetStatus(token);
+    public void OnCompleted(Action&lt;object&gt; continuation, object state, short token,
+                            ValueTaskSourceOnCompletedFlags flags)
+        =&gt; _core.OnCompleted(continuation, state, token, flags);
+}</code></pre>
+  <p>关键点：</p>
+  <ul>
+    <li><code>Reset()</code> 让 <code>Version</code> 自增——这是 token 的来源。</li>
+    <li><code>RunAsync()</code> 每次返回 <code>new ValueTask&lt;int&gt;(this, version)</code>，<strong>不分配任何堆对象</strong>（ValueTask 是结构体，this 就是池里的对象）。</li>
+    <li>续延由 <code>_core</code> 统一管理，完成时它负责调度。</li>
+  </ul>
+
+  <h2>谁在用 IValueTaskSource</h2>
+  <p>它不是给你我日常写业务用的，是给<strong>基础设施</strong>用的：</p>
+  <ul>
+    <li><strong><code>Channel&lt;T&gt;</code></strong> 的 <code>ReadAsync</code> —— 返回 ValueTask，内部用池化的 IValueTaskSource，生产者-消费者流水线零分配。</li>
+    <li><strong><code>Socket</code></strong> 的新 API（.NET 6+）—— 高频网络收发零分配。</li>
+    <li><strong><code>Stream.ReadAsync(Memory&lt;byte&gt;)</code></strong>、<strong>System.IO.Pipelines</strong> —— 高性能 I/O 管线。</li>
+  </ul>
+  <p>这些「快」的背后，就是这套机制：<strong>不 new Task，复用对象自己当调度器。</strong></p>
+
+  <h2>那你什么时候才需要自己写？</h2>
+  <div class="key">
+    <span class="callout-label">结论</span>
+    <strong>几乎用不上。</strong>写业务、写 UI、写驱动，<code>Task</code> 就是正确默认；热路径测量出分配压力，先试 <code>ValueTask</code>；只有你在写「给几千人复用、要高吞吐零分配」的基础库时，才轮到 IValueTaskSource。看懂它，是为了<strong>读懂</strong> Channel/Socket/Pipelines 的底层，而不是为了亲手写它。
+  </div>
+
+  <h2>练习：检验一下 IValueTaskSource</h2>
+  <div class="quiz" data-quiz='{"questions":[{"type":"single","prompt":"ValueTask 内部可能是哪三种形态之一？","options":["TResult、Task、IValueTaskSource","TResult、Thread、Stream","Task、Exception、CancellationToken"],"answer":0,"explanation":"ValueTask 是判别联合：要么包同步结果 TResult、要么包 Task、要么包 IValueTaskSource（池化形态）。"},{"type":"single","prompt":"IValueTaskSource 里 short token 参数的作用是？","options":["版本号，防止池化复用错乱","返回值的大小","超时毫秒数"],"answer":0,"explanation":"对象被池化复用，token（版本号）用来区分「这次返回的 ValueTask 对应第几次操作」，防止旧 ValueTask 错拿新结果。"},{"type":"single","prompt":"OnCompleted 方法的作用是什么？","options":["登记续延（完成时回调）","取消这个操作","立刻得到结果"],"answer":0,"explanation":"await 时编译器调 OnCompleted 把「后面那段」挂上去；对象完成时负责调度这些续延。"},{"type":"single","prompt":".NET 里手写 IValueTaskSource 通常用哪个样板？","options":["ManualResetValueTaskSourceCore","AsyncTaskMethodBuilder","TaskCompletionSource"],"answer":0,"explanation":"ManualResetValueTaskSourceCore（System.Threading.Tasks.Sources）是官方提供的样板结构体，帮你处理版本号与续延管理，你只需转发三个方法。"},{"type":"single","prompt":"下面哪个是 IValueTaskSource 的实际使用场景？","options":["Channel、Socket、Pipelines 的零分配异步","普通 CRUD 的数据库访问","UI 按钮点击"],"answer":0,"explanation":"Channel.ReadAsync、Socket 新 API、Stream/Pipelines 都用池化 IValueTaskSource 实现零分配。业务代码用不到。"},{"type":"single","prompt":"你应该在什么时候自己实现 IValueTaskSource？","options":["极少数超高吞吐库，绝大多数用 Task 即可","所有异步方法都该实现","需要返回多个结果时"],"answer":0,"explanation":"只有写高吞吐、零分配的基础设施库才需要；日常用 Task、热路径用 ValueTask 就足够了。"}]}'></div>
+
+  <h2>必读主来源</h2>
+  <div class="note">
+    <span class="callout-label">Primary source</span>
+    <a href="https://devblogs.microsoft.com/dotnet/understanding-the-whys-whats-and-whens-of-valuetask/">Stephen Toub — "Understanding the Whys, Whats, and Whens of ValueTask"</a>。IValueTaskSource、ManualResetValueTaskSourceCore、token/版本号、池化，全都在这篇权威长文里（它也是第 5 课 ValueTask 的主来源，建议一起读完）。
+  </div>
+
+  <h2>下一步</h2>
+  <p>「零分配」这条线到顶了。下一课回到「写代码」层面，补一个现代 C# 的重要拼图：<strong>异步流（IAsyncEnumerable）</strong>——怎么异步地逐条产出数据，而不是一次性返回一个大集合。</p>
+  <p>相关术语见 <a href="../reference/glossary.html">词汇表</a>。</p>
+
+  <footer class="lesson-foot">
+    <p>有任何不清楚的——比如「token 为什么能防错乱」「池化对象会不会被并发用坏」——<strong>直接问我</strong>。</p>
+    <a class="next-link" href="../reference/glossary.html">查词汇表 →</a>
+  </footer>
+</main>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 2 课 · 编译器把 async 方法变成了状态机</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <header class="lesson-head">
+    <div class="kicker">Lesson 0002 · 编译器层</div>
+    <h1>编译器把 async 方法变成了状态机
+      <span class="subtitle">async 不是新线程，也不是新 Task——它是一段「分片执行、随时暂停」的机器。读懂它，你就看穿了 await 的全部魔法。</span>
+    </h1>
+  </header>
+
+  <p><a href="0001-async-is-not-multithreading.html">← 上一课：async 不是多线程</a></p>
+
+  <h2>上一课的悬念</h2>
+  <p>第一课说：<code>await</code> 是把「方法后半段」登记成续延。但编译器怎么做到把一个<strong>连续的方法</strong>切成两半，还能在将来从中间接着跑？</p>
+  <p>答案：编译器把你的方法改写成一台<strong>状态机</strong>。</p>
+
+  <h2>先记住一个事实</h2>
+  <div class="key">
+    <span class="callout-label">关键</span>
+    <code>async</code> <strong>不是方法签名的一部分</strong>（就像 <code>unsafe</code>）。它不改变方法返回类型，只告诉编译器：<em>把这个方法体按 await 切成若干段，编译成状态机</em>。
+  </div>
+
+  <h2>你写的 vs 编译器生成的</h2>
+  <p>这是你写的：</p>
+  <pre><code>async Task&lt;int&gt; AddAsync(int a, int b)
+{
+    await Task.Delay(1);
+    return a + b;
+}</code></pre>
+  <p>这是编译器改写的<strong>简化伪代码</strong>（真实生成代码更长，见文末主来源）：</p>
+  <pre><code>struct AddAsyncStateMachine : IAsyncStateMachine
+{
+    int state = -1;                        // 记录「跑到哪一段了」
+    AsyncTaskMethodBuilder&lt;int&gt; builder;  // 负责生成/完成 Task
+    int a, b;                              // 参数和局部变量 → 变成字段
+    TaskAwaiter awaiter;                   // 保存当前 await 的等待器
+
+    void MoveNext()
+    {
+        try
+        {
+            if (state != 0)                    // 第一次进来
+            {
+                awaiter = Task.Delay(1).GetAwaiter();
+                if (!awaiter.IsCompleted)      // 还没完成 → 要挂起
+                {
+                    state = 0;                 // 记下「下次从 await 之后继续」
+                    builder.AwaitUnsafeOnCompleted(ref awaiter, ref this);
+                    return;                    // ← 立刻返回，不阻塞！
+                }
+            }
+            // 快路径，或续延被唤醒后，落到这里
+            awaiter.GetResult();               // 取结果（出错则抛异常）
+            builder.SetResult(a + b);          // Task 完成
+        }
+        catch (Exception ex)
+        {
+            builder.SetException(ex);          // 异常塞进 Task
+        }
+    }
+}</code></pre>
+
+  <h2>这台机器怎么运转</h2>
+  <p>抓住四个动作，整台机器就通了：</p>
+  <ul>
+    <li><strong>挂起 = return</strong>。当 await 的 Task 还没完成，<code>MoveNext</code> 把 <code>state</code> 改成下一段，然后<strong>直接 return</strong>——这就是「不阻塞」在编译器层面的实现。</li>
+    <li><strong>续延 = 再调一次 MoveNext</strong>。Task 完成后，<code>AwaitUnsafeOnCompleted</code> 登记的回调会再次调用 <code>MoveNext</code>，它根据 <code>state</code> 跳到上次停下的地方接着跑。</li>
+    <li><strong>参数和局部变量 → 字段</strong>。因为方法「暂停」后栈帧就没了，所有要跨 await 存活的东西都得搬进结构体的字段里存着。</li>
+    <li><strong>builder 管 Task 的一生</strong>。创建 Task、<code>SetResult</code>、<code>SetException</code> 都由 <code>AsyncTaskMethodBuilder</code> 完成。</li>
+  </ul>
+
+  <h2>两个分配上的真相</h2>
+  <div class="key">
+    <span class="callout-label">性能关键</span>
+    <ul>
+      <li><strong>快路径零分配</strong>：如果所有 await 都<em>同步完成</em>（比如缓存命中、Task 已完成），状态机结构体<strong>根本不离开栈</strong>，不装箱、不堆分配。</li>
+      <li><strong>真正挂起才装箱</strong>：一旦异步挂起，结构体必须被<strong>装箱到堆上</strong>——因为栈会消失，而续延将来才运行。</li>
+    </ul>
+  </div>
+  <p>这也是为什么 async 方法的开销「按需支付」：完全同步的 async 方法几乎没有分配成本。</p>
+
+  <h2>顺带看清一件事：异常去哪了</h2>
+  <p>注意伪代码里的 <code>try/catch</code>：async 方法里抛的异常，不会直接炸到调用方，而是被 <code>SetException</code> <strong>塞进返回的 Task</strong>。等你 <code>await</code> 这个 Task 时，它才重新抛出。</p>
+  <p>这解释了后面会讲的两个现象：<strong>fire-and-forget 的异常会被吞</strong>（没 await 就没人拆包），以及 <strong><code>await</code> 出错的 Task 会在 await 处抛异常</strong>。先埋个伏笔。</p>
+
+  <h2>练习：检验一下状态机</h2>
+  <div class="quiz" data-quiz='{"questions":[{"type":"single","prompt":"async 方法会被编译器改写成什么？","options":["一个实现 IAsyncStateMachine 的状态机","一个继承 Task 的子类","一个后台工作线程"],"answer":0,"explanation":"编译器生成一个实现 IAsyncStateMachine 的类型（release 为结构体、debug 为类），方法体被拆进它的 MoveNext 里分段推进。"},{"type":"single","prompt":"状态机靠哪个字段记录『执行到哪一段了』？","options":["state 字段","builder 字段","awaiter 字段"],"answer":0,"explanation":"state 字段（生成代码里叫 <>1__state）记录当前位置；挂起前改成对应段号，续延醒来时据此跳转。"},{"type":"single","prompt":"当 await 的 Task 已经完成（快路径）时，会发生什么？","options":["不挂起，继续同步执行，零堆分配","仍然挂起，等一个线程来唤醒","先装箱上堆，再继续执行"],"answer":0,"explanation":"若 awaiter.IsCompleted 为真，直接往下走：状态机结构体留在栈上，不装箱、不堆分配。这是 async 高性能的关键。"},{"type":"single","prompt":"真正异步挂起时，状态机为什么必须装箱上堆？","options":["栈会消失，续延将来才运行，需在堆上保存","为了能被垃圾回收器统计","为了让多个线程能同时访问"],"answer":0,"explanation":"挂起后 MoveNext 就 return 了，栈帧被回收；但续延要在之后某个时刻运行，所以状态机要装箱到堆上长期保存。"},{"type":"single","prompt":"async 方法里抛出的异常，最终去了哪里？","options":["被 SetException 塞进返回的 Task","直接抛到调用它的线程","被静默吞掉"],"answer":0,"explanation":"MoveNext 的 try/catch 捕获异常，用 builder.SetException 把它存进 Task；等你 await 这个 Task 时才重新抛出。"}]}'></div>
+
+  <h2>必读主来源</h2>
+  <div class="note">
+    <span class="callout-label">Primary source</span>
+    <a href="https://devblogs.microsoft.com/dotnet/how-async-await-really-works/">Stephen Toub — "How Async/Await Really Works in C#"</a>。这一课的完整版（真实生成代码、builder 的细节、ExecutionContext 如何跨 async 流动）都在这篇权威长文里。想亲眼看编译器输出，可以用 <a href="https://sharplab.io">sharplab.io</a> 把上面的 <code>AddAsync</code> 贴进去，选「C# → IL 降级」。
+  </div>
+
+  <h2>下一步</h2>
+  <p>现在你知道 async 方法是一台「分片 + 续延」的机器了。下一课回答一个自然的问题：<strong>续延被唤醒后，到底在哪个线程、哪个「上下文」上跑？</strong>——这就引出 <code>SynchronizationContext</code>，以及那个最经典的死锁。</p>
+  <p>相关术语见 <a href="../reference/glossary.html">词汇表</a>。</p>
+
+  <footer class="lesson-foot">
+    <p>有任何不清楚的——比如「为什么要装箱」「<code>IsCompleted</code> 快路径到底是什么」——<strong>直接问我</strong>。</p>
+    <a class="next-link" href="../reference/glossary.html">查词汇表 →</a>
+  </footer>
+</main>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

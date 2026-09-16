@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 5 课 · Task 家族与线程池</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <header class="lesson-head">
+    <div class="kicker">Lesson 0005 · 运行时</div>
+    <h1>Task 家族与线程池
+      <span class="subtitle">Task.Run 到底借不借线程？线程池怎么调度？ValueTask 凭什么能省分配？把「异步」和「多线程」的最后一块拼图补上。</span>
+    </h1>
+  </header>
+
+  <p><a href="0004-exceptions-async-void-cancellation.html">← 上一课：异常与取消</a></p>
+
+  <h2>Task.Run 到底借不借线程</h2>
+  <p>回到第一课埋下的区分。这里把它坐实：</p>
+  <div class="key">
+    <span class="callout-label">关键</span>
+    <code>Task.Run(() =&gt; ...)</code> 返回的是<strong>委托任务</strong>：它把委托排进<strong>线程池队列</strong>，等一个线程池线程来执行。<strong>它需要并占有一个真实线程</strong>。
+  </div>
+  <p>所以 <code>Task.Run</code> 和「真异步 I/O」是两回事：</p>
+  <pre><code>// CPU-bound：要算，用 Task.Run 把活丢给线程池（比如从 UI 线程卸载）
+var result = await Task.Run(() =&gt; ComputeHeavy(input));
+
+// I/O-bound：本来就是异步的，别再包 Task.Run
+var html = await httpClient.GetStringAsync(url);   // 等待期间无线程</code></pre>
+  <p>一句话记住：<strong>async/await 解决「等 I/O 时别占线程」；Task.Run 解决「要算时找个线程来算」。</strong></p>
+
+  <h2>线程池怎么调度</h2>
+  <p>.NET 的线程池是一组复用的工作线程：</p>
+  <ul>
+    <li>有<strong>全局队列</strong> + 每个线程一个<strong>本地队列</strong>；线程会从别的线程的本地队列「偷活」（work-stealing）来平衡负载。</li>
+    <li>续延（async 唤醒）、<code>Task.Run</code> 的委托、<code>ThreadPool.QueueUserWorkItem</code>，都进这个池。</li>
+  </ul>
+  <p>但最要命的一点是——</p>
+  <div class="warn">
+    <span class="callout-label">诊断要点</span>
+    线程池会动态加线程，但<strong>注入很慢（大约每秒一个）</strong>。如果线程池线程都被阻塞在同步 I/O 上，它加线程的速度远远赶不上请求涌入的速度，吞吐就会崩。
+  </div>
+  <p>这正是「<strong>别阻塞线程池线程</strong>」「<strong>async 一路到底</strong>」的底层原因：真正的异步 I/O 在等待时<strong>把线程还回池子</strong>，线程才能去服务别的请求。</p>
+
+  <h2>Task.Run 的使用礼仪</h2>
+  <p>Stephen Cleary 的规矩，照着做就不会错：</p>
+  <ul>
+    <li><strong>别在库方法内部包 Task.Run 做「假异步」</strong>——把同步方法套一层 <code>await Task.Run(...)</code> 只是换了个线程阻塞，不是真异步。库方法要么保持同步签名，要么换成真异步实现。</li>
+    <li><strong>Task.Run 属于「调用点」</strong>——比如 UI 线程要跑一段 CPU-bound 活，<em>调用方</em>决定包不包。</li>
+    <li><strong>先换真异步</strong>：<code>WebClient</code> → <code>HttpClient</code>、<code>Thread.Sleep</code> → <code>Task.Delay</code>。</li>
+    <li><strong>ASP.NET 里 <code>await Task.Run</code> 是四重浪费</strong>：多余线程切换、额外 GC、扰乱线程池启发式、客户端断线时无法提前终止请求。服务端要么真异步 I/O，要么同步干。</li>
+  </ul>
+  <pre><code>// 反模式：把同步方法包成「假异步」藏在实现里
+async Task&lt;int&gt; BadAsync()
+{
+    return await Task.Run(() =&gt; ComputeHeavy());   // 别这样
+}</code></pre>
+
+  <h2>ValueTask：凭什么能省分配</h2>
+  <p><code>Task</code> 是<strong>类</strong>（引用类型），每次返回都要分配一个堆对象。运行时缓存了 <code>Task.CompletedTask</code> 和几个 <code>Task&lt;bool&gt;</code>/<code>Task&lt;int&gt;</code>，但很多「同步完成」仍会分配。</p>
+  <p><code>ValueTask&lt;T&gt;</code> 是<strong>结构体</strong>：</p>
+  <ul>
+    <li><strong>同步完成</strong>：直接把 <code>TResult</code> 包进去，<strong>零分配</strong>。</li>
+    <li><strong>异步完成</strong>：才包一个 <code>Task&lt;T&gt;</code>（.NET Core 2.1 起还能借 <code>IValueTaskSource</code> 池化，异步也零分配）。</li>
+  </ul>
+  <pre><code>// 高频路径：缓存命中时同步完成，零分配
+ValueTask&lt;int&gt; GetAsync()
+{
+    if (cache.TryGet(key, out var value))
+        return new ValueTask&lt;int&gt;(value);   // 零分配
+    return new ValueTask&lt;int&gt;(FetchAndCacheAsync(key));
+}</code></pre>
+  <div class="warn">
+    <span class="callout-label">限制</span>
+    <code>ValueTask</code> <strong>不能被 await 两次、不能并发等待、不能在完成前 <code>.GetAwaiter().GetResult()</code> 阻塞</strong>。默认用 <code>Task</code>；只有测量到热路径的分配压力时，才换 <code>ValueTask</code>。
+  </div>
+
+  <h2>练习：检验一下 Task 家族与线程池</h2>
+  <div class="quiz" data-quiz='{"questions":[{"type":"single","prompt":"Task.Run 的本质是什么？","options":["把委托排进线程池队列，由线程池线程执行","注册一个续延，不占线程","发起一个真正的异步 I/O"],"answer":0,"explanation":"Task.Run 是委托任务：把委托排进线程池队列，需要并占有一个真实线程来执行。它和真异步 I/O 是两回事。"},{"type":"single","prompt":"真正的异步 I/O 等待期间，线程池线程被占用吗？","options":["没有，等待期间无线程","有，占了一个等它完成","有，占用了两个"],"answer":0,"explanation":"呼应第一课：真正的异步 I/O 由设备/内核完成，等待期间没有任何线程被占用，线程被还回池子。"},{"type":"single","prompt":"线程池线程被阻塞时，线程池会怎样反应？","options":["缓慢注入新线程，吞吐会崩","立刻补齐线程，无影响","自动把所有线程换成异步"],"answer":0,"explanation":"线程池注入新线程很慢（约每秒一个），远赶不上请求涌入速度；所以阻塞线程池线程会导致吞吐崩塌——这是『别阻塞、async 一路到底』的底层原因。"},{"type":"single","prompt":"Cleary 建议 Task.Run 应该在哪里用？","options":["调用点，而非库方法内部","库方法内部，做假异步包装","任何地方都可以"],"answer":0,"explanation":"Task.Run 属于调用点（如 UI 线程要跑 CPU-bound 活），不该藏在库方法内部把同步方法包成假异步。"},{"type":"single","prompt":"async 方法 await 之前的代码，跑在哪个线程上？","options":["调用它的线程（同步段）","随机线程池线程","新开的线程"],"answer":0,"explanation":"await 之前的同步段就在调用线程上同步执行；直到 await 真正异步挂起后，续延才被调度到线程池或回上下文。"},{"type":"single","prompt":"ValueTask 相比 Task 的核心优势是什么？","options":["同步完成路径零分配（值类型）","能被 await 多次","能并发等待"],"answer":0,"explanation":"ValueTask 是结构体，同步完成时直接包结果、零分配；代价是限制多：不能 await 两次、不能并发等待。"}]}'></div>
+
+  <h2>必读主来源</h2>
+  <div class="note">
+    <span class="callout-label">Primary source</span>
+    <a href="https://blog.stephencleary.com/2013/10/taskrun-etiquette-and-proper-usage.html">Stephen Cleary — "Task.Run Etiquette and Proper Usage"</a>（Task.Run 怎么用、为什么别做假异步）。ValueTask 看 <a href="https://devblogs.microsoft.com/dotnet/understanding-the-whys-whats-and-whens-of-valuetask/">Stephen Toub — "Understanding the Whys, Whats, and Whens of ValueTask"</a>（下一课会继续深挖 IValueTaskSource）。
+  </div>
+
+  <h2>下一步</h2>
+  <p>ValueTask 你已经会用了，下一课往下钻它最硬核的部分：<strong>IValueTaskSource</strong>——一个对象怎么既当「结果」又当「调度器」，让异步完成也零分配。</p>
+  <p>相关术语见 <a href="../reference/glossary.html">词汇表</a>。</p>
+
+  <footer class="lesson-foot">
+    <p>有任何不清楚的——比如「线程池到底怎么 work-stealing」「ValueTask 为什么不能 await 两次」——<strong>直接问我</strong>。</p>
+    <a class="next-link" href="../reference/glossary.html">查词汇表 →</a>
+  </footer>
+</main>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

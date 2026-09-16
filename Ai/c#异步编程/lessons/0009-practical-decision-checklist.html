@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 9 课 · 实战决策清单</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <header class="lesson-head">
+    <div class="kicker">Lesson 0009 · 收尾</div>
+    <h1>实战决策清单
+      <span class="subtitle">八课的理论，浓缩成一张写代码时直接对照的检查表。这一课没有新概念，全是「该怎么做」。</span>
+    </h1>
+  </header>
+
+  <p><a href="0008-executioncontext-and-asynclocal.html">← 上一课：ExecutionContext 与 AsyncLocal</a></p>
+
+  <h2>决策 1：这个方法该同步还是异步？</h2>
+  <p>先问本质：它是 <strong>I/O 密集</strong> 还是 <strong>CPU 密集</strong>？</p>
+  <ul>
+    <li><strong>I/O 密集</strong>（网络、文件、数据库、串口）→ 用<strong>真异步</strong>（<code>HttpClient</code>、<code>FileStream.ReadAsync</code>、真异步串口库）。</li>
+    <li><strong>CPU 密集</strong>（计算、图像处理）→ <strong>保持同步签名</strong>，让调用方决定要不要 <code>Task.Run</code> 卸载。</li>
+  </ul>
+  <div class="key">
+    <span class="callout-label">铁律</span>
+    同步方法用同步签名，异步方法用异步签名。<strong>别做假异步</strong>：别把同步方法包成 <code>await Task.Run(...)</code> 藏在库内部。
+  </div>
+
+  <h2>决策 2：async void 能用吗？</h2>
+  <p>只有<strong>事件处理器</strong>能用（签名固定 void，别无选择）。其余一律 <code>async Task</code> / <code>async Task&lt;T&gt;</code>。</p>
+  <p>原因：async void 异常没有 Task 可装，会直接炸到上下文；在 ASP.NET Core/控制台里直接<strong>崩进程</strong>。</p>
+
+  <h2>决策 3：要不要 ConfigureAwait(false)？</h2>
+  <ul>
+    <li><strong>库代码</strong>：默认加 <code>ConfigureAwait(false)</code>（库不该依赖特定 UI/框架上下文）。</li>
+    <li><strong>应用代码</strong>（UI 控制器、ASP.NET Core）：通常<strong>不加</strong>（续延要回原上下文）。</li>
+  </ul>
+  <div class="warn">
+    <span class="callout-label">别误用</span>
+    <code>ConfigureAwait(false)</code> <strong>不是躲死锁的工具</strong>——那是 hack。防死锁的正解永远是「别阻塞」。
+  </div>
+
+  <h2>决策 4：Task.Run 用在哪儿？</h2>
+  <ul>
+    <li>✅ 只用于：<strong>CPU-bound 工作在「调用点」卸载</strong>（比如 UI 线程要算个重的，别卡 UI）。</li>
+    <li>❌ 别用于：真正的 I/O（有真异步 API 就别包）。</li>
+    <li>❌ 别藏在库方法内部（调用方失去选择权）。</li>
+  </ul>
+
+  <h2>决策 5：能不能阻塞？</h2>
+  <p>有 SynchronizationContext 的线程（UI / 旧 ASP.NET）上，<strong>永远别</strong> <code>.Result</code> / <code>.Wait()</code> / <code>.GetAwaiter().GetResult()</code>。坚持 <strong>async 一路到底</strong>（async all the way down）。</p>
+
+  <h2>决策 6：Task 还是 ValueTask？</h2>
+  <ul>
+    <li><strong>默认 Task</strong>。</li>
+    <li>只有热路径<strong>测量出分配压力</strong>，才换 <code>ValueTask</code>，并记住它的限制（不能 await 两次、不能并发等待）。</li>
+  </ul>
+
+  <h2>决策 7：要不要加取消？</h2>
+  <p>长任务 / 可被用户取消的操作，接受 <code>CancellationToken</code> 并<strong>一路传下去</strong>：底层 API 传 token，自己写检查点 <code>ThrowIfCancellationRequested()</code>。默认 <code>CancellationToken.None</code>。</p>
+
+  <h2>决策 8：异常怎么处理？</h2>
+  <ul>
+    <li><code>await</code> 出错 Task → 在 await 处 <code>try/catch</code>，抓到的是<strong>原始异常</strong>（非 AggregateException）。</li>
+    <li><strong>别 fire-and-forget</strong>；真要，异常必须显式记日志或用后台任务承载。</li>
+  </ul>
+
+  <h2>反模式速查表</h2>
+  <table>
+    <thead>
+      <tr><th>反模式</th><th>问题</th><th>正解</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>async void</code>（非事件处理器）</td><td>异常炸进程、无法 await</td><td><code>async Task</code></td></tr>
+      <tr><td>库内部 <code>await Task.Run(同步)</code></td><td>假异步、浪费线程池</td><td>同步签名，调用点再 Task.Run</td></tr>
+      <tr><td><code>.Result</code>/<code>.Wait()</code> 阻塞</td><td>有上下文时死锁</td><td>async 一路到底 + await</td></tr>
+      <tr><td>fire-and-forget 不处理异常</td><td>异常静默丢失</td><td>记日志 / 后台任务</td></tr>
+      <tr><td><code>await Task.Run(http.GetAsync(...))</code></td><td>双重假异步</td><td>直接 <code>await GetAsync</code></td></tr>
+      <tr><td>长任务不传 CancellationToken</td><td>无法取消、可能泄漏</td><td>传 token + 检查点</td></tr>
+    </tbody>
+  </table>
+
+  <h2>练习：判断这些做法对不对</h2>
+  <div class="quiz" data-quiz='{"questions":[{"type":"single","prompt":"库方法里做纯 CPU 计算，为了统一风格把它包成 async Task 返回。这个做法？","options":["错误，是假异步，应保持同步签名","正确，统一异步更整洁","正确，能提升性能"],"answer":0,"explanation":"把同步方法包成 async Task 是假异步：只是换个线程阻塞，调用方还失去了选择权。保持同步签名。"},{"type":"single","prompt":"WPF 按钮点击事件里用 .Result 阻塞等待一个异步方法。这个做法？","options":["错误，会死锁，应改 async void + await","正确，简单直接","正确，只要加了 ConfigureAwait(false)"],"answer":0,"explanation":"有 UI SynchronizationContext 时 .Result 会死锁。事件处理器改 async void，用 await 而不是阻塞。"},{"type":"single","prompt":"发 HTTP 请求的方法，用 await Task.Run(() => GetStringAsync(url).Result) 实现。这个做法？","options":["错误，双重假异步，应直接 await GetStringAsync","正确，把 I/O 挪到线程池","正确，更快"],"answer":0,"explanation":"GetStringAsync 本来就是真异步，再包 Task.Run + .Result 是双重假异步，白白占一个线程池线程。"},{"type":"single","prompt":"库代码里默认给所有 await 加 ConfigureAwait(false)。这个做法？","options":["正确，库不该依赖特定上下文","错误，会让数据丢失","错误，会导致死锁"],"answer":0,"explanation":"库代码默认 ConfigureAwait(false) 是推荐做法：库不该依赖 UI/框架上下文，也让调用方免于被库强行拉回上下文。"},{"type":"single","prompt":"调用一个 async Task 方法但不 await（fire-and-forget），它的异常会？","options":["静默丢失，应显式记录或改后台任务","自动记录到日志","抛到 UI 线程"],"answer":0,"explanation":"异常被塞进 Task 却无人观察，静默丢失。真要 fire-and-forget，必须显式记日志或用后台任务承载。"},{"type":"single","prompt":"热路径测量出 Task 分配压力，把它改成 ValueTask。这个做法？","options":["正确，但要遵守 ValueTask 的限制","错误，ValueTask 总是更差","错误，应该改成 async void"],"answer":0,"explanation":"测量出分配压力后改 ValueTask 是对的，但记住它不能 await 两次、不能并发等待。"}]}'></div>
+
+  <h2>这份清单的出处</h2>
+  <div class="note">
+    <span class="callout-label">Primary source</span>
+    这份清单浓缩自课程里的几篇权威：<a href="https://blog.stephencleary.com/2012/07/dont-block-on-async-code.html">Don't Block on Async Code</a>（Cleary）、<a href="https://github.com/davidfowl/AspNetCoreDiagnosticScenarios/blob/master/AsyncGuidance.md">Async Guidance</a>（Fowler）、<a href="https://blog.stephencleary.com/2013/10/taskrun-etiquette-and-proper-usage.html">Task.Run Etiquette</a>（Cleary）、<a href="https://devblogs.microsoft.com/dotnet/configureawait-faq/">ConfigureAwait FAQ</a>（Toub）。完整资源见 <a href="../RESOURCES.md">RESOURCES.md</a>。
+  </div>
+
+  <h2>课程完成 🎉</h2>
+  <p>九课全部走完。这份清单你可以打印出来贴手边（本页有打印样式）。回顾整条主线，检查你当初的目标：</p>
+  <ul>
+    <li>✅ 一句话说清 <code>await</code> 做了什么（续延而非线程）</li>
+    <li>✅ 预测并规避死锁、吞异常、async void 等经典坑</li>
+    <li>✅ 读懂状态机、SynchronizationContext、ValueTask、IValueTaskSource、异步流、ExecutionContext</li>
+    <li>✅ 给同事讲清异步、做自信的 code review</li>
+  </ul>
+
+  <footer class="lesson-foot">
+    <p>整门课结束了，但学习没结束——接下来最好<strong>用真实代码验证一下</strong>：找一段你手头的串口/WPF 代码，用这份清单过一遍。有任何地方卡住，<strong>直接问我</strong>，我是你的老师。</p>
+    <a class="next-link" href="../reference/glossary.html">查词汇表 →</a>
+  </footer>
+</main>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

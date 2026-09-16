@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 3 课 · 续延跑在哪：SynchronizationContext 与死锁</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <header class="lesson-head">
+    <div class="kicker">Lesson 0003 · 运行时</div>
+    <h1>续延跑在哪：SynchronizationContext 与死锁
+      <span class="subtitle">状态机是「怎么停」，这一课讲「停完回到哪」。搞错回归的地方，就得到那个最经典的死锁。</span>
+    </h1>
+  </header>
+
+  <p><a href="0002-the-async-state-machine.html">← 上一课：状态机</a></p>
+
+  <h2>上一课的悬念</h2>
+  <p>第二课说：Task 完成后，续延会被「某个线程」唤醒继续跑。那么到底是<strong>哪个线程</strong>？</p>
+  <p>答案由一个东西决定：<strong>SynchronizationContext</strong>。</p>
+
+  <h2>SynchronizationContext 是什么</h2>
+  <p>它是一个<strong>调度抽象</strong>，回答一个问题：await 之后的续延，该被「投递」（post）回哪个线程或上下文？</p>
+  <ul>
+    <li><strong>默认（无上下文）</strong>：控制台程序、线程池。续延直接跑在线程池上。</li>
+    <li><strong>UI 应用</strong>（WPF / WinForms）：上下文是「回到 UI 线程」——续延被 post 进 UI 的消息循环，由 UI 线程执行。因为只有 UI 线程能碰控件。</li>
+    <li><strong>.NET Framework 的 ASP.NET</strong>：请求上下文，限定同一时间只有一个线程处理该请求。</li>
+  </ul>
+
+  <h2>ConfigureAwait 在改什么</h2>
+  <p><code>await</code> 默认等价于 <code>ConfigureAwait(true)</code>：<strong>续延尝试回到 await 前捕获的那个上下文</strong>。</p>
+  <pre><code>// 默认：续延回到原上下文（如 UI 线程）
+await SomeAsync();
+
+// 显式：续延不用回原上下文，直接在线程池跑
+await SomeAsync().ConfigureAwait(false);</code></pre>
+  <p>区别只有一点：<strong>续延要不要「回家」</strong>。回到 UI 上下文更安全（能碰控件），但有开销；回线程池更快，但不能直接碰 UI。</p>
+
+  <h2>死锁是怎么发生的</h2>
+  <p>经典场景：<strong>WPF/WinForms 的 UI 线程</strong>（或 .NET Framework 的 ASP.NET）上，同步阻塞了一个异步方法。</p>
+  <pre><code>// 运行在 UI 线程上
+void OnButtonClick()
+{
+    string html = GetHtmlAsync().Result;   // ← 用 .Result 同步阻塞！
+}
+
+async Task&lt;string&gt; GetHtmlAsync()
+{
+    string html = await http.GetStringAsync(url);
+    return html;
+}</code></pre>
+  <p>四步走进死锁：</p>
+  <ol>
+    <li>UI 线程调用 <code>GetHtmlAsync()</code>，执行到 <code>await</code>（网络 I/O 挂起），方法返回一个<strong>未完成的 Task</strong>。</li>
+    <li><code>OnButtonClick</code> 调 <code>.Result</code>，<strong>把 UI 线程卡住</strong>，原地等这个 Task 完成。</li>
+    <li>网络 I/O 完成，续延要回来——它<strong>默认要回到 UI 线程</strong>的 SynchronizationContext。</li>
+    <li>但 UI 线程正被 <code>.Result</code> 占着，续延永远排不上队。于是 <code>.Result</code> 等 Task，Task 的续延等 UI 线程空出来——<strong>互相等，死锁</strong>。</li>
+  </ol>
+  <div class="warn">
+    <span class="callout-label">诊断要点</span>
+    这不是「线程池被耗尽」，而是<strong>「上下文线程被阻塞，续延回不去」</strong>。看到 <code>.Result</code> / <code>.Wait()</code> / <code>.GetAwaiter().GetResult()</code> 出现在有上下文的线程上，就要警觉。
+  </div>
+
+  <h2>两条防线</h2>
+  <p>Stephen Cleary 给的标准答案：</p>
+  <div class="key">
+    <span class="callout-label">正解</span>
+    <ol>
+      <li><strong>别阻塞异步代码</strong>（async all the way down）：把 <code>OnButtonClick</code> 改成 <code>async void</code>，用 <code>await</code> 而不是 <code>.Result</code>。上下文始终没被阻塞，死锁从根上消失。</li>
+      <li><strong>库代码用 <code>ConfigureAwait(false)</code></strong>：让库的续延不回原上下文，这样无论谁在什么上下文调用它，都不会「需要」那个上下文。</li>
+    </ol>
+  </div>
+  <p>但 Cleary 特别警告：</p>
+  <div class="warn">
+    <span class="callout-label">危险实践</span>
+    <strong>用 <code>ConfigureAwait(false)</code> 去「躲」一个已知死锁是 hack</strong>。因为你必须覆盖整条调用链（含第三方库）里的每一个 await，这根本不可控。真正的解药永远是<strong>「别阻塞」</strong>。
+  </div>
+
+  <h2>现代 .NET 的一个重要变化</h2>
+  <p>记住这条，能省你很多误判：</p>
+  <div class="key">
+    <span class="callout-label">关键事实</span>
+    <strong>ASP.NET Core 移除了 SynchronizationContext</strong>。所以在 ASP.NET Core 里，上面那个「<code>.Result</code> + 回请求上下文」的经典死锁<strong>基本不会发生</strong>。但 <strong>WPF / WinForms / WinUI</strong> 这些 UI 框架仍然有上下文，坑依然真实存在。
+  </div>
+  <p>所以现在 <code>ConfigureAwait(false)</code> 在 ASP.NET Core 里主要是个「省一点点调度开销」的习惯，不再关乎死锁；但在 UI 应用里，它和「别阻塞」依然关键。</p>
+
+  <h2>练习：检验一下上下文与死锁</h2>
+  <div class="quiz" data-quiz='{"questions":[{"type":"single","prompt":"SynchronizationContext 决定的是什么？","options":["续延回到哪个线程或上下文","Task 是否真的异步","异常如何传播"],"answer":0,"explanation":"SynchronizationContext 是一个调度抽象：决定 await 之后的续延被投递回哪个线程/上下文（UI 线程、请求上下文或线程池）。"},{"type":"single","prompt":"await 默认（等价 ConfigureAwait(true)）会怎样？","options":["回到捕获的 SynchronizationContext","直接跑在线程池上","新开一个线程"],"answer":0,"explanation":"默认 true：续延尝试回到 await 前捕获的那个 SynchronizationContext（如 UI 线程），以便安全地碰 UI 控件。"},{"type":"single","prompt":"ConfigureAwait(false) 的作用是？","options":["续延不回原上下文，直接在线程池跑","让 await 阻塞更久","取消这个 Task"],"answer":0,"explanation":"false 表示『续延不需要回原上下文』，于是直接调度到线程池，省掉回 UI/请求上下文的开销。"},{"type":"single","prompt":"WPF 里 .Result 阻塞 UI 线程导致死锁，根本原因是？","options":["UI 线程被阻塞，续延又回不去 UI 线程","线程池线程耗尽","Task 被垃圾回收了"],"answer":0,"explanation":"UI 线程被 .Result 阻塞着等 Task；而续延按默认要回到 UI 线程的 SynchronizationContext，但 UI 线程被占着，续延永远跑不了——互相等，死锁。"},{"type":"single","prompt":"ASP.NET Core 里还会发生那个经典死锁吗？","options":["不会，它移除了 SynchronizationContext","会，和 .NET Framework 一样","只在控制台里发生"],"answer":0,"explanation":"ASP.NET Core 不再使用 SynchronizationContext，所以『阻塞 + 回上下文』的死锁基本消失；但 WPF/WinForms 等 UI 框架仍有，坑依然在。"}]}'></div>
+
+  <h2>必读主来源</h2>
+  <div class="note">
+    <span class="callout-label">Primary source</span>
+    <a href="https://blog.stephencleary.com/2012/07/dont-block-on-async-code.html">Stephen Cleary — "Don't Block on Async Code"</a>。死锁的成因、两条防线、以及「ConfigureAwait(false) 是危险 hack」的原话都在这篇。配合 <a href="https://devblogs.microsoft.com/dotnet/configureawait-faq/">ConfigureAwait FAQ</a> 一起看。
+  </div>
+
+  <h2>下一步</h2>
+  <p>死锁讲清了，下一课处理另一个高频坑：<strong>异常去哪儿了</strong>——为什么 fire-and-forget 会静默吞异常、<code>async void</code> 为什么能炸掉整个进程、以及如何正确做取消（CancellationToken）。</p>
+  <p>相关术语见 <a href="../reference/glossary.html">词汇表</a>。</p>
+
+  <footer class="lesson-foot">
+    <p>有任何不清楚的——比如「为什么 UI 线程必须负责碰控件」「ConfigureAwait(false) 到底省了什么」——<strong>直接问我</strong>。</p>
+    <a class="next-link" href="../reference/glossary.html">查词汇表 →</a>
+  </footer>
+</main>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

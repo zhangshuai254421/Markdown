@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 7 课 · 异步流（IAsyncEnumerable）</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <header class="lesson-head">
+    <div class="kicker">Lesson 0007 · 现代 C#</div>
+    <h1>异步流：IAsyncEnumerable
+      <span class="subtitle">前面都是「一个方法返回一个结果」。要「异步地逐条产出」——逐行读大文件、持续收设备数据——就用它。</span>
+    </h1>
+  </header>
+
+  <p><a href="0006-ivaluetasksource.html">← 上一课：IValueTaskSource</a></p>
+
+  <h2>先看一个熟悉的同步写法</h2>
+  <p>你肯定写过这个：</p>
+  <pre><code>IEnumerable&lt;int&gt; GetNumbers()
+{
+    for (int i = 0; i &lt; 10; i++)
+        yield return i;      // 惰性、逐条产出
+}</code></pre>
+  <p>它不一次性返回整个集合，而是「要一条产一条」。<strong>异步流就是它的异步版</strong>——方法体里既能 <code>await</code>，又能 <code>yield return</code>。</p>
+
+  <h2>异步流的写法</h2>
+  <pre><code>async IAsyncEnumerable&lt;int&gt; GenerateAsync()
+{
+    for (int i = 0; i &lt; 10; i++)
+    {
+        await Task.Delay(100);   // 每条之间异步等待
+        yield return i;          // 逐条产出
+    }
+}
+
+// 消费：await foreach
+await foreach (var item in GenerateAsync())
+{
+    Console.WriteLine(item);
+}</code></pre>
+  <p>核心是两件事：产出端用 <code>async IAsyncEnumerable&lt;T&gt;</code>，消费端用 <code>await foreach</code>。</p>
+
+  <h2>为什么不直接返回 Task&lt;List&lt;T&gt;&gt;？</h2>
+  <p>三个理由：</p>
+  <ul>
+    <li><strong>内存</strong>：大集合要一次性全载入内存。异步流是「边产边消费」，内存只留当前一条。</li>
+    <li><strong>延迟</strong>：<code>Task&lt;List&lt;T&gt;&gt;</code> 必须等<em>全部</em>完成才能开始处理第一条；异步流拿到第一条就能开始。</li>
+    <li><strong>可无限、可中断</strong>：数据源可以无限（持续上报的设备），消费端随时 <code>break</code> 提前结束。</li>
+  </ul>
+
+  <h2>实战：逐行读大文件 + 取消</h2>
+  <p>这个场景很常见，也贴合你的设备/文件处理：</p>
+  <pre><code>async IAsyncEnumerable&lt;string&gt; ReadLinesAsync(
+    string path,
+    [EnumeratorCancellation] CancellationToken token = default)
+{
+    using var reader = new StreamReader(path);
+    while (!reader.EndOfStream)
+    {
+        token.ThrowIfCancellationRequested();       // 检查点
+        yield return await reader.ReadLineAsync(); // 逐行产出
+    }
+}
+
+// 消费：UI 点「停止」时取消
+await foreach (var line in ReadLinesAsync(path).WithCancellation(cts.Token))
+{
+    Process(line);
+}</code></pre>
+  <p>取消有两种传法，各有适用：</p>
+  <ul>
+    <li><strong><code>WithCancellation(token)</code></strong>：对<em>任何</em>来源的 <code>IAsyncEnumerable</code> 都有效。</li>
+    <li><strong><code>[EnumeratorCancellation]</code> 参数</strong>：方法自己接收 token，不「烧死」在某一次枚举上，可多次枚举传不同 token。</li>
+  </ul>
+
+  <h2>贴合你的场景：设备数据流</h2>
+  <p>你之前问的串口/激光器场景，就可以把「设备持续上报」封装成异步流：</p>
+  <pre><code>async IAsyncEnumerable&lt;string&gt; ReadDeviceFramesAsync(CancellationToken token = default)
+{
+    while (!token.IsCancellationRequested)
+    {
+        string frame = await ReadNextFrameAsync(token);  // 收一帧（真异步读，或专用读线程）
+        yield return frame;                              // 抛给消费端
+    }
+}
+
+// UI 端：
+await foreach (var frame in ReadDeviceFramesAsync(cts.Token))
+{
+    UpdateDisplay(frame);   // 一帧一帧刷新
+}</code></pre>
+  <p>注意：底层「收一帧」如果走的是你之前那条阻塞串口，得用第 5 课那套（真异步 <code>BaseStream</code> 或专用读线程 + <code>Channel</code>）来接，别在异步流里直接阻塞。</p>
+
+  <h2>底层：它还是那个状态机</h2>
+  <p>呼应第 2 课——<code>async IAsyncEnumerable&lt;T&gt;</code> 方法同样被编译成状态机，枚举器的 <code>MoveNextAsync()</code> 返回 <code>ValueTask&lt;bool&gt;</code>（呼应第 5/6 课：用 ValueTask 省分配）。</p>
+  <pre><code>public interface IAsyncEnumerable&lt;out T&gt;
+{
+    IAsyncEnumerator&lt;T&gt; GetAsyncEnumerator(CancellationToken ct = default);
+}
+
+public interface IAsyncEnumerator&lt;out T&gt; : IAsyncDisposable
+{
+    ValueTask&lt;bool&gt; MoveNextAsync();   // 返回「还有没有下一条」
+    T Current { get; }
+}</code></pre>
+  <div class="warn">
+    <span class="callout-label">注意</span>
+    同一个枚举器的 <code>MoveNextAsync</code> <strong>不能并发调用</strong>，<code>DisposeAsync</code> 也不能在它进行中调用。<code>await foreach</code> 天然遵守这些规则，但手动调 <code>MoveNextAsync</code>（比如套超时）时容易踩坑。
+  </div>
+
+  <h2>练习：检验一下异步流</h2>
+  <div class="quiz" data-quiz='{"questions":[{"type":"single","prompt":"IAsyncEnumerable 是哪个同步特性的异步版？","options":["IEnumerable 与 yield return（惰性逐条）","Task 与 await","List 与 foreach"],"answer":0,"explanation":"异步流是 IEnumerable+yield return 的异步版：方法体里既能 await 又能 yield return，逐条产出。"},{"type":"single","prompt":"消费异步流用什么语法？","options":["await foreach","Task.WhenAll","await using"],"answer":0,"explanation":"用 await foreach 逐条异步迭代；await using 是异步释放（IAsyncDisposable），不是消费语法。"},{"type":"single","prompt":"为什么不直接返回 Task&lt;List&lt;T&gt;&gt; 而要异步流？","options":["大集合占内存，且须全部完成才能开始处理","异步流更快地做 CPU 计算","异步流自动多线程并行"],"answer":0,"explanation":"异步流是流式：边产边消费、内存只留当前一条、拿到第一条就能开始，还能无限或提前 break。"},{"type":"single","prompt":"async IAsyncEnumerable 方法会被编译成什么？","options":["状态机（和 async Task 一样）","一个后台线程","一个 Channel"],"answer":0,"explanation":"和第二课一样，编译器把它改写成状态机；枚举器的 MoveNextAsync 返回 ValueTask<bool>。"},{"type":"single","prompt":"异步流里怎么传递取消 token？","options":["WithCancellation 或 [EnumeratorCancellation] 参数","只能用全局静态 CancellationToken","异步流不支持取消"],"answer":0,"explanation":"两种方式：WithCancellation(token) 对任意来源有效；[EnumeratorCancellation] 参数让方法自己接收，可多次枚举传不同 token。"},{"type":"single","prompt":"IAsyncEnumerator.MoveNextAsync 返回什么类型？","options":["ValueTask&lt;bool&gt;","Task&lt;bool&gt;","bool"],"answer":0,"explanation":"返回 ValueTask<bool>（呼应第 5/6 课：用 ValueTask 省分配），bool 表示「还有没有下一条」。"}]}'></div>
+
+  <h2>必读主来源</h2>
+  <div class="note">
+    <span class="callout-label">Primary source</span>
+    <a href="https://learn.microsoft.com/en-us/archive/msdn-magazine/2019/november/csharp-iterating-with-async-enumerables-in-csharp-8">Stephen Toub — "Iterating with Async Enumerables in C# 8"</a>。接口定义、编译产物、线程规则、取消两种方式，全在这篇权威文章里。
+  </div>
+
+  <h2>下一步</h2>
+  <p>最后一课回到一个「看不见但处处在」的东西：<strong>ExecutionContext 与 AsyncLocal</strong>——为什么 <code>HttpContext</code>、<code>AsyncLocal&lt;T&gt;</code> 这些「环境数据」能跨 await 流动，<code>ConfigureAwait(false)</code> 又为什么影响不了它。</p>
+  <p>相关术语见 <a href="../reference/glossary.html">词汇表</a>。</p>
+
+  <footer class="lesson-foot">
+    <p>有任何不清楚的——比如「异步流和 Channel 什么关系」「怎么边读边取消」——<strong>直接问我</strong>。</p>
+    <a class="next-link" href="../reference/glossary.html">查词汇表 →</a>
+  </footer>
+</main>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

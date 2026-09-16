@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>词汇表 — C# 异步编程</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <header class="lesson-head">
+    <div class="kicker">Reference</div>
+    <h1>词汇表 <span class="subtitle">本课程统一使用的术语定义。每一课都遵守这份表，不另造词。</span></h1>
+  </header>
+
+  <p class="footnote">这份词汇表会随课程推进持续扩充。定义当前只到「已讲」的深度，后续课会加粗、加深。</p>
+
+  <h2>核心心智模型</h2>
+
+  <h3>async / await</h3>
+  <p>C# 的异步语法。`async` 标记一个方法「内部含 await、可挂起」；`await` 不是「阻塞等待」，而是「把方法后半段登记成续延，然后立刻返回控制权」。</p>
+
+  <h3>Task</h3>
+  <p>一个「承诺」（promise）：代表将来会完成、并携带结果或异常的对象。它<b>不是线程</b>，也不保证「有另一个线程在跑它」。</p>
+
+  <h3>续延（continuation）</h3>
+  <p>一个 await 之后的那段代码。它会被登记为「等这个 Task 完成时再执行」的回调，而不是立刻执行。</p>
+
+  <h3>委托任务 / 承诺任务（Delegate Task / Promise Task）</h3>
+  <p>Stephen Cleary 的区分：<code>Task.Run</code> 产生的是<b>委托任务</b>——代表一段要执行的代码，需要一个线程；async 方法返回的是<b>承诺任务</b>——只代表「完成通知」，自己没有线程。</p>
+
+  <h2>底层机制（预告，后续课展开）</h2>
+
+  <h3>线程池（ThreadPool）</h3>
+  <p>复用一组工作线程的池子，含全局队列 + 每线程本地队列（work-stealing）。续延默认跑在某个线程池线程上；线程被阻塞时它注入新线程很慢（约每秒一个）。</p>
+
+  <h3>Task.Run</h3>
+  <p>把委托排进线程池队列执行（委托任务，需要真实线程）。用于在调用点卸载 CPU-bound 工作，不该藏在库方法内部做「假异步」。</p>
+
+  <h3>ValueTask</h3>
+  <p>值类型的 Task 替代：同步完成时直接包结果、零分配；异步完成才包 Task。限制：不能 await 两次、不能并发等待。</p>
+
+  <h3>IValueTaskSource&lt;T&gt;</h3>
+  <p>ValueTask 的第三种形态：对象自己实现「完成时通知续延」，配合池化让异步完成也零分配。token 是版本号，防复用错乱。</p>
+
+  <h3>ManualResetValueTaskSourceCore&lt;T&gt;</h3>
+  <p>手写 IValueTaskSource 的官方样板结构体（在 System.Threading.Tasks.Sources）。</p>
+
+  <h3>I/O-bound / CPU-bound</h3>
+  <p>I/O 密集用 async/await（等待期间释放线程）；CPU 密集需要线程来算，用 Task.Run/并行。</p>
+
+  <h3>SynchronizationContext</h3>
+  <p>决定「续延回到哪个上下文」的调度抽象（如 UI 线程、ASP.NET 请求上下文）。默认回到捕获的上下文；ASP.NET Core 移除了它。</p>
+
+  <h3>ConfigureAwait</h3>
+  <p><code>ConfigureAwait(true)</code>（默认）续延回到原上下文；<code>ConfigureAwait(false)</code> 续延直接跑线程池，不回原上下文。</p>
+
+  <h3>死锁（deadlock）</h3>
+  <p>在带上下文的线程（UI / 旧 ASP.NET）上同步阻塞（<code>.Result</code>/<code>.Wait()</code>）异步代码时：阻塞线程等 Task，续延等该线程空出来，互相等。正解是「别阻塞」。</p>
+
+  <h3>状态机（state machine）</h3>
+  <p>编译器把 async 方法改写成的一个实现了 <code>IAsyncStateMachine</code> 的类型（release 为结构体、debug 为类），用 <code>MoveNext</code> 分段推进，用 <code>state</code> 字段记录当前段。</p>
+
+  <h3>AsyncTaskMethodBuilder</h3>
+  <p>async 方法的「builder」，负责创建返回的 Task、在结束时 <code>SetResult</code>/<code>SetException</code>。Task / ValueTask / 自定义 task-like 各有对应的 builder。</p>
+
+  <h3>装箱（boxing）</h3>
+  <p>结构体状态机在真正异步挂起时被复制到堆上，以便续延将来运行时还能找到它。快路径（同步完成）不装箱。</p>
+
+  <h2>异常与取消</h2>
+
+  <h3>async void</h3>
+  <p>仅用于事件处理器（签名固定为 void）。异常没有 Task 可装，会直接抛到上下文；在 ASP.NET Core/控制台里会炸掉整个进程。</p>
+
+  <h3>fire-and-forget</h3>
+  <p>调用 async Task 方法但不 await。异常被塞进 Task 却无人观察，静默丢失。</p>
+
+  <h3>CancellationToken</h3>
+  <p>协作式取消的信号。任务须自行检查（<code>ThrowIfCancellationRequested</code> 或传给底层 API）才退出；取消时抛 OperationCanceledException。</p>
+
+  <h3>AggregateException</h3>
+  <p>多个异常的容器。.Result/.Wait() 用它包装异常；await 则会解包、直接抛第一个原始异常。</p>
+
+  <h2>异步流</h2>
+
+  <h3>IAsyncEnumerable&lt;T&gt;</h3>
+  <p>IEnumerable 的异步版：async 方法里用 yield return 逐条产出，消费端用 await foreach。</p>
+
+  <h3>await foreach</h3>
+  <p>消费异步流的语法，逐条异步迭代。</p>
+
+  <h3>IAsyncDisposable</h3>
+  <p>异步释放接口，配合 await using；异步流枚举器实现它。</p>
+
+  <h2>环境数据</h2>
+
+  <h3>ExecutionContext</h3>
+  <p>逻辑上下文的容器，携带 AsyncLocal、安全信息等环境数据。async 续延跨线程运行时靠它捕获/恢复，让数据跟着走。</p>
+
+  <h3>AsyncLocal&lt;T&gt;</h3>
+  <p>构建在 ExecutionContext 上的「异步流环境变量」，跨 await 存活且各异步流互相隔离。HttpContext、CultureInfo、Activity 都靠它。</p>
+
+  <h2>历史模式</h2>
+
+  <h3>APM / EAP / TAP</h3>
+  <p>三种异步模式：APM（Begin/End + IAsyncResult 回调）、EAP（事件式）、TAP（基于 Task，即现代 async/await 的标准）。</p>
+</main>
+</body>
+</html>

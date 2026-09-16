@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 4 课 · 异常去哪儿了：async void、fire-and-forget 与取消</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <header class="lesson-head">
+    <div class="kicker">Lesson 0004 · 实战雷区</div>
+    <h1>异常去哪儿了：async void、fire-and-forget 与取消
+      <span class="subtitle">异常在 async 世界里不是「抛」的，是「装进 Task 再拆」的。搞不清这一层，bug 会静默消失。</span>
+    </h1>
+  </header>
+
+  <p><a href="0003-synchronization-context-and-deadlock.html">← 上一课：SynchronizationContext 与死锁</a></p>
+
+  <h2>第二课的伏笔，现在拆开</h2>
+  <p>还记得状态机的 <code>try/catch</code> 吗？async 方法里抛的异常，会被捕获、用 <code>SetException</code> <strong>塞进返回的 Task</strong>。所以异常在 async 世界里是「存储-再抛出」的两段式，不是同步那样直接抛。</p>
+  <pre><code>async Task DoWorkAsync()
+{
+    await Task.Delay(100);
+    throw new InvalidOperationException("boom");   // 被塞进 Task
+}
+
+// 调用方：
+try
+{
+    await DoWorkAsync();          // 异常在 await 处被重新抛出
+}
+catch (InvalidOperationException ex)   // 注意：是原始类型！
+{
+    // ...
+}</code></pre>
+  <p>两个关键事实：</p>
+  <ul>
+    <li><strong><code>await</code> 会「解包」</strong>：直接抛<strong>第一个原始异常</strong>，不是 <code>AggregateException</code>。</li>
+    <li><strong><code>.Result</code> / <code>.Wait()</code> 抛 <code>AggregateException</code></strong>：因为 Task 理论上可能聚合多个异常（如 <code>Task.WhenAll</code>）。</li>
+  </ul>
+
+  <h2>雷区一：fire-and-forget 静默吞异常</h2>
+  <p>如果你调用一个 async Task 方法，却<strong>不 await 它</strong>：</p>
+  <pre><code>_ = DoWorkAsync();   // 发起但不等待，异常无人拆包 → 静默丢失</code></pre>
+  <p>异常被塞进了 Task，但没人去观察那个 Task，于是它<strong>永远不冒出来</strong>。你的程序照常跑，bug 却已经埋下了——这是最阴险的一类问题。</p>
+  <div class="warn">
+    <span class="callout-label">诊断要点</span>
+    看到代码里「调用了返回 Task 的方法却没 await、也没赋给变量」或 <code>_ =</code> 丢弃，就要追问：它的异常打算怎么办？真要 fire-and-forget，必须显式把异常记进日志，或用后台任务（hosted service）承载。
+  </div>
+
+  <h2>雷区二：async void 能炸掉整个进程</h2>
+  <p><code>async void</code> 没有 Task 可装异常。那它的异常去哪了？直接<strong>抛到当前 SynchronizationContext</strong>：</p>
+  <ul>
+    <li>在 <strong>WPF/WinForms</strong> 里：抛到 UI 线程，成为未处理异常，可能崩界面。</li>
+    <li>在 <strong>ASP.NET Core / 控制台</strong>里：没有上下文，直接抛到线程池线程，<strong>炸掉整个进程</strong>。</li>
+  </ul>
+  <p>David Fowler 的原话：<strong>async void 在 ASP.NET Core 里永远是错的，绝不要用。</strong></p>
+  <div class="key">
+    <span class="callout-label">唯一例外</span>
+    <code>async void</code> 只用于<strong>事件处理器</strong>（如 <code>OnButtonClick</code>），因为事件签名固定是 <code>void</code>，别无选择。其余一律 <code>async Task</code> / <code>async Task&lt;T&gt;</code>。
+  </div>
+
+  <h2>雷区三：取消不是「杀线程」</h2>
+  <p>想中止一个长任务？正确工具是 <code>CancellationToken</code>，但它<strong>是协作式的</strong>——不是强制杀线程，而是「设一个标志，任务自己检查退出」。</p>
+  <pre><code>using var cts = new CancellationTokenSource();
+var token = cts.Token;
+
+var task = DownloadAsync(url, token);
+cts.Cancel();          // 触发取消（只是设置标志）
+
+async Task&lt;string&gt; DownloadAsync(string url, CancellationToken token)
+{
+    using var resp = await http.GetAsync(url, token);   // ① token 传给底层 API
+    token.ThrowIfCancellationRequested();               // ② 自己的检查点
+    return await resp.Content.ReadAsStringAsync(token);
+}</code></pre>
+  <ul>
+    <li>取消发生时，通常抛 <code>OperationCanceledException</code>（<code>TaskCanceledException</code> 继承自它），Task 进入 <strong>Canceled</strong> 状态（不是 Faulted）。</li>
+    <li>惯例：async 方法接受一个 <code>CancellationToken</code> 参数（默认 <code>CancellationToken.None</code>），并把它一路传下去。</li>
+  </ul>
+
+  <h2>练习：检验一下异常与取消</h2>
+  <div class="quiz" data-quiz='{"questions":[{"type":"single","prompt":"await 一个出错的 Task 时，抛出的异常是什么类型？","options":["原始异常类型，被解包（非 AggregateException）","AggregateException","OperationCanceledException"],"answer":0,"explanation":"await 走 TaskAwaiter.GetResult()，直接抛第一个原始异常；而 .Result/.Wait() 抛 AggregateException。"},{"type":"single","prompt":".Result 或 .Wait() 在 Task 出错时抛什么？","options":["AggregateException","原始异常类型","不会抛异常"],"answer":0,"explanation":".Result/.Wait() 会把异常包进 AggregateException（因为 Task 理论上可能聚合多个异常）。"},{"type":"single","prompt":"调用一个 async Task 方法但不 await（fire-and-forget），它抛异常会怎样？","options":["静默丢失，没人拆包","仍然会抛到调用方","自动写进日志"],"answer":0,"explanation":"异常被塞进 Task，但没人 await/观察它，于是静默丢失。这是 fire-and-forget 最危险的地方。"},{"type":"single","prompt":"在 ASP.NET Core 里，async void 方法抛异常会怎样？","options":["直接炸掉整个进程","被运行时捕获并忽略","自动转成 Task 记录"],"answer":0,"explanation":"async void 没有 Task 装异常，异常直接抛到线程池线程，进程崩溃。Fowler：async void 在 ASP.NET Core 里永远是错的。"},{"type":"single","prompt":"CancellationToken 的取消是强制杀线程吗？","options":["不是，是协作式的，任务自己检查退出","是，会立刻终止线程","会回滚已执行的操作"],"answer":0,"explanation":"取消是协作式的：Cancel() 只设置一个标志，任务必须自己检查（ThrowIfCancellationRequested 或传给底层 API）才退出。"},{"type":"single","prompt":"async void 唯一合理的用途是？","options":["事件处理器","库的公共 API","后台定时任务"],"answer":0,"explanation":"只有事件处理器必须返回 void（签名固定），才允许 async void；其余一律 async Task。"}]}'></div>
+
+  <h2>必读主来源</h2>
+  <div class="note">
+    <span class="callout-label">Primary source</span>
+    <a href="https://github.com/davidfowl/AspNetCoreDiagnosticScenarios/blob/master/AsyncGuidance.md">David Fowler — "Async Guidance"</a>。async void、fire-and-forget、Task.Run 误用、ContinueWith 陷阱，都是微软 ASP.NET 团队从真实事故里提炼的戒律。取消机制看官方 <a href="https://learn.microsoft.com/en-us/dotnet/standard/threading/cancellation-in-managed-threads">Task cancellation 文档</a>。
+  </div>
+
+  <h2>下一步</h2>
+  <p>四个高频坑讲完了。下一课回到「底层」并往前推：<strong>Task 家族与线程池</strong>——<code>Task.Run</code> 到底借不借线程、线程池怎么调度、以及 <code>ValueTask</code> 为什么能省分配。</p>
+  <p>相关术语见 <a href="../reference/glossary.html">词汇表</a>。</p>
+
+  <footer class="lesson-foot">
+    <p>有任何不清楚的——比如「为什么 await 要解包」「取消到底和杀线程差在哪」——<strong>直接问我</strong>。</p>
+    <a class="next-link" href="../reference/glossary.html">查词汇表 →</a>
+  </footer>
+</main>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 1 课 · async 不是多线程</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <header class="lesson-head">
+    <div class="kicker">Lesson 0001 · 心智模型</div>
+    <h1>async 不是多线程
+      <span class="subtitle">await 是「注册续延」，不是「开新线程等结果」。这是理解一切异步的承重墙。</span>
+    </h1>
+  </header>
+
+  <h2>先回答一个反直觉的问题</h2>
+  <p>你写了八年 <code>await</code>。那么——</p>
+  <div class="key">
+    <span class="callout-label">提问</span>
+    <code>var html = await client.GetStringAsync(url);</code>
+    这行代码在等网络返回的那几百毫秒里，<strong>有没有一个线程在替你「等」？</strong>
+  </div>
+  <p>答案是：<strong>没有。</strong> 对真正的异步 I/O 来说，等待期间没有任何线程被占用。这正是 async 与「多线程」最反直觉、也最容易被误解的地方。</p>
+
+  <h2>为什么会有 async/await</h2>
+  <p>先看问题。同步 I/O 是这样的：</p>
+  <pre><code>byte[] data = File.ReadAllBytes(path);  // 线程在这里空转，等磁盘</code></pre>
+  <p>读文件时，<strong>线程什么也不干，就在那儿等</strong>。线程很贵：每个线程默认占约 1 MB 栈内存，线程池有上限，线程间切换（上下文切换）有开销。</p>
+  <p>如果 1000 个客户端同时请求，每个都用一个线程空等 I/O，就需要 1000 个线程 —— 内存和调度很快会崩溃。</p>
+  <p>于是历史上一路演化出几个答案：</p>
+  <ul>
+    <li><strong>APM</strong>（<code>BeginRead</code>/<code>EndRead</code> + <code>IAsyncResult</code>）：显式回调，能用但组合起来是「回调地狱」。</li>
+    <li><strong>EAP</strong>（事件式 <code>XxxAsync</code>/<code>XxxCompleted</code>）：略好，但仍啰嗦。</li>
+    <li><strong>TPL</strong>（.NET 4 的 <code>Task</code>）：统一了「任务」概念，但要手写 <code>ContinueWith</code>。</li>
+    <li><strong>async/await</strong>（C# 5）：<strong>让编译器替你写那些回调</strong>。</li>
+  </ul>
+  <p>所以 async/await 不是新魔法，它本质是：<strong>把「回调」这件事，用看起来像同步代码的语法写出来。</strong></p>
+
+  <h2>核心心智模型：await = 注册续延</h2>
+  <p>看一段代码，注意注释：</p>
+  <pre><code>async Task&lt;string&gt; FetchAsync()
+{
+    // ① 发起异步请求，立刻拿到一个 Task（还没结果）
+    var task = client.GetStringAsync(url);
+
+    // ② await：把「后面这段」登记成续延，然后立刻返回控制权
+    var html = await task;   // ← 方法在这里「挂起」，线程被释放
+
+    // ③ 续延：将来某个线程池线程会从这里继续
+    return html;
+}</code></pre>
+  <p>关键点：</p>
+  <ul>
+    <li><code>await</code> <strong>不阻塞</strong>。它把「await 之后的代码」打包成一段回调（叫<strong>续延</strong>），登记到那个 Task 上，然后方法<strong>立刻返回</strong>。</li>
+    <li>所以 async 方法在 await 处「返回」了，但方法还<strong>没完成</strong>——它只是把控制权交还了调用方。</li>
+    <li>将来 Task 完成时，这段续延才会被调度去执行（通常跑在一个线程池线程上）。</li>
+  </ul>
+
+  <h2>两种 Task，别混淆</h2>
+  <p>Stephen Cleary 有一个极有用的区分：</p>
+  <div class="key">
+    <span class="callout-label">核心区分</span>
+    <ul>
+      <li><strong>委托任务</strong>（Delegate Task）：<code>Task.Run(() => ...)</code> 返回的。它代表「有一段代码要去执行」，<strong>需要占用一个线程</strong>。</li>
+      <li><strong>承诺任务</strong>（Promise Task）：async 方法返回的 Task。它只代表「完成的通知」，<strong>自己没有线程</strong>。</li>
+    </ul>
+  </div>
+  <p>async/await 主要打交道的是<strong>承诺任务</strong>。而「没有线程」这个真相，正发生在承诺任务等待真正异步 I/O 的那一刻。</p>
+
+  <h2>练习：检验一下心智模型</h2>
+  <p>不看解释，先凭直觉选。</p>
+
+  <div class="quiz" data-quiz='{"questions":[{"type":"single","prompt":"在真正的异步 I/O 上执行 await 时，当前线程会怎样？","options":["原地阻塞，直到 I/O 完成","登记续延后，立即返回控制权","新开一个线程去等 I/O 完成"],"answer":1,"explanation":"await 不是「阻塞等待」。它把方法 await 之后的代码登记成一段回调（续延），然后立刻把控制权交还调用方，线程被释放去干别的。"},{"type":"single","prompt":"对真正的异步 I/O（如网络/磁盘）来说，等待期间有一个线程被占用吗？","options":["有，线程池借了一个线程等它","没有，设备与内核在完成，期间无线程","有，就是发起调用的那个线程"],"answer":1,"explanation":"这正是 Stephen Cleary《There Is No Thread》的核心：真正的异步 I/O 由设备/DMA 完成，完成后通过中断 + IOCP 才短暂借一个线程池线程跑续延。"},{"type":"single","prompt":"Task 对象本质上是什么？","options":["一个正在执行代码的工作线程","一个代表未来完成的「承诺」","一个编译器生成的状态机"],"answer":1,"explanation":"Task 是一个 promise：代表将来会完成、并携带结果或异常的对象。它既不是线程，也不是状态机（状态机是 async 方法的实现细节）。"},{"type":"single","prompt":"Task.Run(...) 返回的 Task，和 async 方法返回的 Task，区别是？","options":["没有区别，两者都是 Task","前者代表要执行的代码，后者代表完成通知","前者是值类型，后者是引用类型"],"answer":1,"explanation":"Cleary 的经典区分：Task.Run 给的是「委托任务」——代表要跑的一段代码，需要一个线程；async 方法给的是「承诺任务」——只代表完成通知，自己没有线程。"}]}'></div>
+
+  <h2>必读主来源</h2>
+  <p>这一课的全部内容，来自这一篇文章的展开：</p>
+  <div class="note">
+    <span class="callout-label">Primary source</span>
+    <a href="https://blog.stephencleary.com/2013/11/there-is-no-thread.html">Stephen Cleary — "There Is No Thread"</a>（约 15 分钟）。它把一次异步写操作从你的代码一直追到设备驱动，证明「没有线程」。强烈建议现在就读一遍。
+  </div>
+
+  <h2>下一步</h2>
+  <p>心智模型立住了，下一课就往下钻一层：<strong>编译器到底把 async 方法编译成了什么</strong>（那个叫「状态机」的东西）。这是「读懂底层」的第一步，也是你看懂 <code>IAsyncStateMachine</code>、<code>MoveNext</code> 的入口。</p>
+  <p>相关术语见 <a href="../reference/glossary.html">词汇表</a>。</p>
+
+  <footer class="lesson-foot">
+    <p>有任何不清楚的——比如「为什么 Task 不是线程」「那 Task.Run 到底什么时候用」——<strong>直接问我</strong>，我是你的老师。</p>
+    <a class="next-link" href="../reference/glossary.html">查词汇表 →</a>
+  </footer>
+</main>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
