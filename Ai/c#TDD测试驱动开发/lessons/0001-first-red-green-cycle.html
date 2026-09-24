@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 1 课 · 第一轮红绿循环</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="lesson-head">
+  <div class="kicker">C# TDD 课程 · 第 1 课</div>
+  <h1>第一轮红绿循环<span class="subtitle">用一条串口帧校验和，把 RED → GREEN → REFACTOR 跑进手指</span></h1>
+</header>
+
+<p>你在《代码整洁之道》里读到过 TDD，也知道它的承诺：改代码不再靠胆量，因为身后永远跟着一张安全网。但「知道」和「会用」之间隔着一样东西——<strong>节奏</strong>。这一课只做一件事：带你完整跑通一轮循环，让节奏第一次发生在你的手指上。</p>
+
+<h2>先记住这个节奏</h2>
+
+<p>TDD 的全部动作只有一个，被无限重复（<a href="https://martinfowler.com/bliki/TestDrivenDefinition.html">Fowler</a>；<a href="https://www.oreilly.com/library/view/test-driven-development/9780321146533/">Beck, 2002</a>）：</p>
+
+<div class="cycle">
+  <div class="cycle-step red">
+    <div class="step-name">RED 红灯</div>
+    <div class="step-goal">为下一个小行为写一条测试，<strong>亲眼看它失败</strong></div>
+  </div>
+  <div class="cycle-arrow">→</div>
+  <div class="cycle-step green">
+    <div class="step-name">GREEN 绿灯</div>
+    <div class="step-goal">用<strong>最小</strong>的代码让这条测试通过</div>
+  </div>
+  <div class="cycle-arrow">→</div>
+  <div class="cycle-step refactor">
+    <div class="step-name">REFACTOR 重构</div>
+    <div class="step-goal">绿灯保护下清理代码，<strong>测试保持全绿</strong></div>
+  </div>
+</div>
+
+<p>支撑节奏的是三条铁律（<a href="https://www.oreilly.com/library/view/clean-code-a/9780136083238/">Clean Code 第 9 章</a>）：没有失败测试不写生产代码；测试只写到「刚好失败」；生产代码只写到「刚好通过」。纪律、清单和命令都浓缩在 <a href="../reference/red-green-refactor.html">红绿重构速查卡</a> 里，本轮循环里随时翻。</p>
+
+<h2>动手：五分钟搭好试验场</h2>
+
+<p>例子取自你的老朋友——串口通讯。设备帧末尾常带一个 XOR 校验字节（LRC），今天我们用 TDD 造它：输入帧 <code>0x10, 0x02</code>，校验和 <code>0x10 ^ 0x02 = 0x12</code>。找个空目录：</p>
+
+<pre><code>dotnet new sln -n TddLab
+dotnet new classlib -o FrameCodec           # 被测代码
+dotnet new xunit    -o FrameCodec.Tests     # 测试项目
+dotnet sln add FrameCodec FrameCodec.Tests
+dotnet add FrameCodec.Tests reference FrameCodec
+dotnet test                                  # 模板自带 1 条示例测试，全绿</code></pre>
+
+<p>把模板生成的 <code>Class1.cs</code>、<code>UnitTest1.cs</code> 删掉。试验场干净了。</p>
+
+<h2>RED：先写一个会失败的测试</h2>
+
+<p>注意顺序——测试在前，被测类根本还不存在。建 <code>FrameCodec.Tests/ChecksumTests.cs</code>：</p>
+
+<pre><code>using FrameCodec;
+using Xunit;
+
+public class ChecksumTests
+{
+    [Fact]
+    public void Xor_of_10_and_02_is_12()
+    {
+        byte[] frame = { 0x10, 0x02 };
+        Assert.Equal(0x12, Frame.XorChecksum(frame));
+    }
+}</code></pre>
+
+<p>跑 <code>dotnet test</code>：<strong>编译错误</strong>——<code>Frame</code> 不存在。这是本轮的第一个红灯，而且失败原因正确：那个功能确实还不存在（铁律二说编译错误也算失败）。</p>
+
+<p>为了让红灯变成「断言级」的——更清晰、更接近以后每天看到的样子——建一个故意的空实现：</p>
+
+<pre><code>namespace FrameCodec;
+
+public static class Frame
+{
+    public static byte XorChecksum(byte[] bytes)
+    {
+        return 0;   // 故意错的：只为让红灯有形
+    }
+}</code></pre>
+
+<p>再跑一次：<code>Expected: 0x12 But was: 0x00</code>。<strong>停三秒，看着这条红。</strong>你马上会明白为什么它是仪式。</p>
+
+<h2>GREEN：最小实现</h2>
+
+<p>目标只有一个：让这条测试通过。不多不少：</p>
+
+<pre><code>public static byte XorChecksum(byte[] bytes)
+{
+    byte acc = 0;
+    foreach (var b in bytes) acc ^= b;
+    return acc;
+}</code></pre>
+
+<p><code>dotnet test</code> —— 绿。克制住「顺手把 hex 解析、帧头校验都写了」的冲动：它们各自有属于自己的红灯，会在以后的循环里逼出来。</p>
+
+<h2>REFACTOR：绿灯保护下的清理</h2>
+
+<p>现在安全网张开了。做一轮小清理——重命名参数、换成表达力更好的写法：</p>
+
+<pre><code>public static byte XorChecksum(byte[] payload) =>
+    payload.Aggregate((byte)0, (acc, b) => (byte)(acc ^ b));</code></pre>
+
+<p>再跑 <code>dotnet test</code>：<strong>依然绿</strong>。这就是你要的那张安全网——重构前不敢做的改动，现在做完一秒内就知道没改坏。体验过这一次，「重构更有底气」就不再是口号。</p>
+
+<div class="key">
+  <span class="callout-label">本课核心</span>
+  <strong>先亲眼看它失败。</strong>一条从没红过的测试不可信：它可能因为默认值、环境或根本没被执行而「永远绿」。先红后绿，证明这条测试<strong>真的在检查</strong>你写的东西——这是 TDD 区别于「事后补测试」的第一道分水岭。
+</div>
+
+<h2>检查一下节奏感</h2>
+
+<div class="quiz" data-quiz='{
+  "questions": [
+    {
+      "type": "single",
+      "prompt": "一轮 TDD 循环的第一步永远是？",
+      "options": [
+        "先写一个刚失败的测试",
+        "先写一个能通过的实现",
+        "先写一份可执行的设计",
+        "先搭一个可运行的工程"
+      ],
+      "answer": 0,
+      "explanation": "铁律一：不在没有失败测试的情况下写生产代码。红灯不是障碍，而是每一轮的起点——它定义了这一轮要造的下一个行为。"
+    },
+    {
+      "type": "single",
+      "prompt": "第一次跑测试直接报编译错误，这算有效红灯吗？",
+      "options": [
+        "算，它证明功能确实不存在",
+        "算，它与断言失败完全等价",
+        "不算，红灯必须由断言触发",
+        "不算，得先补出空实现再测"
+      ],
+      "answer": 0,
+      "explanation": "Clean Code 铁律二明确：编译错误也算失败。不过断言级红灯信息更干净（期望 vs 实际），所以本课的循环里我们又推进了一步，让红灯变成断言失败——两种都有效，断言级更常用。"
+    },
+    {
+      "type": "single",
+      "prompt": "GREEN 阶段唯一允许的目标是？",
+      "options": [
+        "让当前这条失败的测试变绿",
+        "让手头这个功能一次写到位",
+        "让整个模块的测试全部通过",
+        "让代码结构顺便再漂亮一点"
+      ],
+      "answer": 0,
+      "explanation": "铁律三：生产代码只写到「刚好通过」。「一次写到位」会在没有测试保护的情况下引入成片行为；「顺便美化」属于 REFACTOR 阶段的事，且必须发生在绿灯之后。"
+    },
+    {
+      "type": "single",
+      "prompt": "「亲眼看它先失败」这件事本身的价值是？",
+      "options": [
+        "验证这条测试真的在检查",
+        "验证这段功能还没有实现",
+        "验证这套环境已经装得对",
+        "验证这个框架能正常运行"
+      ],
+      "answer": 0,
+      "explanation": "「功能还没实现」只是失败的原因，不是看它失败的价值。价值在于：一条从没红过的测试不可信——它可能因为默认值、环境或根本没被执行而永远绿。先红后绿才证明这条测试有牙齿。"
+    },
+    {
+      "type": "multiple",
+      "prompt": "REFACTOR 阶段允许的动作是？（多选）",
+      "options": [
+        "重命名变量让含义更直白",
+        "提取重复逻辑成新方法",
+        "新增一个没测试过的功能",
+        "放宽断言让红灯先变绿"
+      ],
+      "answer": [0, 1],
+      "explanation": "重构只改变代码的样子，不改变行为。新增行为必须回到 RED 开新一轮；放宽断言是自欺——安全网一旦松动，重构就失去保护。"
+    }
+  ]
+}'></div>
+
+<h2>课后作业：自己再跑三圈</h2>
+
+<p>在课堂代码上继续，每圈都严格走 <a href="../reference/red-green-refactor.html">红 → 绿 → 重构</a>，每圈先亲眼看红：</p>
+
+<ol>
+  <li><strong>全新行为</strong>：解析十六进制帧字符串——<code>Frame.Parse("10 02")</code> 应返回 <code>new byte[] { 0x10, 0x02 }</code>。建议拆小：<code>Parse("10")</code> 先红，绿了之后 <code>Parse("10 02")</code> 再红。</li>
+  <li><strong>边界</strong>：<code>Parse("")</code> 应返回空数组。</li>
+  <li><strong>想一想</strong>（不用写代码）：给已完成的 <code>XorChecksum</code> 补一条 <code>XorChecksum(Array.Empty&lt;byte&gt;()) == 0x00</code> 的测试。先预测：它是红是绿？跑了之后，这个结果和「先亲眼看它失败」矛盾吗？把你的想法带回来。</li>
+</ol>
+
+<footer class="lesson-foot">
+  <p><span class="primary-source">本课首选原著：Kent Beck《Test-Driven Development: By Example》第 1–2 章</span>——Money 例子就是本课节奏的原型，读时会不断认出今天跑过的每一拍。<a href="https://www.oreilly.com/library/view/test-driven-development/9780321146533/">图书页</a>。</p>
+  <p>卡在哪一步、红灯颜色不对、作业里的「想一想」有疑问——随时回到对话里问你的老师（Claude），这就是答疑通道。下一课预告：<strong>Triangulation（三角定位）</strong>——怎么用第二条测试逼走硬编码，顺便认识 xUnit 的 <code>Theory</code>。</p>
+  <p class="next-link"><a href="../reference/red-green-refactor.html">← 回看：红绿重构速查卡</a></p>
+</footer>
+
+</main>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

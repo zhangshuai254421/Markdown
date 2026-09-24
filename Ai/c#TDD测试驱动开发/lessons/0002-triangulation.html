@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 2 课 · 三角定位：让谎言退场</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="lesson-head">
+  <div class="kicker">C# TDD 课程 · 第 2 课</div>
+  <h1>三角定位：让谎言退场<span class="subtitle">一条测试只能钉住一个点，第二条测试才能逼出真代码</span></h1>
+</header>
+
+<p>先承认第一课埋下的尴尬：GREEN 阶段如果你写的不是 XOR 循环，而是 <code>return 0x12;</code>——测试照样全绿，一秒都不少。一条测试分不清真代码和硬编码的谎言。这不是 TDD 的漏洞，而是它的一个核心预设：<strong>别指望一条测试检验一切，真正约束实现的是「下一条测试」</strong>。这一课讲的就是这个机制——三角定位（Triangulation），以及它顺手教会的 xUnit 参数化测试。</p>
+
+<h2>两个观测点，才能定一个位置</h2>
+
+<p>这个词来自测量学：只从一个观测点看目标，方向已知但距离未知；从两个点各测一次方位角，两条线的交点就是目标。Kent Beck 把这个隐喻搬进了 TDD（<a href="https://www.oreilly.com/library/view/test-driven-development/9780321146533/">《TDD by Example》第 3 章</a>）：</p>
+
+<ul>
+  <li>一条测试 = 一个观测点 = 一条方位线。任何能「恰好满足它」的代码都能让灯变绿，包括谎言。</li>
+  <li>第二条不同输入的测试 = 第二个观测点。同时满足两个例子的代码，几乎只能是真规则。</li>
+</ul>
+
+<p><code>return 0x12;</code> 骗得过 <code>{0x10, 0x02} → 0x12</code>，但骗不过 <code>{0x7F} → 0x7F</code>。谎言的寿命，由你下一条测试的到达速度决定。</p>
+
+<h2>Beck 的三种到绿策略</h2>
+
+<p>既然红灯必须变绿，那绿怎么来？Beck 在书里给了三种合法姿势，理解了它们，你对 GREEN 阶段的纪律就不再教条：</p>
+
+<table>
+  <tr><th>策略</th><th>做法</th><th>什么时候用</th></tr>
+  <tr><td><strong>Fake It</strong><br>明明白白做假</td>
+      <td>直接硬编码返回测试期望的值</td>
+      <td>想先保持小步子；让下一轮测试来收拾它</td></tr>
+  <tr><td><strong>Triangulation</strong><br>三角定位</td>
+      <td>刻意再加一个例子，用两条测试的「交集」逼出真实现</td>
+      <td>对规则怎么泛化心里没数、设计走向不明时</td></tr>
+  <tr><td><strong>Obvious Implementation</strong><br>显然实现</td>
+      <td>实现已经很明显，直接写出来（测试仍然先行）</td>
+      <td>一眼能看到答案时——别为了仪式把三行代码拆成三轮</td></tr>
+</table>
+
+<p>注意最后一条：TDD 不是让所有人永远走碎步。经验越多，Obvious Implementation 占比越高，Fake It 和三角定位是你<strong>没把握时</strong>的工具。Beck 自己也说三角定位他并不常用——它是保留给「设计看不清」时刻的精密仪器，不是每日仪式。</p>
+
+<h2>实战：把 Parse 从谎言逼成真代码</h2>
+
+<p>继续第一课的 <code>FrameCodec</code> 试验场。目标：解析十六进制帧字符串。第一圈，先允许自己撒个谎：</p>
+
+<h3>第 1 圈 · RED</h3>
+
+<pre><code>[Fact]
+public void Parse_single_byte_10()
+{
+    Assert.Equal(new byte[] { 0x10 }, Frame.Parse("10"));
+}</code></pre>
+
+<h3>第 1 圈 · GREEN，用 Fake It</h3>
+
+<pre><code>public static byte[] Parse(string text)
+{
+    return new byte[] { 0x10 };   // 明明白白的假——但它绿了
+}</code></pre>
+
+<p>红灯变绿。心里有点不舒服？很好，这个不舒服就是下一圈的燃料。有人会问：这不是自欺吗？——不是。Fake It 证明了一件事：<strong>你的测试通道是通的</strong>，测试真的在约束这个行为。现在收拾它：</p>
+
+<h3>第 2 圈 · RED，第二个观测点</h3>
+
+<pre><code>[Fact]
+public void Parse_single_byte_7F()
+{
+    Assert.Equal(new byte[] { 0x7F }, Frame.Parse("7F"));
+}</code></pre>
+
+<p>跑测试——红了。硬编码 <code>0x10</code> 编不过 <code>0x7F</code> 这关。两个观测点都在了，交点只有一条线：<strong>把输入真的转换成字节</strong>。</p>
+
+<h3>第 2 圈 · GREEN，真实现登场</h3>
+
+<pre><code>public static byte[] Parse(string text)
+{
+    string[] parts = text.Split(' ');
+    var bytes = new byte[parts.Length];
+    for (int i = 0; i &lt; parts.Length; i++)
+        bytes[i] = Convert.ToByte(parts[i], 16);
+    return bytes;
+}</code></pre>
+
+<p>注意：写这个实现时你<strong>没有多写任何没被测试要求的东西</strong>——空格分隔是例子带来的，<code>Convert.ToByte(…, 16)</code> 是两个例子共同指向的规则。这就是三角定位的味道：不是你更聪明了，是两条测试把空间挤得只剩正确答案。跑测试，绿。第一课作业里的 <code>Parse("10 02")</code>，这条实现顺手就满足了——可以再为它补一条测试确认。</p>
+
+<h3>REFACTOR：把例子收编成规则表</h3>
+
+<p>现在 <code>Parse</code> 有了三个例子，两条 <code>[Fact]</code> 有点啰嗦。xUnit 对「一条规则、多组数据」有专门的写法——<code>[Theory]</code>：</p>
+
+<pre><code>[Theory]
+[InlineData("10",    new byte[] { 0x10 })]
+[InlineData("7F",    new byte[] { 0x7F })]
+[InlineData("10 02", new byte[] { 0x10, 0x02 })]
+public void Parse_hex_string(string text, byte[] expected)
+{
+    Assert.Equal(expected, Frame.Parse(text));
+}</code></pre>
+
+<p><code>[Fact]</code> 是「一个具体案例」，<code>[Theory]</code> 是「一条规则、多组数据」——每行 <code>InlineData</code> 按书写顺序喂给方法形参，各自独立运行、独立报红（哪组数据失败，报告里说得清清楚楚）。这和三角定位是同一件事的两面：<strong>多例子不是测试的堆砌，而是对规则的定义</strong>。重构后跑测试，三组数据全绿。</p>
+
+<div class="key">
+  <span class="callout-label">本课核心</span>
+  一条测试钉不住实现，<strong>第二条不同输入的测试才能</strong>。红灯时心里没底，就 Fake It 先绿，再用下一个例子三角定位；心里有底，就直接显然实现。<strong>到绿的三种姿势都合法，谎言的唯一死期是下一条测试。</strong>
+</div>
+
+<h2>检查一下手感</h2>
+
+<div class="quiz" data-quiz='{
+  "questions": [
+    {
+      "type": "single",
+      "prompt": "单靠一条测试，能区分真实现和硬编码谎言吗？",
+      "options": [
+        "不能，一条测试只钉一个点",
+        "能，断言写得足够细就行",
+        "能，只要测试先写就可靠",
+        "不能，必须配齐集成测试"
+      ],
+      "answer": 0,
+      "explanation": "一条测试只是一条方位线：任何恰好满足它的代码都能让灯变绿，包括 return 0x12。约束实现靠的是下一条不同输入的测试，而不是把单条断言写得更花哨。"
+    },
+    {
+      "type": "single",
+      "prompt": "Fake It（先硬编码过测试）在 TDD 里是？",
+      "options": [
+        "合法的到绿策略",
+        "违规的作弊行为",
+        "可选的调试技巧",
+        "常见的重构手法"
+      ],
+      "answer": 0,
+      "explanation": "Beck 给了三种合法到绿姿势：Fake It、三角定位、显然实现。Fake It 的纪律是：它的寿命只到下一条测试为止——谎言要么被逼成真代码，要么证明它本来就够了。"
+    },
+    {
+      "type": "single",
+      "prompt": "三角定位的本质是？",
+      "options": [
+        "用第二个例子逼出泛化",
+        "用第二个实现交叉验证",
+        "用第二份规格锁定边界",
+        "用第二条用例加倍覆盖"
+      ],
+      "answer": 0,
+      "explanation": "两个例子像两个观测点，同时满足两者的代码几乎只能是真规则。写第二份实现来对比是另一回事；三角定位写的是第二个测试，逼的是同一个实现的泛化。"
+    },
+    {
+      "type": "single",
+      "prompt": "关于 [Theory] 与 [InlineData]，对的说法是？",
+      "options": [
+        "一条规则配多组数据",
+        "一条数据配多组规则",
+        "多条规则配多组数据",
+        "运行失败会静默跳过"
+      ],
+      "answer": 0,
+      "explanation": "Theory 表达「一条规则、多组数据」：每行 InlineData 按书写顺序喂给形参，独立运行、独立报红，报告会指出具体是哪组数据失败，不会静默。"
+    },
+    {
+      "type": "multiple",
+      "prompt": "什么时候该动用三角定位而不是直接写显然实现？（多选）",
+      "options": [
+        "想不清设计走向的时候",
+        "拿不准接口形状的时候",
+        "明知实现简单直接的时候",
+        "任何时候都应先三角定位"
+      ],
+      "answer": [0, 1],
+      "explanation": "三角定位是「设计看不清」时刻的精密仪器，不是每日仪式。明知三行能写完就直接写（显然实现）；任何时候都强制三角化只会让 TDD 显得又慢又做作，也违背 Beck 的本意。"
+    }
+  ]
+}'></div>
+
+<h2>课后作业：三圈逆运算</h2>
+
+<p>现在造 <code>Parse</code> 的逆操作 <code>ToHexString</code>——正好把三角定位走全：</p>
+
+<ol>
+  <li><strong>第 1 圈</strong>：<code>ToHexString(new byte[] { 0x10 })</code> 应得 <code>"10"</code>。允许 Fake It：<code>return "10";</code>，亲眼看到绿。</li>
+  <li><strong>第 2 圈</strong>：<code>ToHexString(new byte[] { 0x7F })</code> 应得 <code>"7F"</code>。谎言崩塌，逼出 <code>b.ToString("X2")</code>（注意大写 X：小写 <code>x2</code> 会给你 <code>7f</code>）。</li>
+  <li><strong>第 3 圈</strong>：<code>ToHexString(new byte[] { 0x10, 0x02 })</code> 应得 <code>"10 02"</code>——逼出空格分隔。完成后把三条 <code>[Fact]</code> 收编成一条 <code>[Theory]</code>。</li>
+  <li><strong>彩蛋</strong>：加一条 Theory 验证往返一致性——对任意帧，<code>Parse(ToHexString(frame))</code> 等于原帧。这条在以后讲「不变式测试」时会重逢。</li>
+  <li><strong>想一想</strong>（带回讨论）：作业里如果 <code>Parse("")</code> 直接写 <code>return Array.Empty&lt;byte&gt;();</code> 就能绿——这算 Fake It，还是真实现？「假实现」在什么条件下可以直接转正？</li>
+</ol>
+
+<footer class="lesson-foot">
+  <p><span class="primary-source">本课首选原著：Kent Beck《Test-Driven Development: By Example》第 3 章</span>——Money 例子正是用三角定位从「美元相等」走向「任意货币相等」，和本课 Parse 的路径一模一样。<a href="https://www.oreilly.com/library/view/test-driven-development/9780321146533/">图书页</a>。</p>
+  <p>作业卡壳、红灯颜色不对、「想一想」有想法——都带回对话里问你的老师（Claude）。下一课预告：<strong>测试难写，是谁的问题？</strong>——测试写不顺往往不是你不会写，而是代码在向你报警；读懂这个信号，TDD 才开始兑现「设计更清晰」的承诺。</p>
+</footer>
+
+</main>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

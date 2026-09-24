@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="FrameCodec.Tests/FrameCodec.Tests.csproj" />
+  <Project Path="FrameCodec/FrameCodec.csproj" />
+  <Project Path="TddLab/TddLab.csproj" />
+</Solution>

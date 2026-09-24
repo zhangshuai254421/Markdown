@@ -1,0 +1,4 @@
+# TddLab 试验场的构建与 IDE 缓存不进版本库
+.vs/
+bin/
+obj/
