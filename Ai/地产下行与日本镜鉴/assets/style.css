@@ -1,0 +1,343 @@
+/* ============================================================
+   共享样式表 — 地产下行与日本镜鉴
+   所有课程与参考文档都链接这一个文件，保证整门课看起来是
+   一套东西而不是一堆各自为政的页面。
+   打印友好：@media print 会去掉阴影和背景色。
+   ============================================================ */
+
+:root {
+  color-scheme: light;
+  --ink: #172033;
+  --ink-soft: #42506b;
+  --ink-faint: #6b7891;
+  --line: #dce2ee;
+  --line-soft: #eaeef6;
+  --bg: #f7f8fb;
+  --card: #ffffff;
+  --accent: #3159c6;
+  --accent-soft: #eef2ff;
+  --warn: #b06a12;
+  --warn-bg: #fdf6e9;
+  --good: #1f7a4d;
+  --bad: #b3261e;
+  --font-body: "Source Serif 4", Georgia, "Songti SC", "SimSun", serif;
+  --font-ui: "Segoe UI", "Microsoft YaHei", -apple-system, sans-serif;
+  --font-mono: "Cascadia Code", Consolas, "SF Mono", monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  line-height: 1.75;
+  font-family: var(--font-ui);
+  font-size: 17px;
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+main {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 48px 24px 96px;
+}
+
+/* ---------- 排版 ---------- */
+
+h1 {
+  font-size: 2.15rem;
+  line-height: 1.25;
+  margin: 0 0 12px;
+  letter-spacing: -0.01em;
+}
+
+h2 {
+  margin-top: 52px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+  font-size: 1.35rem;
+  letter-spacing: -0.005em;
+}
+
+h3 { margin-top: 32px; font-size: 1.08rem; }
+
+p { margin: 1em 0; }
+
+.eyebrow {
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  font-size: .74rem;
+  font-family: var(--font-ui);
+}
+
+.lead {
+  font-size: 1.14rem;
+  color: var(--ink-soft);
+  margin-bottom: 2em;
+}
+
+.subtitle { color: var(--ink-faint); font-size: .92rem; margin-top: 0; }
+
+ul, ol { padding-left: 1.4em; }
+li { margin: .45em 0; }
+
+strong { font-weight: 650; }
+
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:hover { text-decoration-thickness: 2px; }
+
+code {
+  font-family: var(--font-mono);
+  font-size: .88em;
+  background: var(--accent-soft);
+  padding: .12em .38em;
+  border-radius: 4px;
+}
+
+hr { border: 0; border-top: 1px solid var(--line); margin: 44px 0; }
+
+/* ---------- 卡片与提示框 ---------- */
+
+.card,
+.exercise,
+.answer,
+.note {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px 22px;
+  margin: 22px 0;
+  box-shadow: 0 1px 2px #1a285008;
+}
+
+.card > :first-child,
+.exercise > :first-child,
+.note > :first-child { margin-top: 0; }
+.card > :last-child,
+.exercise > :last-child,
+.note > :last-child { margin-bottom: 0; }
+
+/* 左侧色条强调块： .key 一般结论  .warning 警告/反例  .insight 关键洞见 */
+.key, .warning, .insight {
+  border-left: 4px solid var(--accent);
+  padding-left: 18px;
+  margin: 22px 0;
+}
+.warning {
+  border-left-color: var(--warn);
+  background: var(--warn-bg);
+  border-radius: 0 8px 8px 0;
+  padding: 14px 20px;
+}
+.insight {
+  border-left-color: var(--good);
+  background: #f2faf6;
+  border-radius: 0 8px 8px 0;
+  padding: 14px 20px;
+}
+
+.note { background: #fbfcfe; font-size: .95rem; }
+
+/* ---------- 数据来源标注 ----------
+   本课程要求区分 官方数据 / 第三方估计 / 观点。
+   用 <span class="src official">官方</span> 之类标注。 */
+
+.src {
+  display: inline-block;
+  font-family: var(--font-ui);
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  padding: .1em .45em;
+  border-radius: 4px;
+  vertical-align: .1em;
+  white-space: nowrap;
+}
+.src.official { background: #e3f0ff; color: #14508f; }
+.src.third    { background: #f0ecff; color: #5a3fa8; }
+.src.opinion  { background: #fdeeea; color: #a63a1c; }
+
+/* ---------- 表格 ---------- */
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  background: var(--card);
+  margin: 22px 0;
+  font-size: .93rem;
+}
+th, td {
+  padding: 9px 12px;
+  text-align: left;
+  border: 1px solid var(--line);
+  vertical-align: top;
+}
+th { background: var(--accent-soft); font-weight: 650; }
+tbody tr:nth-child(even) { background: #fafbfe; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.table-wrap { overflow-x: auto; }
+
+/* ---------- 时间线组件 ----------
+   <ol class="timeline">
+     <li><span class="when">1990</span><div class="what">...</div></li>
+   </ol>
+   ---------------------------------- */
+
+.timeline { list-style: none; padding: 0; margin: 26px 0; }
+.timeline li {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 18px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line-soft);
+}
+.timeline li:first-child { border-top: 0; }
+.timeline .when {
+  font-family: var(--font-mono);
+  font-weight: 650;
+  font-size: .9rem;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.timeline .what > :first-child { margin-top: 0; }
+.timeline .what > :last-child { margin-bottom: 0; }
+
+/* ---------- 两栏对照 ----------
+   <div class="split">
+     <div class="col"><h4>衰败</h4>...</div>
+     <div class="col"><h4>兴起</h4>...</div>
+   </div>
+   ---------------------------------- */
+
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin: 24px 0; }
+.split .col {
+  padding: 4px 22px;
+  border-left: 1px solid var(--line);
+}
+.split .col:first-child { border-left: 0; padding-left: 0; }
+.split .col:last-child { padding-right: 0; }
+.split h4 {
+  margin: 0 0 10px;
+  font-size: .78rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.split .down h4 { color: var(--bad); }
+.split .up h4 { color: var(--good); }
+@media (max-width: 640px) {
+  .split { grid-template-columns: 1fr; }
+  .split .col { border-left: 0; padding: 12px 0; border-top: 1px solid var(--line); }
+}
+
+/* ---------- 引用与出处 ---------- */
+
+blockquote {
+  margin: 22px 0;
+  padding: 2px 0 2px 20px;
+  border-left: 3px solid var(--line);
+  color: var(--ink-soft);
+  font-style: italic;
+}
+blockquote cite {
+  display: block;
+  margin-top: 8px;
+  font-style: normal;
+  font-size: .85rem;
+  color: var(--ink-faint);
+}
+
+cite, .citation { font-style: normal; font-size: .87rem; color: var(--ink-faint); }
+.source-list { font-size: .9rem; color: var(--ink-soft); }
+.source-list li { margin: .3em 0; }
+
+/* ---------- 测验组件（配合 assets/quiz.js） ----------
+   <div class="quiz" data-answer="b">
+     <p class="quiz-q">题干？</p>
+     <button class="opt" data-key="a">选项一</button>
+     <button class="opt" data-key="b">选项二</button>
+     <p class="feedback" hidden></p>
+   </div>
+   选项文字长度应尽量一致，避免用排版泄露答案。
+   ------------------------------------------------ */
+
+.quiz { margin: 22px 0; }
+.quiz-question { font-weight: 650; margin-bottom: 12px; }
+.opt {
+  display: block;
+  width: 100%;
+  text-align: left;
+  margin: 8px 0;
+  padding: 11px 15px;
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  font: inherit;
+  font-size: .97rem;
+  cursor: pointer;
+  transition: border-color .12s, background .12s;
+}
+.opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+.opt:disabled { cursor: default; }
+.opt.correct { border-color: var(--good); background: #edf8f2; font-weight: 650; }
+.opt.wrong { border-color: var(--bad); background: #fdeeed; }
+.opt .mark { float: right; font-weight: 700; }
+.opt.correct .mark { color: var(--good); }
+.opt.wrong .mark { color: var(--bad); }
+
+.feedback {
+  margin-top: 12px;
+  padding: 12px 16px;
+  border-radius: 9px;
+  font-size: .95rem;
+  background: var(--accent-soft);
+}
+.feedback.good { background: #edf8f2; }
+.feedback.bad { background: #fdeeed; }
+
+/* 自由回忆练习：按钮展开参考答案 */
+.reveal-btn {
+  background: var(--accent);
+  color: #fff;
+  border: 0;
+  border-radius: 8px;
+  padding: 9px 16px;
+  font: inherit;
+  font-size: .93rem;
+  cursor: pointer;
+}
+.reveal-btn:hover { background: #26479e; }
+.answer[hidden] { display: none; }
+
+/* ---------- 页脚导航 ---------- */
+
+.lesson-nav {
+  margin-top: 64px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+  font-size: .92rem;
+  color: var(--ink-faint);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+
+/* ---------- 打印 ---------- */
+
+@media print {
+  :root { --bg: #fff; }
+  body { background: #fff; font-size: 11pt; }
+  main { max-width: none; padding: 0; }
+  .card, .exercise, .answer, .note { box-shadow: none; break-inside: avoid; }
+  .reveal-btn, .opt { display: none; }
+  .answer[hidden] { display: block !important; }
+  .answer::before { content: "参考答案："; font-weight: 700; }
+  h2 { break-after: avoid; }
+  table, .timeline, .split { break-inside: avoid; }
+  a { color: inherit; text-decoration: none; }
+  a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 8pt; color: #666; }
+}

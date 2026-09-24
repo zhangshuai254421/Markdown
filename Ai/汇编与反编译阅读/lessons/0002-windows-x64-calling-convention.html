@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>第 2 课：Windows x64 调用约定</title><link rel="stylesheet" href="../assets/style.css"><script src="../assets/quiz.js" defer></script></head>
+<body><main>
+<p class="eyebrow">第 2 课 · 20 分钟</p><h1>从 <code>call</code> 读出函数签名：Windows x64 调用约定</h1>
+<p class="lead">第 1 课让你找到输入与控制流；现在要把输入变成“第几个参数、什么类型、结果在哪”。这是读 Windows C++ 反编译最有杠杆的一条规则。</p>
+<div class="card key"><strong>本课的一个胜利：</strong>看见 <code>call</code> 前几行时，能先标出参数槽位；看见 <code>call</code> 后使用 <code>rax</code> 时，能标出返回值。不要先猜函数名字。</div>
+
+<h2>1. Windows x64 的四个参数槽位</h2>
+<p>针对本课程的目标平台（64 位 Windows、通常的 MSVC C++），参数按<strong>位置</strong>编号。前四个位置用寄存器；整数/指针使用通用寄存器，浮点数使用对应的 XMM 寄存器。</p>
+<table><thead><tr><th>参数位置</th><th>整数或指针</th><th>float / double</th></tr></thead><tbody>
+<tr><td>第 1 个</td><td><code>RCX</code></td><td><code>XMM0</code></td></tr>
+<tr><td>第 2 个</td><td><code>RDX</code></td><td><code>XMM1</code></td></tr>
+<tr><td>第 3 个</td><td><code>R8</code></td><td><code>XMM2</code></td></tr>
+<tr><td>第 4 个</td><td><code>R9</code></td><td><code>XMM3</code></td></tr>
+<tr><td>第 5 个起</td><td colspan="2">栈（调用者在 <code>call</code> 前写入）</td></tr>
+</tbody></table>
+<p>最容易漏掉的细节：槽位按<strong>参数位置</strong>走，而不是“整数一个队列、浮点一个队列”。例如 <code>f(int a, double b, int c, float d)</code> 的位置是 <code>RCX</code>、<code>XMM1</code>、<code>R8</code>、<code>XMM3</code>；<code>RDX</code> 和 <code>XMM2</code> 在这个调用中不用。</p>
+
+<h2>2. 读一个调用点</h2>
+<pre>; 假设调用：int Update(Device* device, int mode, int power)
+mov  rcx, rbx        ; 第 1 槽：device
+mov  edx, 2          ; 第 2 槽：mode
+mov  r8d, esi        ; 第 3 槽：power
+call Update
+test eax, eax        ; 使用 int 返回值
+jne  failed</pre>
+<p>这里能证实的是：调用点向被调函数传了三项，第一项来自 <code>rbx</code>，第二项为常量 2，第三项来自 <code>esi</code>；调用后立刻检查 <code>eax</code>。<strong>我们可以假设</strong>它是返回状态码，但还不能证实函数名、对象类型或枚举名字。</p>
+<div class="card"><strong>.NET 类比：</strong>这像你在 IL 中看到 <code>call</code> 前的 <code>ldarg</code>/<code>ldloc</code>。区别是 native code 没保留参数名，ABI 规定的是“值在哪”，而不是“值叫什么”。</div>
+
+<h2>3. 返回值：先看 RAX，再看 XMM0</h2>
+<ul><li>能装入 64 位的整数、指针和许多小型简单结构，通常经 <code>RAX</code> 返回；32 位整数表现为 <code>EAX</code>。</li><li><code>float</code>、<code>double</code> 和向量类结果，经 <code>XMM0</code> 返回。</li><li>大的或复杂的 C++ 对象常由调用方提供“返回缓冲区”地址；它占第 1 槽，使源码参数整体右移。这是以后读 C++ 值返回时的重要例外。</li></ul>
+<pre>; int IsReady(Controller* c)
+mov rcx, rdi
+call IsReady
+test eax, eax         ; eax 是标量返回值
+je   not_ready</pre>
+
+<h2>4. Shadow space：别误判成四个局部变量</h2>
+<p>调用方即使只传一个参数，也必须为前四个寄存器参数预留 32 字节栈空间（shadow store / home space）。被调函数在需要时可以把 <code>RCX</code>、<code>RDX</code>、<code>R8</code>、<code>R9</code> 暂存进去。</p>
+<pre>; 一个典型调用点（示意）
+sub rsp, 40h          ; 32 字节 shadow space + 对齐/可能的额外空间
+mov rcx, rdi
+call SomeFunction
+add rsp, 40h</pre>
+<p><strong>阅读规则：</strong>看到围绕 <code>call</code> 的 <code>sub rsp, 20h</code> 或更大分配时，先问“它是否包含 shadow space 和对齐？”；不要立即把每个 <code>[rsp+offset]</code> 都命名为业务局部变量。</p>
+
+<h2>5. 哪些寄存器跨 call 仍可信？</h2>
+<table><thead><tr><th>类别</th><th>用于本课的阅读规则</th></tr></thead><tbody>
+<tr><td>易失：<code>RAX RCX RDX R8 R9 R10 R11</code></td><td>经过 <code>call</code> 后，默认当作已毁坏；<code>RAX</code> 往往正承载返回值。</td></tr>
+<tr><td>非易失：<code>RBX RBP RDI RSI R12–R15</code></td><td>被调函数若使用，按 ABI 必须恢复；常见于跨调用持续存活的值。</td></tr>
+</tbody></table>
+<p>这不是说非易失寄存器“永远不变”，而是说被调函数必须让<strong>调用者最终仍能看到原值</strong>。这解释了函数入口/出口常见的 <code>push rbx</code> … <code>pop rbx</code>。</p>
+
+<h2>6. 练习：从调用点回写伪代码</h2>
+<div class="exercise"><p>以下 <code>call</code> 的前三个整数/指针参数分别来自哪里？</p><pre>mov rcx, rsi
+mov edx, 1
+mov r8d, ebx
+call qword ptr [rax+18h]</pre><button onclick="reveal('a1')">显示答案</button><p id="a1" class="feedback" hidden><strong>答案：</strong>第 1 个来自 <code>rsi</code>，第 2 个是常量 <code>1</code>，第 3 个来自 <code>ebx</code>。最后一行是经内存中的函数指针间接调用；这可能是虚函数，但仅凭这一处还不能下结论。</p></div>
+<div class="exercise"><p>为 <code>f(int a, double b, int c, float d)</code> 选对寄存器序列。</p><button onclick="reveal('a2')">显示答案</button><p id="a2" class="feedback" hidden><strong>答案：</strong><code>RCX, XMM1, R8, XMM3</code>。按位置决定槽位；空着的 <code>RDX</code> / <code>XMM2</code> 不表示漏传参数。</p></div>
+<div class="exercise"><p>一个 <code>call</code> 返回后，为什么不能继续把 <code>r8</code> 当作调用前那个局部值？</p><button onclick="reveal('a3')">显示答案</button><p id="a3" class="feedback" hidden><strong>答案：</strong><code>R8</code> 是易失寄存器；ABI 允许被调函数覆盖它。若原值需跨调用保留，编译器会放到栈或非易失寄存器中。</p></div>
+
+<h2>7. 一次刻意练习</h2>
+<ol><li>在 <a href="https://godbolt.org/" target="_blank" rel="noopener">Compiler Explorer</a> 选择 MSVC x64。</li><li>输入 <code>int Mix(void* p, int a, int b, int c, int d) { return a + b + c + d + (p != 0); }</code>。</li><li>在 <code>/Od</code> 下，标出 5 个参数的来源；确认第 5 个为何不在寄存器中。再切到 <code>/O2</code>，重复这件事。</li></ol>
+<p>主来源：<a href="https://learn.microsoft.com/en-us/cpp/build/x64-calling-convention?view=msvc-170" target="_blank" rel="noopener">Microsoft: x64 calling convention</a>。本课不要求背完所有 ABI 例外；你只要能在真实调用点稳定地标出四个槽位、栈参数和返回值。哪里别扭就直接问我。</p>
+</main></body></html>
