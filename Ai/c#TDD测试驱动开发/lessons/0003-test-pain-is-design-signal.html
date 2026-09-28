@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 3 课 · 测试难写，是谁的问题？</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="lesson-head">
+  <div class="kicker">C# TDD 课程 · 第 3 课</div>
+  <h1>测试难写，是谁的问题？<span class="subtitle">疼痛是代码在报警——找到接缝，把依赖变成可以替换的东西</span></h1>
+</header>
+
+<p>回顾一下你在 TddLab 里写过的东西：<code>XorChecksum</code>、<code>Parse</code>——测试从来都是五分钟搞定，你有没有想过<strong>为什么一直不疼</strong>？因为它们是纯函数：输入进、输出出，中间不碰世界。而你的日常工作不是纯函数——要开串口、要读时钟、要碰文件。这一课就讲：当测试开始疼，<strong>疼的不是测试，是代码在向你报警</strong>；TDD 的价值之一，是让报警在开发当下就响，而不是在评审或联调时。</p>
+
+<h2>先亲手疼一次</h2>
+
+<p>新需求：把帧加上校验字节后发到设备。你可能顺手就写成这样：</p>
+
+<pre><code>using System.IO.Ports;
+
+public class FrameSender
+{
+    public void Send(byte[] frame)
+    {
+        using var port = new SerialPort("COM3", 9600);
+        port.Open();
+        port.Write(frame, 0, frame.Length);
+    }
+}</code></pre>
+
+<p>现在试着为它写一条测试——<code>Send(new byte[] { 0x10, 0x02 })</code> 之后「发了什么」怎么断言？测试一跑就要开 <code>COM3</code>：没接设备就抛异常，接了设备就是对真实硬件说话。你会发现自己卡在三个问题上：</p>
+
+<ul>
+  <li><strong>没设备跑不了</strong>——测试需要整条硬件链路在场</li>
+  <li><strong>跑起来也断言不了</strong>——发出去的字节收不回来检查</li>
+  <li><strong>慢且脆弱</strong>——占着串口、受环境影响，CI 上更没法跑</li>
+</ul>
+
+<div class="key">
+  <span class="callout-label">本课核心</span>
+  写不出测试，几乎从来不是测试的问题，也不是你水平的问题。<strong>是代码里藏着「你无法替换的东西」</strong>——<code>new SerialPort(...)</code> 这一行把行为焊死在了代码内部。Michael Feathers 给这种「能替换行为的落点」起了名字：<strong>接缝（seam）</strong>——代码中一个不改动它本身就能改变其行为的地方（《<a href="https://www.oreilly.com/library/view/working-effectively-with/9780131177055/">Working Effectively with Legacy Code</a>》）。上面这段代码没有接缝，所以测试无处下手。
+</div>
+
+<h2>惯犯名单：哪些东西藏在代码里就疼</h2>
+
+<p>串口只是之一。看到这些写死在方法体里，你就可以预告「这测试会疼」：</p>
+
+<table>
+  <tr><th>隐藏依赖</th><th>疼在哪</th></tr>
+  <tr><td><code>new SerialPort(...)</code> / <code>HttpClient</code> / <code>File.ReadAllText</code></td><td>碰真实硬件、网络、磁盘</td></tr>
+  <tr><td><code>DateTime.Now</code> / <code>Stopwatch</code></td><td>时间不等人的测试没法写、会闪红</td></tr>
+  <tr><td><code>new Random()</code></td><td>不可复现</td></tr>
+  <tr><td>静态类、单例、<code>Console</code></td><td>全局状态，测试之间互相污染</td></tr>
+</table>
+
+<p>共同点：它们都在方法内部<strong>自己制造自己的依赖</strong>，外部无人能换。解法不是换测试框架，而是把「制造依赖」和「使用依赖」拆开。</p>
+
+<h2>动手：让红灯逼出接口</h2>
+
+<p>这次反过来——不先写实现，先写测试，让 TDD 替你做这个设计决定。第一条测试长这样（先别管 <code>IFrameChannel</code> 哪来的，往下看）：</p>
+
+<pre><code>[Fact]
+public void Send_appends_xor_checksum()
+{
+    var channel = new RecordingChannel();
+    var sender  = new FrameSender(channel);
+
+    sender.Send(new byte[] { 0x10, 0x02 });
+
+    Assert.Equal(
+        new byte[] { 0x10, 0x02, 0x12 },   // 校验字节 0x12 被追加在帧尾
+        channel.LastWritten);
+}
+
+private class RecordingChannel : IFrameChannel
+{
+    public byte[] LastWritten { get; private set; } = Array.Empty&lt;byte&gt;();
+    public void Write(byte[] bytes) =&gt; LastWritten = bytes;
+}</code></pre>
+
+<p><code>RecordingChannel</code> 是一个<strong>测试替身</strong>：它假装是通道，其实只把收到的字节记下来给你断言。要让这段编译通过，你不得不长出这两样东西——这就是红灯在工作：</p>
+
+<pre><code>public interface IFrameChannel          // 接缝：行为可以在这里被替换
+{
+    void Write(byte[] bytes);
+}
+
+public class FrameSender                // 纯逻辑：拼校验、写通道
+{
+    private readonly IFrameChannel _channel;
+
+    public FrameSender(IFrameChannel channel) =&gt; _channel = channel;
+
+    public void Send(byte[] frame) =&gt;
+        _channel.Write(frame.Append(Frame.XorChecksum(frame)).ToArray());
+}
+
+public class SerialFrameChannel : IFrameChannel   // 真硬件，只在组装时出现
+{
+    private readonly string _portName;
+    public SerialFrameChannel(string portName) =&gt; _portName = portName;
+
+    public void Write(byte[] bytes)
+    {
+        using var port = new SerialPort(_portName, 9600);
+        port.Open();
+        port.Write(bytes, 0, bytes.Length);
+    }
+}</code></pre>
+
+<p>从构造函数把依赖传进来，叫<strong>构造函数注入</strong>——接缝最常用的形态。跑测试：绿，全程没碰硬件。</p>
+
+<p>停下来看看发生了什么：<code>IFrameChannel</code> 不是你「设计」出来的，是<strong>测试要求能替换通道，接口自己长出来的</strong>。而且长出来的东西顺带更好用——<code>FrameSender</code> 现在根本不知道串口的存在，同一个类换个实现就能走 TCP、写文件、接内存通道。这就是「TDD 倒逼设计」的全部机制：<strong>可测试的 = 低耦合的</strong>，测试疼就是耦合的体温计。</p>
+
+<p class="footnote">注：真的要用串口需给项目加 <code>System.IO.Ports</code> NuGet 包；但注意 <code>SerialFrameChannel</code> 在测试里根本不会被实例化——硬件代码装进去，不代表测试要跑它。你在 WPF/Prism 里用的 DryIoc 自动装配，做的就是这件事的自动化版本：按构造函数签名把实现塞进去。</p>
+
+<h2>检查一下手感</h2>
+
+<div class="quiz" data-quiz='{
+  "questions": [
+    {
+      "type": "single",
+      "prompt": "测试写得疼，通常最先说明的是？",
+      "options": [
+        "代码里藏着隐藏的依赖",
+        "测试框架选得还不够好",
+        "程序员测试写得太少了",
+        "需求文档写得不够清楚"
+      ],
+      "answer": 0,
+      "explanation": "疼痛的第一嫌疑人是 new SerialPort、DateTime.Now 这类藏在方法体里的依赖——它们焊死了行为，测试无处下手。框架和文档几乎从来不是原因。"
+    },
+    {
+      "type": "single",
+      "prompt": "接缝（seam）指的是？",
+      "options": [
+        "能换行为而不改代码之处",
+        "模块之间约定的功能边界",
+        "注释里标记的扩展点位置",
+        "对象之间传递的数据类型"
+      ],
+      "answer": 0,
+      "explanation": "Feathers 的定义：seam 是程序中不改动此处代码就能改变行为的地方。构造函数注入一个接口、传入不同的实现，就是在接缝处替换行为。"
+    },
+    {
+      "type": "single",
+      "prompt": "哪一组是典型的隐藏依赖？",
+      "options": [
+        "时钟、随机数、串口、文件",
+        "拆分、转换、计算、校验和",
+        "接口、构造函数、注入参数",
+        "测试、断言、夹具、覆盖率"
+      ],
+      "answer": 0,
+      "explanation": "时钟、随机、I/O、全局状态在方法内部自己制造自己，外部无法替换——写死即疼。第二组是纯逻辑（本该好测），第三组恰恰是接缝本身，第四组是测试基建。"
+    },
+    {
+      "type": "single",
+      "prompt": "构造函数注入解决了什么？",
+      "options": [
+        "依赖可以在测试里被替换",
+        "依赖从此再也不需要编写",
+        "依赖会自动提高运行性能",
+        "依赖会被编译器直接内联"
+      ],
+      "answer": 0,
+      "explanation": "注入 = 从外部递进依赖，类不再自己 new。测试里递进假实现（如 RecordingChannel），生产里递进真实现（如 SerialFrameChannel）——一个接缝，两种世界。"
+    },
+    {
+      "type": "multiple",
+      "prompt": "TDD 里「测试疼」带来的价值是？（多选）",
+      "options": [
+        "在开发的当下就暴露耦合",
+        "倒逼出更清晰的接口设计",
+        "证明程序员水平还不够高",
+        "说明测试框架还没有选对"
+      ],
+      "answer": [0, 1],
+      "explanation": "没有 TDD，耦合要到评审或联调才被发现；有了 TDD，红灯几分钟内就咬你一口，接口被逼着长出来。疼痛是信息，不是指控——它跟你的水平无关。"
+    }
+  ]
+}'></div>
+
+<h2>课后作业：让疼痛长出接缝</h2>
+
+<ol>
+  <li><strong>先清账</strong>（约 10 分钟）：第 2 课的 <code>ToHexString</code> 三圈还没做——先跑完（Fake It → 逼出 <code>ToString("X2")</code> → 逼出空格分隔），顺路把往返一致性 Theory 补上。</li>
+  <li><strong>重头戏</strong>：在 TddLab 里为 <code>FrameSender</code> 跑完整 TDD——就写 <code>Send_appends_xor_checksum</code> 这条测试开局，让它逼出 <code>IFrameChannel</code> 和构造函数注入。第二条测试加 <code>Send(Array.Empty&lt;byte&gt;())</code> 只写出校验字节 <code>0x00</code>——顺便体验 Theory 加一行就是一条新测试。</li>
+  <li><strong>想一想</strong>（带回讨论）：<code>XorChecksum</code> 和 <code>Parse</code> 从来没让你疼过，为什么？用自己的代码说清「可测试的 = 低耦合的」这句话。</li>
+</ol>
+
+<footer class="lesson-foot">
+  <p><span class="primary-source">本课首选原著：Michael Feathers《Working Effectively with Legacy Code》</span>——接缝概念的出处。这本书名义上讲遗留代码，实际是「怎么给没有接缝的代码开缝」的百科全书，等工作项目里改老代码时它就是主文本。<a href="https://www.oreilly.com/library/view/working-effectively-with/9780131177055/">图书页</a> · 构造函数注入的官方对照：<a href="https://learn.microsoft.com/en-us/dotnet/core/extensions/dependency-injection">Microsoft Learn — Dependency injection</a>。</p>
+  <p>作业卡壳、接口长歪了、不知道 fake 怎么写——都带回对话里问你的老师（Claude）。下一课预告：<strong>测试替身的进阶用法</strong>——手写 fake 什么时候不够用，stub 和 mock 到底差在哪（Roy Osherove《The Art of Unit Testing》）。</p>
+</footer>
+
+</main>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

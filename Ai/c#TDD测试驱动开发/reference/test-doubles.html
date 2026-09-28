@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>速查卡 · 测试替身</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="lesson-head">
+  <div class="kicker">Reference · 速查卡</div>
+  <h1>测试替身速查<span class="subtitle">stub 与 mock 的分工、两种断言路线、NSubstitute 语法与克制清单</span></h1>
+</header>
+
+<p>替身（test double）= 插进接缝里的假依赖。术语按 Osherove《<a href="https://www.manning.com/books/the-art-of-unit-testing-third-edition">The Art of Unit Testing</a>》：</p>
+
+<table>
+  <tr><th>名词</th><th>干什么</th><th>你的对应物</th></tr>
+  <tr><td>Dummy</td><td>只为编译通过占位，从不被真正使用</td><td>——</td></tr>
+  <tr><td><strong>Stub</strong></td><td>替被测对象「接收输入」：返回设定好的数据/异常</td><td>FlakyChannel 的扔异常部分</td></tr>
+  <tr><td>Fake</td><td>有真实逻辑的轻量实现（内存数据库、内存通道）</td><td>——</td></tr>
+  <tr><td>Spy</td><td>替身里「偷偷记录」调用，供测试事后检查</td><td>RecordingChannel</td></tr>
+  <tr><td><strong>Mock</strong></td><td>预先设定「期望被怎样调用」，验证交互</td><td>NSubstitute 的 <code>Received()</code></td></tr>
+</table>
+
+<div class="key">
+  <span class="callout-label">实用二分</span>
+  <strong>stub 管进，mock 管出。</strong>stub 替你把依赖的<strong>输入</strong>安排好（返回值、抛异常），让代码能跑起来；mock 替你盯住依赖的<strong>输出端</strong>（被调了几次、传了什么、有没有被调）。别被五个名词吓住——干活的就这两类。
+</div>
+
+<h2>两种断言路线</h2>
+
+<table>
+  <tr><th></th><th>状态断言（state-based）</th><th>交互断言（interaction-based）</th></tr>
+  <tr><td>问的问题</td><td>「产出/落点的东西对吗」</td><td>「协作方式对吗」</td></tr>
+  <tr><td>典型断言</td><td><code>Assert.Equal(expected, channel.LastWritten)</code></td><td><code>channel.Received(2).Write(...)</code></td></tr>
+  <tr><td>适合</td><td>绝大多数行为——默认选它</td><td>没有状态可查时：重试次数、该调没调、不该调却调了</td></tr>
+  <tr><td>风险</td><td>几乎无</td><td>过度使用 → 测试变成实现细节的镜子，一重构就碎（<a href="https://martinfowler.com/articles/mocksArentStubs.html">Fowler</a>）</td></tr>
+</table>
+
+<h2>NSubstitute 速查</h2>
+
+<pre><code>dotnet add package NSubstitute</code></pre>
+
+<pre><code>using NSubstitute;
+using NSubstitute.ExceptionExtensions;
+
+var channel = Substitute.For&lt;IFrameChannel&gt;();      // 造替身
+
+channel.IsOpen.Returns(false);                       // stub：安排返回值
+channel.When(c =&gt; c.Write(Arg.Any&lt;byte[]&gt;()))        // stub：安排抛异常
+       .Do(_ =&gt; throw new ChannelBusyException());
+channel.Write(Arg.Do&lt;byte[]&gt;(b =&gt; seen.Add(b)));     // stub：顺手记录（spy 行为）
+
+channel.Received(2).Write(Arg.Any&lt;byte[]&gt;());        // mock：恰好被调 2 次
+channel.DidNotReceive().Write(Arg.Any&lt;byte[]&gt;());    // mock：从未被调
+channel.DidNotReceiveWithAnyArgs().Write(default);   // mock：不管参数，没调过就行</code></pre>
+
+<h2>克制清单（mock 纪律）</h2>
+<ul>
+  <li><strong>默认状态断言</strong>，交互断言只留给「没有状态可查」的行为</li>
+  <li><strong>只 mock 出了边界的依赖</strong>（串口、邮件、数据库、时钟）；自己写的纯逻辑不 mock</li>
+  <li><strong>接口要窄</strong>：替身接口的方法越少，替身越便宜，测试越稳</li>
+  <li>重构实现（行为不变）时，<strong>不允许</strong>出现莫名红灯——红了说明有测试在照镜子的路，而不是在查行为</li>
+</ul>
+
+<footer class="lesson-foot">
+  <p>依据：<a href="https://www.manning.com/books/the-art-of-unit-testing-third-edition">Osherove, <em>The Art of Unit Testing</em> (3rd ed.)</a> ·
+  <a href="https://martinfowler.com/articles/mocksArentStubs.html">Fowler, <em>Mocks Aren't Stubs</em></a> ·
+  <a href="https://nsubstitute.github.io/">NSubstitute 官方文档</a></p>
+  <p>有不明白的地方，回到对话里直接问你的老师（Claude）——这就是这门课的答疑通道。</p>
+</footer>
+
+</main>
+</body>
+</html>

@@ -20,6 +20,15 @@
 - [Book: "The Art of Unit Testing" (3rd ed.) — Roy Osherove (Manning)](https://www.manning.com/books/the-art-of-unit-testing-third-edition)
   到「测什么、怎么隔离依赖」阶段（stub/mock、测试可维护性）的主文本，第 4-5 课之后启用。
 
+- [Book: "Working Effectively with Legacy Code" — Michael Feathers (Prentice Hall)](https://www.oreilly.com/library/view/working-effectively-with/9780131177055/)
+  「接缝（seam）」概念的出处：不改此处代码就能改变行为的地方。第 3 课「测试疼 = 设计信号」的理论根基。
+
+- [Article: "Mocks Aren't Stubs" — Martin Fowler](https://martinfowler.com/articles/mocksArentStubs.html)
+  状态断言 vs 交互断言的经典分野，以及过度 mock 的代价。第 4 课「mock 纪律」的锚点文献。
+
+- [Docs: NSubstitute — A friendly substitute for .NET mocking libraries](https://nsubstitute.github.io/)
+  课程选用的 mock 框架官方文档：语法最贴人话，社区主流选择（`.Received()` / `.Returns()` / `Arg.Any<T>`）。
+
 ## Wisdom (Communities)
 
 - [Stack Overflow — 标签 `c# unit-testing`](https://stackoverflow.com/questions/tagged/c%23+unit-testing)

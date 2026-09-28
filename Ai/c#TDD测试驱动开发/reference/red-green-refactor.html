@@ -99,7 +99,11 @@ dotnet watch test</code></pre>
   <tr><td>断言 / assertion</td><td>测试里的「期望 vs 实际」检查；断言失败是最有效的红灯</td></tr>
   <tr><td>最小实现</td><td>恰好让当前测试通过的代码，多一行都不写</td></tr>
   <tr><td>Fake It</td><td>绿灯阶段用硬编码/假实现先让测试通过，之后再泛化</td></tr>
-  <tr><td>三角定位 / Triangulation</td><td>用第二条测试逼出真实现而非硬编码（后续课程展开）</td></tr>
+  <tr><td>三角定位 / Triangulation</td><td>用第二条测试逼出真实现而非硬编码</td></tr>
+  <tr><td>隐藏依赖</td><td>藏在代码内部的时钟、随机数、I/O（串口/文件/HTTP）——测试疼的头号来源</td></tr>
+  <tr><td>接缝 / seam</td><td>不改此处代码就能替换行为的地方（Feathers 提出）——隐藏依赖的解药</td></tr>
+  <tr><td>构造函数注入</td><td>从构造函数传入依赖，是最常用的接缝；接口往往被红灯逼出来</td></tr>
+  <tr><td>测试替身 / test double</td><td>插进接缝里的假依赖（手写 fake 起步，stub/mock 框架进阶）</td></tr>
 </table>
 
 <footer class="lesson-foot">

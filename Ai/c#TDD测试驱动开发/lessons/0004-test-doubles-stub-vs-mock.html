@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 4 课 · 替身进阶：stub 与 mock</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="lesson-head">
+  <div class="kicker">C# TDD 课程 · 第 4 课</div>
+  <h1>替身进阶：stub 与 mock<span class="subtitle">手写假货的天花板，以及什么时候该断言「交互」而不是「状态」</span></h1>
+</header>
+
+<p>先给你已经写过的东西发个学位证：第 3 课里的 <code>RecordingChannel</code>，学名叫 <strong>spy（间谍）</strong>——一个假装是依赖、暗地里记录调用供你事后检查的替身。也就是说，<strong>你已经在用测试替身了</strong>，只是没用这个名字。这一课做三件事：把替身的术语地图摆清楚（<a href="../reference/test-doubles.html">速查卡在这</a>）；教你一种全新断言路线——<strong>交互断言</strong>；然后请出 mock 框架，看看它到底帮你省了什么。</p>
+
+<h2>先疼一次：重发需求</h2>
+
+<p>真实的工业现场从不一次成功：通道忙、干扰、半包。新需求很自然——<strong>通道忙就重试一次</strong>。按 TDD 的规矩，测试先行。这次替身需要新本事：先扔一次异常、再恢复正常，同时记住被调了几次：</p>
+
+<pre><code>public class ChannelBusyException : Exception { }
+
+[Fact]
+public void Send_retries_once_when_channel_is_busy()
+{
+    var channel = new FlakyChannel(failuresBeforeSuccess: 1);
+    var sender  = new FrameSender(channel);
+
+    sender.Send(new byte[] { 0x10, 0x02 });
+
+    Assert.Equal(2, channel.Attempts);   // ← 注意这条：断言的不是数据，是「次数」
+}
+
+private class FlakyChannel : IFrameChannel
+{
+    private int _failuresLeft;
+    public int Attempts { get; private set; }
+    public byte[] LastWritten { get; private set; } = Array.Empty&lt;byte&gt;();
+
+    public FlakyChannel(int failuresBeforeSuccess) =&gt; _failuresLeft = failuresBeforeSuccess;
+
+    public void Write(byte[] bytes)
+    {
+        Attempts++;
+        if (_failuresLeft-- &gt; 0) throw new ChannelBusyException();
+        LastWritten = bytes;
+    }
+}</code></pre>
+
+<p>红灯。让它变绿的实现也顺理成章：</p>
+
+<pre><code>public void Send(byte[] frame)
+{
+    var payload = frame.Append(Frame.XorChecksum(frame)).ToArray();
+    try   { _channel.Write(payload); }
+    catch (ChannelBusyException) { _channel.Write(payload); }
+}</code></pre>
+
+<p>绿。但停下来看看 <code>Assert.Equal(2, channel.Attempts)</code>——它和你以前写的断言<strong>不是一路货</strong>：</p>
+
+<table>
+  <tr><th></th><th>你以前写的（状态断言）</th><th>这条（交互断言）</th></tr>
+  <tr><td>问的问题</td><td>「写出去的字节对吗」</td><td>「跟依赖协作的方式对吗」</td></tr>
+  <tr><td>查的东西</td><td>产出/落点的数据</td><td>调用了几次、传了什么、调没调</td></tr>
+  <tr><td>适用</td><td>绝大多数行为，默认选它</td><td>没有状态可查时：重试、该调没调、不该调却调了</td></tr>
+</table>
+
+<p><code>Send</code> 返回 <code>void</code>、效果全在副作用里，「重试了几次」这个问题<strong>没有状态可查</strong>——只能去问依赖本人。这就是交互断言存在的理由。Martin Fowler 把这两条路线的分野写得很透：<a href="https://martinfowler.com/articles/mocksArentStubs.html">Mocks Aren't Stubs</a>。</p>
+
+<h2>手写替身的天花板</h2>
+
+<p>刚才你一口气造了两个替身：<code>FlakyChannel</code> 的扔异常部分是 <strong>stub</strong>（替你安排依赖的「进」——返回值和异常），<code>Attempts</code> 计数部分是 <strong>spy</strong>（替你记录「出」）。加上 <code>RecordingChannel</code>，手写替身你已经玩得很熟了。那框架还能帮什么？看看同样的测试用 <a href="https://nsubstitute.github.io/">NSubstitute</a> 写一遍：</p>
+
+<pre><code>using NSubstitute;
+
+[Fact]
+public void Send_retries_once_nsubstitute()
+{
+    var channel = Substitute.For&lt;IFrameChannel&gt;();     // 替身本体：IFrameChannel 的运行时实现
+    var calls = 0;
+    channel.When(c =&gt; c.Write(Arg.Any&lt;byte[]&gt;()))      // stub：安排「第一次扔异常」
+           .Do(_ =&gt; { if (++calls == 1) throw new ChannelBusyException(); });
+
+    new FrameSender(channel).Send(new byte[] { 0x10, 0x02 });
+
+    channel.Received(2).Write(Arg.Any&lt;byte[]&gt;());      // mock：恰好被调 2 次，不多不少
+}</code></pre>
+
+<p>对比一下你省掉了什么：<strong>再也不用为每个接口手写一个替身类</strong>。以前每换一个接口就要现编一个 <code>RecordingXxx</code>、<code>FlakyXxx</code>；现在 <code>Substitute.For&lt;接口&gt;()</code> 一行出一个万能替身，stub 用 <code>Returns</code>/<code>When-Do</code> 配置，spy 和 mock 合并成 <code>Received()</code> 一句话。替身多了之后，这笔账很可观。课程统一选 NSubstitute——语法最贴人话，也是 .NET 社区当下的主流选择（Moq 也常见，看得懂即可）。</p>
+
+<p>再认识一句很可能成为你主力武器的断言——「<strong>绝不该发生</strong>」：</p>
+
+<pre><code>channel.DidNotReceive().Write(Arg.Any&lt;byte[]&gt;());   // 从未被调用，不管参数是什么</code></pre>
+
+<h2>mock 的纪律：它是一面危险的镜子</h2>
+
+<div class="warn">
+  <span class="callout-label">警告</span>
+  交互断言有一个成瘾性陷阱：它太好用了，好用到你忍不住把<strong>每一步协作</strong>都 <code>Received()</code> 一遍。一旦如此，测试就不再是「查行为的网」，而变成<strong>实现细节的镜子</strong>——你改的只是实现方式（行为没变），测试却红成一片。Fowler 对此的警告是 mock 派与经典派之争的核心，记住纪律：交互断言只留给「没有状态可查」的行为；<strong>重构之后莫名红灯，就是镜子照进现实的信号</strong>。
+</div>
+
+<ul>
+  <li>默认状态断言，交互断言按需使用</li>
+  <li>只 mock <strong>出了边界的依赖</strong>（串口、邮件、数据库）；自己写的纯逻辑不 mock</li>
+  <li>替身接口要窄——方法越少，替身越便宜</li>
+</ul>
+
+<h2>检查一下手感</h2>
+
+<div class="quiz" data-quiz='{
+  "questions": [
+    {
+      "type": "single",
+      "prompt": "stub 和 mock 的分工是？",
+      "options": [
+        "stub 供输入，mock 查输出",
+        "stub 查输出，mock 供输入",
+        "stub 造状态，mock 造输入",
+        "stub 管性能，mock 管功能"
+      ],
+      "answer": 0,
+      "explanation": "stub 管进：替被测对象接收输入（返回值、异常），让代码能跑起来。mock 管出：盯住依赖的输出端，验证「被怎样调用」。五个术语名词里，干活的就这两类。"
+    },
+    {
+      "type": "single",
+      "prompt": "哪种行为适合用交互断言来测？",
+      "options": [
+        "重试几次与有没有被调用",
+        "方法返回的具体数值对错",
+        "帧里字节的排列顺序对错",
+        "纯函数在各输入下的输出"
+      ],
+      "answer": 0,
+      "explanation": "「重试了几次」「该调没调」没有状态可查——Send 返回 void，效果全在副作用里，只能去问依赖本人。其余三种都有明确的产出数据，状态断言更稳。"
+    },
+    {
+      "type": "single",
+      "prompt": "「无效帧绝不出门」这类断言，最顺手的工具是？",
+      "options": [
+        "断言从未发生的交互调用",
+        "断言返回值的边界与空值",
+        "断言字节序列的逐一相等",
+        "断言异常信息的完整文本"
+      ],
+      "answer": 0,
+      "explanation": "「不该调却调了」用 DidNotReceive 一句话搞定——这是 mock 框架最不可替代的场景之一：验证某件事永远没有发生。"
+    },
+    {
+      "type": "single",
+      "prompt": "过度使用交互断言的最大代价是？",
+      "options": [
+        "测试变成实现细节的镜子",
+        "测试的运行速度显著变慢",
+        "断言库的版本升级会失败",
+        "单元测试从此再也不红灯"
+      ],
+      "answer": 0,
+      "explanation": "把每步协作都 Received 一遍，测试就钉死了「怎么做的」而非「做了什么」——重构实现（行为不变）也会红成一片。Fowler 的经典警告：那时测试已不是安全网，是枷锁。速度影响倒是次要的。"
+    },
+    {
+      "type": "multiple",
+      "prompt": "哪些接缝真的适合上 mock？（多选）",
+      "options": [
+        "会发真实邮件的通知接口",
+        "会去写数据库的仓储接口",
+        "帧与字节间的纯转换函数",
+        "会走真实串口的硬件通道"
+      ],
+      "answer": [0, 1, 3],
+      "explanation": "mock 留给「出了边界、无法控制的外部世界」：邮件、数据库、串口都算。自己写的纯逻辑既不需要 mock 也 mock 不出价值——直接用真实现，测它的输入输出就好。"
+    }
+  ]
+}'></div>
+
+<h2>现在就做：给重发逻辑收尾</h2>
+
+<p>顺着刚才的故事走，一共三步，十分钟后你的 <code>FrameSender</code> 就是个能上战场的模样：</p>
+
+<ol>
+  <li>把 <code>FlakyChannel</code> 和重发测试抄进 TddLab，跑绿。这就是本课的练习——跟着上面的代码块做即可。</li>
+  <li><code>dotnet add package NSubstitute</code>（加在 <code>FrameCodec.Tests</code> 项目上），用 <code>Received(2)</code> 重写同一条测试，两种拍法都留着，跑一遍。</li>
+  <li>给 <code>FrameSender</code> 加一个 <code>TrySend</code>：通道连续两次忙就放弃并返回 <code>false</code>。用 <code>When-Do</code> 让替身永远忙，断言 <code>Assert.False(ok)</code> 加 <code>Received(2)</code>——「试了两次，不多不少」。</li>
+</ol>
+
+<footer class="lesson-foot">
+  <p><span class="primary-source">本课首选原著：Roy Osherove《The Art of Unit Testing》(3rd ed.)</span>——替身分类与「测试可维护性」的主文本，本课只取了它两章的精华。<a href="https://www.manning.com/books/the-art-of-unit-testing-third-edition/">图书页</a> · 交互断言之争的原文：<a href="https://martinfowler.com/articles/mocksArentStubs.html">Fowler, Mocks Aren't Stubs</a>。</p>
+  <p>替身长歪了、<code>When-Do</code> 语法报错、TrySend 卡住——都带回对话里问你的老师（Claude）。下一课预告：<strong>把镜头转向真实项目</strong>——课程内练习毕业前最后一课：怎么在你的工作代码里挑第一块 TDD 试验田，以及同事问「写测试不是很慢吗」时怎么答（团队推广动机，这一课兑现）。</p>
+</footer>
+
+</main>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
