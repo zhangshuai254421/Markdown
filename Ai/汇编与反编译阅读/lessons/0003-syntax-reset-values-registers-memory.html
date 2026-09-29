@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>基础重置 1：汇编最小语法</title><link rel="stylesheet" href="../assets/style.css"><script src="../assets/quiz.js" defer></script></head>
+<body><main>
+<p class="eyebrow">基础重置 · 15 分钟</p><h1>把汇编当成赋值语句读：最小语法</h1>
+<p class="lead">这一课故意不讲函数、栈、调用约定。你的唯一目标是：每一行都能翻译成一条简单的 C# 风格赋值或算术语句。</p>
+<div class="card key"><strong>今天只记一句：</strong><code>指令 目标, 来源</code> 大多可以先读作 <code>目标 = 来源</code>。x86 常用 Intel 语法，目标在左，来源在右。</div>
+
+<h2>1. 数字与注释</h2>
+<table><thead><tr><th>写法</th><th>含义</th><th>.NET 类比</th></tr></thead><tbody>
+<tr><td><code>42</code></td><td>十进制 42</td><td><code>42</code></td></tr>
+<tr><td><code>2Ah</code> 或 <code>0x2a</code></td><td>十六进制 42</td><td><code>0x2A</code></td></tr>
+<tr><td><code>; 后面的文字</code></td><td>注释，不执行</td><td><code>// 注释</code></td></tr>
+</tbody></table>
+<p>反汇编器常把十六进制写成 <code>20h</code>，Ghidra 常见 <code>0x20</code>。它们是同一个数：32。</p>
+
+<h2>2. 寄存器：只是不同宽度的“格子”</h2>
+<p>先只关心两组名字：</p>
+<table><thead><tr><th>64 位</th><th>低 32 位</th><th>先这样理解</th></tr></thead><tbody>
+<tr><td><code>RAX</code></td><td><code>EAX</code></td><td>同一个物理寄存器的不同观察窗口</td></tr>
+<tr><td><code>RCX</code></td><td><code>ECX</code></td><td>同上</td></tr>
+<tr><td><code>RDX</code></td><td><code>EDX</code></td><td>同上</td></tr>
+<tr><td><code>R8</code></td><td><code>R8D</code></td><td>同上</td></tr>
+</tbody></table>
+<div class="card warning"><strong>一个高频规则：</strong>写入 32 位寄存器会把对应 64 位寄存器的高 32 位清零。<code>mov eax, 5</code> 之后可以先当作 <code>rax = 5</code>。但读取 <code>eax</code> 时，只是在读 <code>rax</code> 的低 32 位。</div>
+
+<h2>3. 三条指令 = 三种熟悉操作</h2>
+<pre>mov eax, 5       ; eax = 5
+mov ecx, eax     ; ecx = eax
+add eax, ecx     ; eax = eax + ecx
+sub eax, 1       ; eax = eax - 1
+imul eax, 4      ; eax = eax * 4</pre>
+<p><code>mov</code> 不等于 C# 的对象移动；它只是复制位。<code>add</code>/<code>sub</code>/<code>imul</code> 的第一个操作数同时是输入和输出，就像 <code>x += y</code>。</p>
+<pre>; 逐行翻译
+mov eax, 7       ; eax = 7
+mov ecx, 3       ; ecx = 3
+imul eax, ecx    ; eax = eax * ecx
+sub eax, 1       ; eax = eax - 1
+; 结果：eax = 20</pre>
+
+<h2>4. 方括号 <code>[]</code>：不是数组，是“按地址取内存”</h2>
+<p>这是最重要的一点。没有方括号时，写的是寄存器值；有方括号时，写的是那个值当作地址所指向的内存。</p>
+<table><thead><tr><th>汇编</th><th>最可靠的翻译</th></tr></thead><tbody>
+<tr><td><code>mov eax, ecx</code></td><td><code>eax = ecx</code></td></tr>
+<tr><td><code>mov eax, [rcx]</code></td><td><code>eax = *(int*)rcx</code>（读 rcx 指向内存）</td></tr>
+<tr><td><code>mov [rcx], eax</code></td><td><code>*(int*)rcx = eax</code>（写 rcx 指向内存）</td></tr>
+<tr><td><code>mov eax, [rcx+8]</code></td><td><code>eax = *(int*)((byte*)rcx + 8)</code></td></tr>
+</tbody></table>
+<p>在反编译中，<code>[rcx+8]</code> <em>经常</em>最终会被标成 <code>obj->field</code>，但今天先坚持最可靠的说法：读取地址 <code>rcx + 8</code> 的内存。</p>
+
+<h2>5. 连起来读</h2>
+<pre>mov eax, dword ptr [rcx+4]
+add eax, edx
+mov dword ptr [rcx+4], eax</pre>
+<p>逐行翻译：</p>
+<pre>int temp = *(int*)((byte*)rcx + 4);
+temp = temp + edx;
+*(int*)((byte*)rcx + 4) = temp;</pre>
+<p>你现在不需要知道 <code>rcx</code> 是不是对象、<code>+4</code> 是不是字段。能稳定读出“读 → 算 → 写回”，就是本课完成。</p>
+
+<h2>6. 三个自测</h2>
+<div class="exercise"><p><code>mov edx, 12</code> 最接近哪条 C# 语句？</p><button onclick="reveal('a1')">显示答案</button><p id="a1" class="feedback" hidden><strong>答案：</strong><code>edx = 12;</code>。它不是“把 12 移动到 edx”，而是把 12 的位复制进 edx。</p></div>
+<div class="exercise"><p><code>mov eax, [rcx]</code> 与 <code>mov eax, rcx</code> 最大差别是什么？</p><button onclick="reveal('a2')">显示答案</button><p id="a2" class="feedback" hidden><strong>答案：</strong>前者读取 <code>rcx</code> 作为地址所指向的内存；后者复制 <code>rcx</code> 这个地址数值本身。方括号就是“解引用”。</p></div>
+<div class="exercise"><p>执行后 <code>eax</code> 是多少？<pre>mov eax, 2
+mov ecx, 6
+add eax, ecx
+imul eax, 3</pre></p><button onclick="reveal('a3')">显示答案</button><p id="a3" class="feedback" hidden><strong>答案：</strong><code>24</code>：先 2，再加 6 得 8，再乘 3 得 24。每次只跟踪被写入的左侧目标。</p></div>
+
+<h2>停在这里就够了</h2>
+<p>请先把本页的三道题做完，尤其是“有无 <code>[]</code> 的差异”。不要回去硬看第 1、2 课。下一课只加两条东西：<code>cmp/test</code>（比较）和 <code>jcc</code>（根据比较跳转），然后我们才重新读 <code>if</code>。</p>
+<p>指令精确定义的权威查询入口是 <a href="https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html" target="_blank" rel="noopener">Intel Software Developer Manuals</a>；今天只需把它当字典，不必通读。看完后告诉我：哪一个例子还读不出来，我会针对那一行拆解。</p>
+</main></body></html>

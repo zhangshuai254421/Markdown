@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>第 1 课：读汇编的地图</title><link rel="stylesheet" href="../assets/style.css"><script src="../assets/quiz.js" defer></script></head>
+<body><main>
+<p class="eyebrow">第 1 课 · 15 分钟</p><h1>读汇编的地图：寄存器、内存、控制流</h1>
+<p class="lead">你的任务不是背指令，而是把每个函数先还原成 .NET 工程师熟悉的东西：输入、临时值、对象字段和流程图。</p>
+<div class="card key"><strong>本课的一个胜利：</strong>看到一段汇编时，先能回答：谁是输入？哪儿读/写内存？代码会往哪几个方向走？能回答这三个问题，就已经在“读程序”而非“背助记符”。</div>
+
+<h2>1. 先建立正确的比喻</h2>
+<table><thead><tr><th>C# / C++ 视角</th><th>机器视角</th></tr></thead><tbody>
+<tr><td>局部变量、参数、返回值</td><td>某时刻存放在寄存器或栈内存中的位</td></tr>
+<tr><td>对象字段</td><td>基地址加偏移，例如 <code>[rcx+8]</code></td></tr>
+<tr><td><code>if</code> / <code>while</code></td><td>比较/测试后，根据标志位跳转到另一基本块</td></tr>
+<tr><td>方法调用</td><td>按 ABI 准备输入，<code>call</code>；返回后继续，读取结果</td></tr>
+</tbody></table>
+<p>寄存器不是“变量的永久住址”。同一个 <code>rax</code> 可以在相邻三行依次装载字段、保存计算结果、承载返回值。阅读时给它取<strong>临时语义名</strong>，例如 <code>count</code>、<code>isEmpty</code>，一旦被覆盖就丢弃旧含义。</p>
+
+<h2>2. 三种最先要认出的形状</h2>
+<pre>; C++: return item->count + 1;
+mov eax, dword ptr [rcx+8]  ; 从 rcx 指向对象的偏移 8 读 32 位
+add eax, 1                  ; eax = eax + 1
+ret                         ; 返回；整数结果在 eax/rax</pre>
+<p><code>rcx</code> 在这里像 <code>item</code>，<code>[rcx+8]</code> 像 <code>item->count</code>，<code>eax</code> 最后像返回值。注意：这是根据使用方式形成的<strong>假设</strong>；反编译工作靠更多调用点和类型信息去验证它。</p>
+
+<pre>; C++: return x > 0 ? 10 : 20;
+test ecx, ecx               ; 设置标志位：ecx 是否为 0
+jle  short else_block       ; 若 x <= 0，跳去 else
+mov eax, 10
+ret
+else_block:
+mov eax, 20
+ret</pre>
+<p>不要把 <code>test</code> 和 <code>jle</code> 分开背：把这一对合起来读成「判断 x，选择下一块」。汇编的控制流图才是结构，单条指令只是细节。</p>
+
+<div class="card warning"><strong>反编译的第一纪律：</strong>反汇编是“字节解码成指令”；反编译是工具对源码结构的推断。前者更接近事实，后者更易读但可能把类型、变量边界、<code>if</code> 结构猜错。两者不一致时，以数据流和控制流为准。</div>
+
+<h2>3. 一个四步阅读法</h2>
+<ol><li><strong>划边界：</strong>函数入口、所有 <code>ret</code>、所有 <code>call</code>、所有条件/无条件跳转。</li><li><strong>画块：</strong>每个分支目标是块入口；先读“块如何连接”。</li><li><strong>标数据：</strong>给每个寄存器的当前用途写临时名字；圈出所有 <code>[base+offset]</code>。</li><li><strong>回写源码：</strong>只写你能证实的 C++ 伪代码；未知类型先用 <code>uint32_t</code>、<code>void*</code>，别急着编故事。</li></ol>
+
+<h2>4. 立即练习</h2>
+<div class="exercise"><p>下面最可靠的 C++ 伪代码是什么？</p><pre>mov eax, dword ptr [rcx+4]
+add eax, edx
+ret</pre><button onclick="reveal('a1')">显示答案</button><p id="a1" class="feedback" hidden><strong>答案：</strong><code>return *(int*)((char*)rcx + 4) + edx;</code>。可以“猜”它更像 <code>obj->field + value</code>，但当前证据尚不足以确定对象类型和字段名。这里训练的是证据等级。</p></div>
+<div class="exercise"><p>看到 <code>cmp eax, 5</code> 接 <code>jl target</code>，你应该先把它当成什么？</p><button onclick="reveal('a2')">显示答案</button><p id="a2" class="feedback" hidden><strong>答案：</strong>一个控制流决策：若有符号整数 <code>eax < 5</code> 就去 <code>target</code>。它可能属于 if 或循环；必须看块图，不能只凭一条跳转定结构。</p></div>
+<div class="exercise"><p><code>[rcx+8]</code> 最准确的描述是什么？</p><button onclick="reveal('a3')">显示答案</button><p id="a3" class="feedback" hidden><strong>答案：</strong>读取/写入地址 <code>rcx + 8</code> 指向的内存。它<strong>可能</strong>是对象字段、数组元素或栈外部数据；“字段”是常见但待验证的解释。</p></div>
+
+<h2>5. 用 Compiler Explorer 验证</h2>
+<ol><li>打开 <a href="https://godbolt.org/" target="_blank" rel="noopener">Compiler Explorer</a>，选择 MSVC x64。</li><li>输入：<code>struct Item { int tag; int count; }; int Next(Item* item, int delta) { return item->count + delta; }</code>。</li><li>先看 <code>/Od</code>，再切到 <code>/O2</code>；用本课四步法标出输入、内存读和返回值。</li></ol>
+<p>主来源：微软的 <a href="https://learn.microsoft.com/en-us/cpp/build/x64-calling-convention?view=msvc-170" target="_blank" rel="noopener">x64 调用约定</a>（先看概览，不必今天背寄存器表）。不确定处直接问我；下一课会把 <code>call</code> 前后的寄存器与栈讲透。</p>
+</main></body></html>
+

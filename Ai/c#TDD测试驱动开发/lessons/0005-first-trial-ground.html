@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 5 课 · 毕业课：挑第一块试验田</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="lesson-head">
+  <div class="kicker">C# TDD 课程 · 第 5 课 · 毕业课</div>
+  <h1>挑第一块试验田<span class="subtitle">把红绿循环带回工作项目，顺便拿到回应「写测试太慢」的弹药</span></h1>
+</header>
+
+<p>课程内练习到今天可以验收了。对着这份清单打个勾：红灯先行（第 1 课）、三角定位逼走硬编码（第 2 课）、隐藏依赖开接缝（第 3 课）、替身与交互断言（第 4 课）——<code>XorChecksum</code>、<code>Parse</code>、<code>FrameSender</code>、<code>TrySend</code>，这一路都是你自己在 TddLab 里长出来的代码。<strong>技能在手上，缺的只剩一件事：用在你自己的战场。</strong>这课就办两件事——教你怎么挑第一块真实试验田；给你一套回应「写测试太慢」的说辞，团队推广和面试都用得上。</p>
+
+<h2>选田三问</h2>
+
+<p>第一块田选错，TDD 会被冤枉。工作项目里扫一圈，用三个问题过筛：</p>
+
+<div class="key">
+  <span class="callout-label">选田三问</span>
+  <strong>① 是纯逻辑吗？</strong>——输入输出能在测试里构造出来（解析、计算、校验、协议、状态机）；UI 排版和硬件直读先排除。<br>
+  <strong>② 是新代码，还是能先开缝？</strong>——新模块最顺；老代码按第 3 课的办法先找接缝、再动刀。<br>
+  <strong>③ 这周它会被大改吗？</strong>——需求还没冻结的功能，安全网建了又拆，先等等。
+</div>
+
+<p>你的领域里现成的候选：SECS 报文头解析、指令超时重发策略、报警条件判断、串口收发的<strong>粘包拆包</strong>——最后一个我们马上在课里实战一遍，你看看它有多适合。</p>
+
+<h2>毕业实战：串口粘包拆包</h2>
+
+<p>写串口的人都吃过这个亏：<code>port.Read</code> 返回的字节是<strong>任意分块</strong>的——发送端可能两帧连着发（粘包），一帧也可能被拆成两半到（半包），都没有任何提示。所以每个串口程序都需要一个「收字节、攒着、凑够一帧就吐出来」的模块。这就是标准的第一块试验田：纯逻辑、输入好造、真实痛点。三圈走完：</p>
+
+<h3>第 1 圈 · 一帧整的</h3>
+
+<pre><code>[Fact]
+public void Feed_with_exactly_one_frame_returns_one_frame()
+{
+    var cutter = new FrameCutter(frameLength: 2);
+
+    var frames = cutter.Feed(new byte[] { 0x10, 0x02 });
+
+    Assert.Equal(new byte[][] { new byte[] { 0x10, 0x02 } }, frames);
+}</code></pre>
+
+<p>红灯 → 绿。到绿的姿势随便选——Fake It（<code>return new[] { bytes };</code>）也行，你觉得显然实现已经出来了直接写也行。这次假设走了 Fake It。</p>
+
+<h3>第 2 圈 · 两帧粘一起</h3>
+
+<pre><code>[Fact]
+public void Feed_with_two_stuck_frames_returns_both()
+{
+    var cutter = new FrameCutter(frameLength: 2);
+
+    var frames = cutter.Feed(new byte[] { 0x10, 0x02, 0x7F, 0x00 });
+
+    Assert.Equal(new byte[][] { new byte[] { 0x10, 0x02 }, new byte[] { 0x7F, 0x00 } }, frames);
+}</code></pre>
+
+<p>假的 <code>return new[] { bytes };</code> 立刻崩——三角定位第二次上演。逼出来的真实现：按帧长切片。</p>
+
+<h3>第 3 圈 · 半包，然后补齐</h3>
+
+<pre><code>[Fact]
+public void Feed_with_half_frame_keeps_it_until_rest_arrives()
+{
+    var cutter = new FrameCutter(frameLength: 2);
+
+    Assert.Empty(cutter.Feed(new byte[] { 0x10 }));   // 半包：先别出声
+    Assert.Equal(new byte[][] { new byte[] { 0x10, 0x02 } },
+                 cutter.Feed(new byte[] { 0x02 }));   // 补齐：现在出帧
+}</code></pre>
+
+<p>第 2 圈的实现只看当次输入、不记事，半包的前半截直接被它扔了——红。要过这关，模块必须<strong>有记忆</strong>：</p>
+
+<pre><code>public class FrameCutter
+{
+    private readonly int _frameLength;
+    private readonly List&lt;byte&gt; _buffer = new();
+
+    public FrameCutter(int frameLength) =&gt; _frameLength = frameLength;
+
+    public byte[][] Feed(byte[] bytes)
+    {
+        _buffer.AddRange(bytes);                          // 来了就攒着
+        var frames = new List&lt;byte[]&gt;();
+        while (_buffer.Count &gt;= _frameLength)             // 够一帧就吐一帧
+        {
+            frames.Add(_buffer.Take(_frameLength).ToArray());
+            _buffer.RemoveRange(0, _frameLength);
+        }
+        return frames.ToArray();
+    }
+}</code></pre>
+
+<p>三圈结束，全绿。注意刚才发生了什么：<strong>粘包、半包这两个真实痛点，是测试一行一行逼着实现去处理的</strong>——手写这段代码时你八成会漏掉半包，然后在现场抓三天。这就是「减少 bug 返工」那半句承诺的兑现方式。也注意 buffer 状态的存在本身，就是一个没有被测试覆盖的隐患（谁的 buffer？要不要清？）——记下这个感觉，它以后会变成你对「隐藏状态」的嗅觉。</p>
+
+<h2>「写测试太慢」的 30 秒回答</h2>
+
+<div class="key">
+  <span class="callout-label">可以直接背</span>
+  「慢不慢看怎么算账。写测试的 20 分钟，买回来的是三样东西：<strong>调试时间</strong>——半包这种 bug 手动复现要挂串口线抓半天，测试一跑就现形；<strong>重构底气</strong>——改完 5 秒知道没改坏；<strong>设计</strong>——难写的测试当场报警，不用等联调。我按功能算总账，不按每小时敲多少行算。」
+</div>
+
+<p>诚实的另一半（说出去更可信）：<strong>TDD 不是所有地方都快</strong>。试探性的一次性脚本、纯排版 UI、还在探索方向的 spike——这些场景先跑通再说，别教条。分得清什么时候用，别人才信你真用过。Fowler 对收益与代价的总结见 <a href="https://martinfowler.com/bliki/UsesAndDrawbacksOfTDD.html">Uses and Drawbacks of TDD</a>。</p>
+
+<h2>推广策略：先锋田，不下军令</h2>
+
+<p>你在《代码整洁之道》里读过童子军军规——推广 TDD 用的是同一个思路：<strong>自己的新代码先行，不动别人的规则</strong>。全组邮件强制执行、把覆盖率塞进 KPI，只会收获阳奉阴违和粗制滥造的测试。能示范三个月，比能宣讲三小时有用得多——你的 TddLab 和第一块试验田，就是全部弹药。</p>
+
+<h2>检查一下手感</h2>
+
+<div class="quiz" data-quiz='{
+  "questions": [
+    {
+      "type": "single",
+      "prompt": "第一块 TDD 试验田最好选？",
+      "options": [
+        "新写的纯逻辑小切片",
+        "老项目最复杂的模块",
+        "没有任何逻辑的界面",
+        "依赖硬件的驱动层"
+      ],
+      "answer": 0,
+      "explanation": "纯逻辑切片输入输出好构造、红灯反馈快、失败好定位——安全网要建在会走夜路的地方。复杂老模块和硬件层是将来用「开缝」技术慢慢啃的，不是第一口。"
+    },
+    {
+      "type": "single",
+      "prompt": "回应「写测试太慢」最有力的论据是？",
+      "options": [
+        "省下的调试返工时间更多",
+        "测试代码的行数其实更少",
+        "框架运行速度已经很快了",
+        "老板会因为你勤奋而加薪"
+      ],
+      "answer": 0,
+      "explanation": "账要按功能总账算：写测试 20 分钟，换回的是调试时间锐减、重构 5 秒验证、设计问题当场暴露。行数和框架速度都不是论据核心——总账才是。"
+    },
+    {
+      "type": "single",
+      "prompt": "哪种代码暂时不适合用 TDD 起步？",
+      "options": [
+        "靠眼睛验收的界面层",
+        "协议帧的解析与校验",
+        "报警条件的判断逻辑",
+        "指令超时的重发策略"
+      ],
+      "answer": 0,
+      "explanation": "「好不好看」没有可断言的输入输出，界面层先靠手验，别教条。后三者全是纯逻辑切片——标准的试验田。分得清什么时候不用 TDD，说出去才可信。"
+    },
+    {
+      "type": "single",
+      "prompt": "团队里推广 TDD 的最佳起点是？",
+      "options": [
+        "自己的新代码先行示范",
+        "发邮件宣布全组强制执行",
+        "逐一审查旧代码没测试",
+        "把写测试写进绩效考核"
+      ],
+      "answer": 0,
+      "explanation": "童子军军规的推广版：先把自己的田种成示范田。强制令和 KPI 只会催生粗制滥造的测试——阳奉阴违比没有测试更糟。示范三个月胜过宣讲三小时。"
+    },
+    {
+      "type": "multiple",
+      "prompt": "串口读到的字节为什么需要拆包模块？（多选）",
+      "options": [
+        "Read 按任意分块返回字节",
+        "发送端可能把两帧连着发",
+        "一帧可能被拆成两次到达",
+        "串口会自动按帧对齐字节"
+      ],
+      "answer": [0, 1, 2],
+      "explanation": "分块不可控 + 粘包 + 半包，是串口通信的日常；「自动对齐」是幻觉，协议里没有这种服务。所以收字节、攒着、够帧就吐的 FrameCutter 几乎是每个串口程序的标配。"
+    }
+  ]
+}'></div>
+
+<h2>课后作业：把第一圈带回战场</h2>
+
+<ol>
+  <li>在工作项目里用<strong>选田三问</strong>筛出一小块纯逻辑（解析、校验、计算、状态机都行），把<strong>函数签名</strong>（或想造的类名）记下来。</li>
+  <li>给它写下<strong>第一个红灯</strong>：测试名用行为句式——<code>输入什么_应当什么</code>，比如 <code>Parse_secs_header_returns_device_id</code>。跑一遍，亲眼看它红。</li>
+  <li><strong>把签名和这条测试贴回对话</strong>——我们一起走完第一圈，这就是你的毕业答辩。</li>
+</ol>
+
+<footer class="lesson-foot">
+  <p><span class="primary-source">本课首选文献：Martin Fowler《Uses and Drawbacks of TDD》</span>——推广前把利弊原文读一遍，质疑来时你引的是 Fowler 而不是口水。<a href="https://martinfowler.com/bliki/UsesAndDrawbacksOfTDD.html">原文</a> · Kent Beck 说 TDD 是「管理编程中的恐惧」：《<a href="https://www.oreilly.com/library/view/test-driven-development/9780321146533/">TDD by Example</a>》前言。</p>
+  <p>选田拿不准、第一个测试写不出来、或者工作项目有保密顾虑不方便贴——都回对话里说，可以换备选田。你的老师（Claude）在这里等你的毕业答辩。</p>
+</footer>
+
+</main>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

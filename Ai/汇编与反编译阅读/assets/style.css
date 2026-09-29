@@ -1,0 +1,21 @@
+:root { color-scheme: light; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background: #f7f8fb; color: #172033; }
+body { margin: 0; line-height: 1.7; }
+main { max-width: 900px; margin: 0 auto; padding: 42px 22px 80px; }
+h1 { font-size: 2.2rem; line-height: 1.25; margin: 0 0 10px; }
+h2 { margin-top: 42px; border-bottom: 1px solid #dce2ee; padding-bottom: 7px; }
+h3 { margin-top: 28px; }
+.eyebrow { color: #4562a8; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: .78rem; }
+.lead { font-size: 1.15rem; color: #42506b; }
+.card, .exercise, .answer { background: white; border: 1px solid #dce2ee; border-radius: 12px; padding: 18px 20px; margin: 18px 0; box-shadow: 0 1px 2px #1a285008; }
+.key { border-left: 4px solid #526fd0; padding-left: 16px; }
+.warning { border-left-color: #c98427; }
+code, pre { font-family: "Cascadia Code", Consolas, monospace; }
+pre { background: #121826; color: #d9e2ff; border-radius: 10px; padding: 17px; overflow-x: auto; line-height: 1.55; }
+table { border-collapse: collapse; width: 100%; background: white; }
+th, td { padding: 9px 11px; text-align: left; border: 1px solid #dce2ee; vertical-align: top; }
+th { background: #eef2ff; }
+button { background: #3159c6; color: white; border: 0; border-radius: 7px; padding: 8px 13px; font: inherit; cursor: pointer; }
+.feedback { margin-top: 10px; font-weight: 600; }
+a { color: #264fae; }
+@media print { body { background: white; } main { max-width: none; padding: 0; } .card, .exercise, .answer { box-shadow: none; } }
+

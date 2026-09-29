@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>汇编阅读术语表</title><link rel="stylesheet" href="../assets/style.css"></head>
+<body><main><p class="eyebrow">Reference</p><h1>汇编阅读术语表</h1><p class="lead">只收录为了读 Windows x64 C++ 反编译必须稳定掌握的词。</p>
+<table><thead><tr><th>术语</th><th>阅读时的含义</th></tr></thead><tbody>
+<tr><td>寄存器</td><td>CPU 内部的少量高速位置。反编译时把它先视为临时变量或参数槽位，不要赋予“变量名”含义。</td></tr>
+<tr><td>RIP</td><td>下一条指令的位置；条件跳转改变它，从而实现 if、循环、switch。</td></tr>
+<tr><td>RSP</td><td>当前栈顶指针。<code>sub rsp, ...</code> 通常是为局部数据或调用预留栈空间。</td></tr>
+<tr><td>RBP</td><td>可选的帧指针。优化后常被当作普通非易失寄存器，不能机械地把它等同于“栈帧”。</td></tr>
+<tr><td>内存操作数</td><td><code>[rcx+8]</code> 表示地址 <code>rcx + 8</code> 指向的内存。对 C++ 常可先猜为对象字段，再用交叉引用验证。</td></tr>
+<tr><td>基本块</td><td>一段从入口顺序执行到分支/返回的指令。读函数时先读块和边，再读每条指令。</td></tr>
+<tr><td>调用约定 / ABI</td><td>调用方和被调函数对参数、返回值、栈和寄存器保存的共同协议。</td></tr>
+<tr><td>易失寄存器</td><td>调用后可被覆盖；不能假定 <code>call</code> 后仍保留原值。</td></tr>
+<tr><td>非易失寄存器</td><td>被调函数若使用，必须恢复；常承载跨调用仍需存活的值。</td></tr>
++<tr><td>Shadow space</td><td>Windows x64 中由调用方始终为前四个参数槽预留的 32 字节栈空间；它不是自动等于四个业务局部变量。</td></tr>
+<tr><td>RAX / EAX</td><td>常见的标量返回值寄存器；<code>EAX</code> 是 <code>RAX</code> 的低 32 位。</td></tr>
+<tr><td>XMM0</td><td>常见的浮点/向量返回值寄存器；前四个浮点参数按位置在 XMM0–XMM3。</td></tr>
+</tbody></table></main></body></html>
