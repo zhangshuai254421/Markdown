@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 10 课 · 收官：历史库、体检服务与总答辩</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="lesson-head">
+  <div class="kicker">GB/T 41261 报警管理课程 · 第 10 课 · 收官</div>
+  <h1>历史库、体检服务与总答辩<span class="subtitle">最后两块零件装上去，然后——把整个模块讲给我听</span></h1>
+</header>
+
+<p>九课下来，引擎会思考了（第 8 课），也有脸了（第 9 课）。还差最后两块零件：<strong>事件历史库</strong>（记本子）和 <code>KpiService</code>（体检中心）。装上它们，你的模块就从「一组代码」变成「一个站进生命周期环的系统」——然后我们答辩。</p>
+
+<h2>事件历史库：append-only，引擎不撒谎</h2>
+
+<p>第 1 课的「日志是本子」、第 7 课的「全量落库」，落地成一个接口：</p>
+
+<pre><code>public interface IEventStore
+{
+    void Append(AlarmEvent e);                                    // 只进不改
+    IReadOnlyList&lt;AlarmEvent&gt; Query(DateTimeOffset from, DateTimeOffset to, string? tag = null);
+}
+
+public sealed class EventHistory
+{
+    public EventHistory(IEventStore store, IAlarmFeed feed)
+        => feed.EventRaised += store.Append;                      // 订阅即落库，一行接线
+
+    // 报警历史 = 事件历史按位号/类型筛出的视图（第 1 课的老话，代码形态）
+}</code></pre>
+
+<p>三个要点：<strong>只进不改</strong>（append-only——改历史 = 毁证据，第 6 课的体检全靠它真）；<strong>订阅即落库</strong>（引擎产出的每一拍自动进本子，包括带搁置标的——第 8 课「引擎不撒谎」的终点）；<strong>存储选型</strong>：实验室用 JSONL 文件即可，真项目上 SQLite 单机就够，保留期写进《报警哲学》（常见 90 天～1 年，按你们追溯要求定）。</p>
+
+<h2>KpiService：第 6 课的 LINQ 落地成组件</h2>
+
+<pre><code>public sealed class KpiService
+{
+    public KpiService(IEventStore store, IAlarmClock clock);      // 时钟接缝又来了
+
+    public double  AverageRatePerHour(DateTimeOffset from, DateTimeOffset to);
+    public int     PeakBucket(DateTimeOffset from, DateTimeOffset to);        // 10 分钟桶
+    public double  FloodTimePct(DateTimeOffset from, DateTimeOffset to);      // >10 条/10 分 占比
+    public PriorityMix   Distribution();                                      // 高/中/低配比
+    public IReadOnlyList&lt;string&gt; ChatteringTags(TimeSpan window, int threshold); // 默认 60s/3 次
+    public int StandingCount(TimeSpan now);                                      // >1 时
+    public int StaleCount(TimeSpan now);                                         // >24 时
+}</code></pre>
+
+<p>课堂示范一条测试（最有趣的那条——颤抖检测）：</p>
+
+<pre><code>[Fact]
+public void 同一来源60秒内3次转换_上颤抖榜()
+{
+    var store = new FakeStore();
+    var tag = "HEAT01_TEMP_HI";
+    store.Append(new AlarmRaised(tag, At(0, 0, 0), Priority.Medium));
+    store.Append(new AlarmClosed(tag, At(0, 0, 20)));     // 20 秒恢复
+    store.Append(new AlarmRaised(tag, At(0, 0, 30), Priority.Medium));
+    store.Append(new AlarmClosed(tag, At(0, 0, 45)));
+    store.Append(new AlarmRaised(tag, At(0, 0, 50), Priority.Medium));  // 60 秒窗口内第 3 次
+
+    var kpi = new KpiService(store, new FakeClock(At(0, 0, 59)));
+    Assert.Contains(tag, kpi.ChatteringTags(TimeSpan.FromSeconds(60), 3));
+}</code></pre>
+
+<p>固定序列 + 拨表——不用真跑 60 秒，不用连真设备。其余六项指标照第 6 课的算法清单逐条先红后绿。</p>
+
+<h2>总答辩：把整个模块讲给我听</h2>
+
+<p>零件齐了。结业的标志不是「课听完了」，而是<strong>你能把这个模块作为自己的设计讲出来</strong>。三道答辩题，答案直接回在对话里：</p>
+
+<ol>
+  <li><strong>架构题</strong>：三句话，给你的新同事讲清这个模块为什么分三层、判定权为什么只在引擎。</li>
+  <li><strong>开局题</strong>：新项目启动，报警部分第一周你做什么？说顺序和理由。</li>
+  <li><strong>复发题</strong>：半年后报表又开始刷屏，你的排查动作按什么顺序走？</li>
+</ol>
+
+<div class="note">
+  <span class="callout-label">参考轨迹（先自己答，再看）</span>
+  开局题的期望脉络：写《报警哲学》立判据 → 建事件历史库拿基线（第 7 课迁移第①步）→ 首批档案过评审 → 引擎影子模式。复发题的期望脉络：记分卡定位（哪项红）→ Top-10 找源头 → 颤抖/驻留鉴别诊断（压线恢复还是真复发）→ 该修设计的修设计、该修根因的修根因 → 结果回灌哲学。轨迹对不对比措辞重要。
+</div>
+
+<h2>验收清单：六项，每项要活的证据</h2>
+
+<table>
+  <thead>
+    <tr><th>#</th><th>验收项</th><th>活的证据</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>1</td><td>概念分家</td><td>三层架构 + 判定权只在引擎（分层目录 + 接缝清单）</td></tr>
+    <tr><td>2</td><td>判据与哲学</td><td>《报警哲学》v0.1+（判据/分档/搁置规则/保留期）</td></tr>
+    <tr><td>3</td><td>档案驱动</td><td>每条报警有 MADB 档案；无档案不报警（抽查）</td></tr>
+    <tr><td>4</td><td>状态可管理</td><td>四状态机 + RTN + 搁置正门（测试全绿 + 历史库抽查）</td></tr>
+    <tr><td>5</td><td>参数有意化</td><td>死区/延时/限值逐条整定入档，延时 &lt; MTR</td></tr>
+    <tr><td>6</td><td>体检闭环</td><td>KpiService 七项 + 记分卡真实数字 + Top-10 周会节奏</td></tr>
+  </tbody>
+</table>
+
+<p>这份清单就是 <a href="../reference/acceptance-checklist.html">验收清单速查卡</a>——课程答辩用它，<strong>你真实项目的改造验收也用它</strong>。每项的证据必须是活物：能打开的文档、能跑的测试、能查的数字。</p>
+
+<h2>检查一下毕业资格</h2>
+
+<div class="quiz" data-quiz='{
+  "questions": [
+    {
+      "type": "single",
+      "prompt": "事件历史库坚持 append-only 的根本原因是？",
+      "options": [
+        "引擎不撒谎，体检才有真数据",
+        "数据库追加写入性能最好",
+        "方便按天分文件做归档",
+        "防止操作员误删报警记录"
+      ],
+      "answer": 0,
+      "explanation": "历史库是第 6 课七项体检的唯一数据源。允许改删，体检就建立在可被篡改的地基上——性能与归档都是附带好处，不是理由。"
+    },
+    {
+      "type": "single",
+      "prompt": "KpiService 的颤抖检测怎么测？",
+      "options": [
+        "喂固定事件序列，拨表断言上榜",
+        "让测试真跑 60 秒去数转换",
+        "连接真设备采一小时数据",
+        "随机生成数据看结果分布"
+      ],
+      "answer": 0,
+      "explanation": "固定序列 + FakeClock 拨表——确定性强、秒级跑完、想测哪个边界就摆哪个边界。测试睡真时间或依赖真设备，都不是单元测试。"
+    },
+    {
+      "type": "single",
+      "prompt": "新项目启动，报警工作的第一件事是？",
+      "options": [
+        "写报警哲学，先立判据",
+        "把老项目报警配置抄过来",
+        "先把 UI 报警列表画出来",
+        "给每台设备预设报警限值"
+      ],
+      "answer": 0,
+      "explanation": "第 2 课的第一块多米诺：没有哲学，后面每一条报警都在重演「看情况定义」。抄老配置 = 把遗产问题原样继承；限值要等档案评审才有依据。"
+    },
+    {
+      "type": "multiple",
+      "prompt": "总验收清单里，哪些算「活的证据」？（多选）",
+      "options": [
+        "哲学文档（哪怕只有 v0.1）",
+        "引擎的红绿测试全绿",
+        "记分卡上自己系统的真实数字",
+        "ISA 官方出具的实施证书"
+      ],
+      "answer": [0, 1, 2],
+      "explanation": "能打开的文档、能跑的测试、能查的数字——才叫活的证据。所谓「官方实施证书」并不存在，标准不认证产品，只给你一套要自己走完的流程。"
+    }
+  ]
+}'></div>
+
+<h2>结业作业：三道答辩题 + 大回收</h2>
+
+<ol>
+  <li><strong>补齐零件</strong>：EventHistory 三条测试（append 落库 / 按位号查询 / 搁置事件也落库）+ KpiService 七项指标逐条先红后绿（颤抖那条课堂已示范）。</li>
+  <li><strong>大回收</strong>：挂账的作业现在都是答辩材料——《报警哲学》v0.1（第 2 课）、MADB 五份档案（第 4 课）、记分卡真实数字（第 6 课）。缺哪份补哪份，作为答辩附件。</li>
+  <li><strong>三道答辩题</strong>（架构题 / 开局题 / 复发题），答案直接回在对话里——我来当答辩委员会。</li>
+</ol>
+
+<footer class="lesson-foot">
+  <p><span class="primary-source">课程收官。</span>你带走的：一份《报警哲学》骨架、一套 MADB 字段模板、四张参考卡（三问 / 状态机 / 组态参数 / KPI 目标表 + 架构蓝图 + 验收清单）、一个 AlarmLab 试验场，和一个能用 GB/T 41261 的语言讨论报警的自己。</p>
+  <p><strong>结业不散场</strong>——真实项目改造到任何一步卡住（迁移第②步影子模式怎么对比、某条老报警怎么回炉、评审会开不下去），随时回到对话里，答疑通道常开。想找同行聊：报警治理的一线讨论在 <a href="https://www.reddit.com/r/PLC/">r/PLC</a> 和 <a href="https://www.controlglobal.com/">controlglobal</a> 常年不断；把你的改造故事写出来发上去，就是这门课最好的毕业论文。</p>
+  <p class="next-link"><a href="0009-wpf-presentation.html">← 上一课：给引擎一张脸</a> · <a href="../reference/acceptance-checklist.html">回看：验收清单速查卡</a></p>
+</footer>
+
+</main>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

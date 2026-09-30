@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 5 课 · 详细设计：死区、延时与颤抖</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="lesson-head">
+  <div class="kicker">GB/T 41261 报警管理课程 · 第 5 课</div>
+  <h1>详细设计：死区、延时与颤抖<span class="subtitle">报警「抽风」的物理课——你模块组态参数的定版课</span></h1>
+</header>
+
+<p>法庭判完了（第 4 课），现在给每条幸存的报警定「生活方式」——这一步标准叫<strong>详细设计（detailed design）</strong>：限值、死区、延时、分组、显示呈现。它是生命周期第 4 格，也是你模块组态参数的定版课。先认识本课主角：报警界最常见的 nuisance——<strong>颤抖（chattering）</strong>。ISA-18.2 给了它一个数：<strong>60 秒内 ≥3 次状态转换</strong>。一台抽风的仪器一小时能刷 180 条记录——你的报警历史库里有它的坟场。</p>
+
+<h2>颤抖是怎么炼成的</h2>
+
+<p>把限值想成一条线，把信号想成永远在抖的手。当信号的<strong>噪声幅值</strong>和<strong>限值线</strong>一样宽时，信号就在线的两侧反复横跳：越限→报警，回落→恢复，再越限→再报警……状态机（第 3 课）没有错，是设计没给它留出「缓冲带」。两种典型病灶、两个对症的旋钮：</p>
+
+<table>
+  <thead>
+    <tr><th>旋钮</th><th>机制</th><th>治什么</th><th>代价（盲区）</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>死区</strong> deadband</td><td>恢复点 = 限值 − 死区。触发 250℃、死区 2℃ → 回到 248℃ 才算恢复</td><td><strong>徘徊</strong>：在限值附近慢速抖动</td><td>死区带内的真实越限永远不报警</td></tr>
+    <tr><td><strong>触发延时</strong> on-delay</td><td>越限<strong>持续满 X 秒</strong>才报警</td><td><strong>毛刺</strong>：短促尖峰</td><td>真实的短暂越限被吞；<strong>吃响应窗</strong></td></tr>
+  </tbody>
+</table>
+
+<div class="key">
+  <span class="callout-label">本课核心一：延时不是免费的</span>
+  第 4 课的 MTR（最大响应时间）从「条件越限」起算——触发延时先把窗口吃掉一截。<strong>MTR 5 秒的报警配 3 秒延时，操作员只剩 2 秒。</strong>所以铁律是：触发延时 &lt; MTR。死区的对应铁律：死区 ≥ 信号噪声幅值，否则等于没设。
+</div>
+
+<h2>实验室：驯服一台抽风的加热板</h2>
+
+<p>下面是一台「加热板温度」的确定性信号（每次重跑曲线完全相同——所以<strong>对比才公平</strong>）：一段在限值附近徘徊的慢波 + 两个毛刺尖峰 + 噪声。限值 250℃，默认零死区零延时。先跑一遍默认设置，看右侧的次数；然后拉两个旋钮，<strong>盯着同一个信号怎么被驯服</strong>：</p>
+
+<div class="deadlab" data-lab='{"limit":250,"unit":"℃"}'></div>
+
+<p>参考数据（60 秒窗口）：默认 <strong>8 次</strong>——教科书式颤抖（第 9 秒附近一秒内触发多次，还有 15,15 / 49,49 同秒重报）。死区 2℃ → 3 次；延时 2s → 2 次；组合也停在 2 次。<strong>剩下的 2 次是真的</strong>——两个真实峰，本来就该报。注意仪表盘的终局判定：治理的目标不是零报警，是<strong>「剩下的都是真报警」</strong>。还注意死区带在图上的着色区——那就是你买安静付出的<strong>盲区</strong>：真实越限落进带里，不响。</p>
+
+<div class="note">
+  <span class="callout-label">本课核心二：参数是工程决策，不是默认值</span>
+  标准不规定「死区该是几度」——它规定的是<strong>这些参数必须被有意选择、整定依据记入 MADB</strong>（第 4 课那张表的「组态参数」栏）。默认值出厂时不知道你的噪声和 MTR。每个旋钮的选择都要能回答：我因此对什么视而不见？
+</div>
+
+<h2>剩下的设计动作</h2>
+
+<p>死区和延时之外，详细设计还包括：</p>
+
+<ul>
+  <li><strong>恢复延时 off-delay</strong>：条件恢复满 X 秒才清——条件在限附近抖动时用，让状态机别跟着抖。用得比触发延时少。</li>
+  <li><strong>分组 group/class</strong>：按区域/工段/运行模式归类——支撑画面过滤、「停机态抑制」（第 3 课的运行态抑制就是按分组批量闭嘴的正规姿势）。</li>
+  <li><strong>显示呈现</strong>：颜色/声音按优先级走 ISA-18.1 惯例（闪红/稳红/闪绿，第 3 课模拟器同款）。</li>
+  <li><strong>模拟量限值家族</strong>：HI / HIHI / LO / LOLO / 偏差——HIHI/LOLO 通常更高优先级；开关量报警没有死区问题，但毛刺照旧，延时照用。</li>
+</ul>
+
+<p>全套参数清单在 <a href="../reference/deadband-tuning.html">组态参数速查卡</a>——含「病灶 → 对策 → 盲区代价」对照表，整定现场用。</p>
+
+<h2>检查一下手感</h2>
+
+<div class="quiz" data-quiz='{
+  "questions": [
+    {
+      "type": "single",
+      "prompt": "一台报警一分钟内在触发/恢复之间反复横跳五六次，这叫什么、根因多半是？",
+      "options": [
+        "颤抖：死区或延时不足",
+        "泛滥：操作员确认太慢",
+        "驻留：报警条件太温和",
+        "误报：传感器质量太差"
+      ],
+      "answer": 0,
+      "explanation": "≥3 次转换/60 秒即 ISA-18.2 定义的颤抖。根因通常是设计问题（死区/延时缺失、限值贴着噪声带），先查设计再怪仪表。"
+    },
+    {
+      "type": "single",
+      "prompt": "限值 250℃、死区设 2℃，恢复点在哪？",
+      "options": [
+        "248℃：恢复点要低于触发点",
+        "252℃：恢复点要高于触发点",
+        "250℃：死区不改变恢复点",
+        "249℃：死区取限值的一半"
+      ],
+      "answer": 0,
+      "explanation": "死区（回差）的机制就是把恢复点压到触发点下方一段距离，噪声在两线之间怎么抖都不翻转状态。这就是它治徘徊的原理。"
+    },
+    {
+      "type": "single",
+      "prompt": "触发延时 on-delay 设 3 秒，意味着什么？",
+      "options": [
+        "越限持续满 3 秒才报警",
+        "报警后 3 秒才允许确认",
+        "恢复后 3 秒才移出列表",
+        "每 3 秒重发一次报警"
+      ],
+      "answer": 0,
+      "explanation": "on-delay 过滤毛刺：短于 3 秒的越限根本不产生报警。注意代价——这 3 秒从 MTR 里扣：MTR 5 秒的报警实际只剩 2 秒给操作员。"
+    },
+    {
+      "type": "multiple",
+      "prompt": "哪些属于详细设计阶段的组态参数？（多选）",
+      "options": [
+        "死区与触发/恢复延时",
+        "限值与报警分组",
+        "操作员该执行的步骤",
+        "评审会与会人员名单"
+      ],
+      "answer": [0, 1],
+      "explanation": "组态参数 = 限值/死区/延时/分组/显示。操作步骤是 MADB 的「操作动作」字段与报警帮助（第 4 课），与会名单是管理文档——它们重要，但不是组态参数。"
+    }
+  ]
+}'></div>
+
+<h2>课后作业：驯服一台，再写一个</h2>
+
+<ol>
+  <li><strong>实验室任务</strong>：把计数压到 2（剩下两次真峰）。试出你偏好的死区/延时组合，<strong>用一句话写下你付出的盲区代价</strong>——带回对话。</li>
+  <li><strong>TDD</strong>：给 <code>AlarmDefinition</code> 加组态字段（<code>Limit / Deadband / OnDelay / Group</code>），然后写 <code>HysteresisEvaluator</code>——纯函数：给定信号序列 + 参数 → 报警区间列表。先红后绿；<strong>测试里必须有一条「死区带内的真实越限被吞掉」</strong>——给自己的盲区立证据，以后没人敢忘记它。</li>
+  <li><strong>盘点</strong>：你现有项目里，配了死区/延时的报警有几条？挑一台最烦的仪器，翻它的历史触发间隔——它就是第 6 课 KPI 报表的第一号展品。</li>
+</ol>
+
+<footer class="lesson-foot">
+  <p><span class="primary-source">本课首选原文：GB/T 41261-2022《过程工业报警系统管理》</span>「详细设计」部分（购买正文后精读）。免费导读：<a href="https://aliresources.hexagon.com/operations-maintenance/shut-up-fixing-chattering-and-fleeting-alarms">Hexagon：SHUT UP! Fixing Chattering and Fleeting Alarms</a>（死区/延时的机理与分工）；颤抖判据引证见 <a href="https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.15003665">ChemRxiv 论文</a>。</p>
+  <p>实验室数字不对劲、HysteresisEvaluator 的红灯难产、现场哪台仪表该先进实验室——随时回到对话里问你的老师（Claude）。下一课预告：<strong>KPI 与性能监测</strong>——把 ≤6 条/时、泛滥、驻留报警、颤抖全部变成可测指标，你的事件历史库正式变成体检中心。</p>
+  <p class="next-link"><a href="0006-kpi-monitoring.html">下一课：KPI 与性能监测 →</a> · <a href="0004-rationalization-priority.html">上一课：合理化与优先级矩阵</a> · <a href="../reference/deadband-tuning.html">回看：组态参数速查卡</a></p>
+</footer>
+
+</main>
+<script src="../assets/deadband-lab.js"></script>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

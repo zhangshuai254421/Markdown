@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 1 课 · 什么才算报警？</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="lesson-head">
+  <div class="kicker">GB/T 41261 报警管理课程 · 第 1 课</div>
+  <h1>什么才算报警？<span class="subtitle">标准的第一刀：把「不需要操作的记录」赶出报警列表</span></h1>
+</header>
+
+<p>打开你任何一个项目的报警列表，里面大概率同时装着三种东西：真要人立刻处理的异常、纯留痕的操作记录、顺口提醒用户的小消息——它们都被笼统地叫作「报警」，因为过去我们「看情况定义」。GB/T 41261-2022 做的第一件事，就是挥刀切下去：不是所有需要显示的信息都配叫报警。</p>
+
+<h2>标准的定义</h2>
+
+<p>先认识这门课的锚点标准：<strong>GB/T 41261-2022《过程工业报警系统管理》</strong>，2022-03-09 发布、2022-10-01 实施的现行推荐性国标，等同采用（IDT）国际标准 IEC 62682:2014。课程里每个概念，最终都能对应到这部国标的条款。</p>
+
+<div class="def-quote">
+  <strong>报警（alarm）</strong>：通过声音和/或可视的手段，向操作员指示<strong>需要及时响应</strong>的<strong>设备故障、过程偏差或其他异常情况</strong>。
+  <span class="def-src">参照 GB/T 41261-2022 译述。<a href="https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=4D10B2178BA5D885DF490BC136E943D2">官方标准信息页 →</a></span>
+</div>
+
+<p>前半句给出了「什么算异常」：设备故障（equipment malfunction）、过程偏差（process deviation）、异常状态（abnormal condition）。但真正锋利的是后半句——<strong>需要操作员响应（requires a response）</strong>。标准渊源体系的<a href="https://www.isa.org/getmedia/55b4210e-6cb2-4de4-89f8-2b5b6b46d954/PAS-Understanding-ISA-18-2.pdf">英文导读白皮书</a>把它称为整个标准最重要的单句：报警不是「记录」，不是「消息」，而是<strong>派给操作员的一份限时行动指令</strong>。</p>
+
+<div class="key">
+  <span class="callout-label">本课核心</span>
+  一条信息要配成报警，三个条件缺一不可：<strong>是异常</strong>、<strong>操作员能行动</strong>、<strong>行动有时间窗</strong>。缺任何一条，它就该被请出报警通道。
+</div>
+
+<h2>报警三问：一刀切三段</h2>
+
+<p>把定义展开成三个问题，就是评审任何一条候选报警的流水线：</p>
+
+<div class="qcard-row">
+  <div class="qcard">
+    <div class="q-no">第一问</div>
+    <div class="q-title">需要操作员行动吗？</div>
+    <div class="q-body">不需要 → 不是报警。留痕的进<strong>事件</strong>，告知的进<strong>提示</strong>。</div>
+  </div>
+  <div class="qcard">
+    <div class="q-no">第二问</div>
+    <div class="q-title">要在限时窗口内行动吗？</div>
+    <div class="q-body">拖过窗口就有后果（报废 / 损坏 / 停产）→ 报警；只是「尽快关注」→ <strong>提示</strong>。</div>
+  </div>
+  <div class="qcard">
+    <div class="q-no">第三问</div>
+    <div class="q-title">操作员知道该干什么吗？</div>
+    <div class="q-body">答不出「下一步做什么」→ 先补操作指引，否则这不是一条合格的报警。</div>
+  </div>
+</div>
+
+<p>三问切出三个去处：</p>
+
+<table>
+  <thead>
+    <tr><th>分类</th><th>判据</th><th>去向</th><th>你项目里的常见误配</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>报警</strong> alarm</td><td>异常 + 操作员行动 + 限时窗口</td><td>报警列表、声光提示</td><td>温度超限被埋在一堆记录里</td></tr>
+    <tr><td><strong>事件</strong> event</td><td>留痕追溯，无需响应</td><td>历史记录 / 操作日志</td><td>启机、改参数被配成「低级报警」</td></tr>
+    <tr><td><strong>提示</strong> notification</td><td>需关注，无需限时响应</td><td>状态栏 / 消息中心</td><td>「磁盘不足」天天弹窗骚扰</td></tr>
+  </tbody>
+</table>
+
+<p>判定拿不准时，翻 <a href="../reference/alarm-test.html">报警判定三问速查卡</a>——它就是这张表的打印版，后面每一次作业都要用。</p>
+
+<div class="note">
+  <span class="callout-label">别混：事件 ≠ 日志</span>
+  事件和日志不在同一层：<strong>事件是内容</strong>——「某个时刻发生了状态变化」；<strong>日志是本子</strong>——按时间顺序把内容记下来的存储。操作留痕、报警的触发/确认/恢复，写进日志后都叫事件记录；日志还装得下通讯报文、调试流水这类连「事件」都算不上的东西。反过来讲，报警的每一次状态变化都会作为事件写进日志——所以不是「日志属于报警」，而是「报警的生命周期靠事件记录留痕」。一句话：<strong>报警要人做事，事件陈述发生，日志负责记本子。</strong>
+</div>
+
+<h2>这一刀怎么治你的「刷屏」</h2>
+
+<p>报警泛滥的根源，几乎从来不是「异常太多」，而是<strong>大量事件和提示挤进了报警通道</strong>。做个算术：一条产线真正的异常每小时约 2 条，但操作记录、状态变化、友情提醒每小时进来 40 条——操作员每小时面对 42 条「报警」，注意力摊薄之后，真报警和假报警一起被视而不见。这在报警管理里有专门的词：<strong>报警泛滥（alarm flood）</strong>。</p>
+
+<div class="num-band">
+  <div class="num-tile">
+    <div class="num">≤ 6 条 / 时</div>
+    <div class="num-label">稳态平均报警率目标（约 ≤150 条/天，EEMUA 191 基准，GB/T 41261 的性能监测指标与其一致）</div>
+  </div>
+  <div class="num-tile">
+    <div class="num">&gt; 10 条 / 10 分</div>
+    <div class="num-label">即进入「报警泛滥」——每操作员、每 10 分钟口径</div>
+  </div>
+</div>
+
+<p>这两个数字（EEMUA 191 是其源头，国标的性能监测指标与之同源；可读 <a href="https://www.grahamnasby.com/files_publications/NasbyG_2023_ISA18-AlarmMgmtIntro_isa-wwid-newsletter_apr2023.pdf">Nasby 的实战指南</a>先找感觉）现在先记个脸，第 6 课做性能监测时会逐个展开。今天只需要记住结论：<strong>先做三问分类，数字才可能达标</strong>。</p>
+
+<p>第三问还顺带回应了你另一个痛点——「报警了但不知道该干什么」。按标准，每条报警都必须带着操作指引进系统（后面「主报警数据库」一课会落到字段级）。所谓报警与操作脱节，就是当年跳过了第三问。</p>
+
+<h2>练一刀：十二个现场条目</h2>
+
+<p>下面 12 条都是上位机项目里天天见的条目。每条判断它该去哪儿：<strong>报警 / 事件 / 提示</strong>。选完立刻看判词，错了就想想自己漏了三问里的哪一问。</p>
+
+<div class="triage" data-triage='{
+  "items": [
+    {
+      "scenario": "加热板温度 265 ℃，工艺上限 250 ℃",
+      "detail": "不处理，这一炉产品会全部报废",
+      "answer": "alarm",
+      "explanation": "教科书式报警：需要操作员行动（降温/停炉检查），且有响应时间窗——拖过窗口产品报废。三问全过。"
+    },
+    {
+      "scenario": "操作员把温度设定值从 220 ℃ 改成 235 ℃",
+      "detail": "修改写入操作日志，供事后追溯",
+      "answer": "event",
+      "explanation": "正常操作，无需任何响应，但要留痕——事件记历史库。把它配成报警，就是在亲手给刷屏添砖。"
+    },
+    {
+      "scenario": "上位机与控制器连续 3 秒无心跳",
+      "detail": "再不恢复，画面数据僵死、指令发不下去",
+      "answer": "alarm",
+      "explanation": "通讯断了操作员必须响应（查线路/重连），时间窗有限。注意这条常被漏配——只顾着防误报，把真异常也砍掉了。"
+    },
+    {
+      "scenario": "第 20260930-03 批加工完成，共 120 件全部合格",
+      "detail": "产量与合格率写入生产统计",
+      "answer": "event",
+      "explanation": "好消息不需要响应，属生产记录。有人会问「操作员不是要去卸料吗」——那是排产流程里的下一步任务，不是异常响应，走任务提醒而非报警。"
+    },
+    {
+      "scenario": "车间压缩空气压力 0.45 MPa，工艺要求 ≥ 0.6 MPa",
+      "detail": "影响全线用气设备，持续降低将全线停产",
+      "answer": "alarm",
+      "explanation": "需要操作员立即行动（查漏/切备用气源），后果随时间累积。注意它不是设备坏了，而是「过程偏差」——定义里三种触发源之一。"
+    },
+    {
+      "scenario": "上位机启动，加载配置文件 V2.3.1 成功",
+      "detail": "版本信息记录在启动日志",
+      "answer": "event",
+      "explanation": "启动留痕，无需响应。这类条目混进报警列表，是很多历史项目刷屏的主力。"
+    },
+    {
+      "scenario": "激光器安全联锁回路触发",
+      "detail": "若 10 秒内不干预，系统自动切断激光电源",
+      "answer": "alarm",
+      "explanation": "需要立即行动且时间窗极短——按标准这会是最高优先级。记住这个直觉：时间窗越短，优先级越高（第 4 课优先级矩阵的核心）。"
+    },
+    {
+      "scenario": "历史数据盘剩余空间不足 10%",
+      "detail": "当前不影响运行，长期会写满丢数据",
+      "answer": "notice",
+      "explanation": "需要人关注，但不需要「当班操作员、现在、限时」响应——提示：挂消息区，提醒尽快安排清理。强行升成报警，只会稀释真正紧急的信号。"
+    },
+    {
+      "scenario": "通讯延迟偶发超过 500 ms，未触发超时",
+      "detail": "目前所有指令均正常送达",
+      "answer": "notice",
+      "explanation": "值得留意、暂无需行动——典型提示。它的价值在「再恶化就是报警」，提示存在的意义就是给报警留提前量。"
+    },
+    {
+      "scenario": "今日报废率 3%，高于 2% 的内部预警线",
+      "detail": "需要质量工程师明天分析原因",
+      "answer": "event",
+      "explanation": "两个细节：第一，行动者是工程师而非当班操作员——报警的定义对象是操作员；第二，行动时间是「明天」，不构成限时窗口。给工程师的统计走报表/事件。"
+    },
+    {
+      "scenario": "P-101 泵按计划从运行切换到停止",
+      "detail": "切换时间与操作人记录在案",
+      "answer": "event",
+      "explanation": "计划内动作不是异常状态。标准定义的三个触发源——设备故障、过程偏差、异常状态——它一个都不占。"
+    },
+    {
+      "scenario": "检测到上位机软件新版本 V3.2 可升级",
+      "detail": "升级包已在服务器，由维护人员安排",
+      "answer": "notice",
+      "explanation": "告知性消息，行动者（维护人员）与时间（随时）都不构成限时响应——提示。"
+    }
+  ]
+}'></div>
+
+<h2>检查一下概念</h2>
+
+<div class="quiz" data-quiz='{
+  "questions": [
+    {
+      "type": "single",
+      "prompt": "GB/T 41261-2022 给「报警」下的定义里，最关键的判定条件是？",
+      "options": [
+        "必须由操作员采取行动",
+        "必须由设备自动停机保护",
+        "必须把信息存入历史库",
+        "必须在画面弹窗并发声"
+      ],
+      "answer": 0,
+      "explanation": "定义的后半句「需要操作员响应（requires a response）」是整个标准最重要的一句。弹窗发声只是表现形式，历史库存的是事件，自动停机属于联锁/SIS 的事。"
+    },
+    {
+      "type": "single",
+      "prompt": "一条纯为追溯保留、无需任何响应的记录，按标准应配成？",
+      "options": [
+        "事件：入历史库，不进报警",
+        "报警：优先级设为最低级",
+        "提示：弹窗提醒但不发声",
+        "删除：没有价值不必保留"
+      ],
+      "answer": 0,
+      "explanation": "留痕无需响应 → 事件。「最低优先级的报警」仍是报警——它照样挤占操作员的注意力，刷屏就是这么来的。"
+    },
+    {
+      "type": "single",
+      "prompt": "按 GB/T 41261-2022 的定义，报警是发给谁的行动指令？",
+      "options": [
+        "当班操作员——现场第一响应人",
+        "维修工程师——负责排除故障",
+        "质量工程师——负责追溯分析",
+        "车间主任——负责统计与考核"
+      ],
+      "answer": 0,
+      "explanation": "报警的定义对象是操作员。工程师需要的数据走报表与事件，主任需要的走统计——给谁看，决定它进哪条通道。"
+    },
+    {
+      "type": "multiple",
+      "prompt": "以下哪几条配成报警是合格的？（多选）",
+      "options": [
+        "需在 5 分钟内切换备用泵",
+        "需立即停止上料防止撞机",
+        "需下班前记得提交生产日报",
+        "需记住本次参数修改的操作人"
+      ],
+      "answer": [0, 1],
+      "explanation": "前两条都是「异常 + 操作员 + 限时」。日报是任务提醒（无异常、无限时窗口——走任务/提示）；改参数记录是事件（无需响应，纯追溯）。"
+    }
+  ]
+}'></div>
+
+<h2>课后作业：给你自己的报警列表来一刀</h2>
+
+<p>这次作业直接落在你的真实项目上——这也是整个课程的终点战场：</p>
+
+<ol>
+  <li><strong>导出</strong>你现在项目里配置的完整报警清单（不用改代码，先数家底）：一共多少条？</li>
+  <li><strong>三问评审</strong>：逐条过 <a href="../reference/alarm-test.html">三问速查卡</a>，标记为 报警 / 事件 / 提示。拿不准的条目记下来，带回对话里问。</li>
+  <li><strong>统计两个数带回来</strong>：总条数；其中「根本不需要操作员响应」的条数与占比。这个占比就是你模块的「刷屏潜力」。</li>
+  <li>对标记为「报警」、但答不出第三问（操作员该干什么）的条目打上星号——它们会进后面课程的改造清单。</li>
+</ol>
+
+<footer class="lesson-foot">
+  <p><span class="primary-source">本课首选原文：GB/T 41261-2022《过程工业报警系统管理》</span>——2022-10-01 实施的现行国标，等同采用 IEC 62682:2014。正文因版权需购买（纸质约 ¥70，各地标准书店 / 中国标准出版社官方渠道有售），<a href="https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=4D10B2178BA5D885DF490BC136E943D2">官方标准信息页</a>可核对标准号与状态。免费英文导读（同一体系）：<a href="https://www.isa.org/getmedia/55b4210e-6cb2-4de4-89f8-2b5b6b46d954/PAS-Understanding-ISA-18-2.pdf">Understanding and Applying ANSI/ISA-18.2（PDF）</a>。</p>
+  <p>卡在哪条分类、作业里拿不准的条目、想提前问「主报警数据库长什么样」——随时回到对话里问你的老师（Claude），这就是答疑通道。下一课预告：<strong>报警的一生</strong>——GB/T 41261 生命周期七阶段，以及为什么「报警哲学文档」是整个改造的第一块多米诺。</p>
+  <p class="next-link"><a href="0002-lifecycle-and-philosophy.html">下一课：报警的一生 →</a> · <a href="../reference/alarm-test.html">回看：三问速查卡</a></p>
+</footer>
+
+</main>
+<script src="../assets/triage.js"></script>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

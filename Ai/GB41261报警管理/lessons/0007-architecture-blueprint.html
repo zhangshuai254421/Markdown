@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 7 课 · 模块改造总装：三层架构与迁移路径</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="lesson-head">
+  <div class="kicker">GB/T 41261 报警管理课程 · 第 7 课</div>
+  <h1>模块改造总装<span class="subtitle">六课知识住进三个组件层——C# 落地系列开课</span></h1>
+</header>
+
+<p>从这课起，课程换了性质：前六课是「学标准」，现在是「改模块」。先说清你现有模块的真问题——不是代码烂，是<strong>概念没分家</strong>：报警、事件、日志一锅炖（第 1 课），状态散落在几个 bool 里（第 3 课），参数写死在 <code>if</code> 里（第 4 课）。改造不是重写，是<strong>按标准把概念分家</strong>——概念分清楚了，组件边界自然就出来了。这张蓝图就是六课知识的落户图。</p>
+
+<h2>三层 + 三横切</h2>
+
+<div class="arch-stack">
+  <div class="arch-layer">
+    <div class="a-name">出口/表现层 —— 声光、报警列表、弹窗（WPF）</div>
+    <div class="a-body">消费 AlarmEvent 流 + 查询活跃列表。按优先级呈现（闪红/稳红/闪绿），搁置清单单独可见。<strong>自己不做任何判定</strong>。</div>
+  </div>
+  <div class="arch-arrow">↑ 订阅事件 / 查询　　↓ 条件事实</div>
+  <div class="arch-layer">
+    <div class="a-name">报警引擎层 —— 全系统唯一「懂报警」的地方</div>
+    <div class="a-body">读档案 → 死区/延时滤波 → 四状态机 → 产出 AlarmEvent 流与活跃列表。纯逻辑、无 UI 依赖、全程可 TDD。</div>
+  </div>
+  <div class="arch-arrow">↑ ConditionChanged（条件事实）</div>
+  <div class="arch-layer">
+    <div class="a-name">采集/条件层 —— 设备通讯、数值比较</div>
+    <div class="a-body">只产出「条件事实」：某点此刻的值。<strong>不懂得「报警」二字</strong>——是不是报警、几级、怎么呈现，一层都不许管。</div>
+  </div>
+  <div class="arch-arrow">······横切（三层都落）······</div>
+  <div class="arch-layer cross">
+    <div class="a-name">横切：事件历史库 · 性能统计 · 哲学配置</div>
+    <div class="a-body">历史库 append-only（引擎产出全量落库）；性能统计 = 历史库上的只读聚合（KPI）；哲学配置 = AlarmDefinition 的存储（JSON / SQLite）。</div>
+  </div>
+</div>
+
+<div class="key">
+  <span class="callout-label">本课核心一：分层就是把三句老话写成边界</span>
+  「报警要人做事，事件陈述发生，日志负责记本子」（第 1 课）= 引擎层 / 事件流 / 历史库三条线。<strong>判定权只许住在引擎层</strong>——表现层只呈现、采集层只报事实，谁越界谁就是在再造「看情况定义」。
+</div>
+
+<h2>零件都是你做过的</h2>
+
+<table>
+  <thead>
+    <tr><th>代码里的东西</th><th>标准概念</th><th>出处</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>AlarmDefinition</code> record</td><td>MADB 档案的投影</td><td>第 4 课</td></tr>
+    <tr><td><code>HysteresisEvaluator</code></td><td>死区 + 触发/恢复延时</td><td>第 5 课</td></tr>
+    <tr><td><code>AlarmStateMachine</code></td><td>四状态五转换</td><td>第 3 课</td></tr>
+    <tr><td><code>AlarmEvent</code> + 历史库</td><td>事件记录 / 报警历史</td><td>第 1、6 课</td></tr>
+    <tr><td><code>KpiService</code></td><td>监测与评估</td><td>第 6 课</td></tr>
+  </tbody>
+</table>
+
+<p>一条报警在数据上的样子——事件就是它的履历：</p>
+
+<pre><code>public abstract record AlarmEvent(string Tag, DateTimeOffset At);
+public record AlarmRaised(string Tag, DateTimeOffset At, Priority Priority) : AlarmEvent(Tag, At);
+public record AlarmAcknowledged(string Tag, DateTimeOffset At, string Operator) : AlarmEvent(Tag, At);
+public record AlarmAutoReturned(string Tag, DateTimeOffset At)      : AlarmEvent(Tag, At); // 无人看见 → RTN
+public record AlarmClosed(string Tag, DateTimeOffset At)            : AlarmEvent(Tag, At); // 闭环</code></pre>
+
+<p><code>AlarmAutoReturned</code> 与 <code>AlarmClosed</code> 的区分，就是第 3 课那格易错点在数据上的化身：<strong>没被看见的恢复（RTN）和真正的闭环，必须记成两种事件</strong>——早班的「昨夜发生过什么」就靠这条区别。</p>
+
+<h2>接缝：TDD 老朋友的三次回归</h2>
+
+<p>引擎要可测，三个依赖必须做成接口——每个都是《TDD》课讲过的接缝（seam）：</p>
+
+<pre><code>public interface IConditionSource;          // 条件从哪来 → 测试里直接喂序列
+public interface IAlarmClock { DateTimeOffset Now { get; } }  // 延时/驻留都要看表 → 拨表测试
+public interface IAlarmDefinitionStore;     // 档案从哪来 → 测试用内存档案</code></pre>
+
+<div class="key">
+  <span class="callout-label">本课核心二：IAlarmClock 是延时的救命缝</span>
+  「越限持续满 2 秒才报警」这种逻辑，直接 <code>DateTime.Now</code> 就没法测——你总不能让测试睡 2 秒。注入时钟后，FakeClock 想拨到几点拨到几点。<strong>凡是依赖时间的逻辑，时钟必须走接缝。</strong>这是第 4 课（TDD）测试替身最实用的一次落地。
+</div>
+
+<h2>数据流走查：一条报警的代码一生</h2>
+
+<table>
+  <thead>
+    <tr><th>拍</th><th>发生什么</th><th>谁动的</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>1</td><td>通讯层收到 <code>ConditionChanged("HEAT01_TEMP", 265℃)</code></td><td>采集层——只报事实</td></tr>
+    <tr><td>2</td><td>引擎查档案 <code>HEAT01_TEMP_HI</code>（限值 250 / 死区 2 / 延时 2s / 高优先级）</td><td>引擎 × 档案</td></tr>
+    <tr><td>3</td><td>越限持续满 2 秒 → <code>Raised</code>（闪红起，进活跃列表）</td><td>引擎（Evaluator + 状态机）</td></tr>
+    <tr><td>4</td><td><code>Raised</code> 落历史库 + 推给 UI</td><td>横切 + 出口层</td></tr>
+    <tr><td>5</td><td>操作员确认 → <code>Acknowledged</code>（稳红）→ 降温到 248 以下 → <code>Closed</code></td><td>全链路</td></tr>
+    <tr><td>6</td><td>若没人确认温度就掉回 248 → <code>AlarmAutoReturned</code>（闪绿 RTN 留列表）</td><td>引擎——第 3 课的规矩</td></tr>
+  </tbody>
+</table>
+
+<p>第 6 拍就是「半夜报警清晨才有人看」那条场景的代码形态——状态机的每条规矩，最终都是一行数据流。</p>
+
+<h2>迁移路径：存量项目四步走</h2>
+
+<div class="num-band">
+  <div class="num-tile">
+    <div class="num">① 只建历史库</div>
+    <div class="num-label">不动现有报警，零风险拿到 KPI 基线（第 6 课记分卡的数字从这来）</div>
+  </div>
+  <div class="num-tile">
+    <div class="num">② 影子模式</div>
+    <div class="num-label">档案+引擎并行运行：只写历史不接管 UI，新旧对比验证</div>
+  </div>
+  <div class="num-tile">
+    <div class="num">③ 按工段切换</div>
+    <div class="num-label">有档案的接管 UI，没档案的回炉评审——逐条退役，不一次性换血</div>
+  </div>
+  <div class="num-tile">
+    <div class="num">④ 看板上线</div>
+    <div class="num-label">KPI 进值班室，进入生命周期环的监测常态</div>
+  </div>
+</div>
+
+<p>第一步是整个迁移的支点：<strong>什么都不改，只开始记事件</strong>——一周后你就有了基线数字，改造的紧迫性和优先级自己浮出来。这也回答了「改造要不要停机大干一场」：不用，它是渐进的。</p>
+
+<h2>检查一下总装感</h2>
+
+<div class="quiz" data-quiz='{
+  "questions": [
+    {
+      "type": "single",
+      "prompt": "三层里哪一层「不懂得报警二字」？",
+      "options": [
+        "采集/条件层：只报事实",
+        "报警引擎层：只管状态",
+        "出口表现层：只管呈现",
+        "历史库：只管存档"
+      ],
+      "answer": 0,
+      "explanation": "采集层只产出条件事实——是不是报警、几级、怎么呈现它一概不管。判定权只许住在引擎层；采集层越界，就是再造「看情况定义」。"
+    },
+    {
+      "type": "single",
+      "prompt": "为什么要注入 IAlarmClock 而不是直接用 DateTime.Now？",
+      "options": [
+        "测试能拨动时钟，延时才可测",
+        "DateTime.Now 线程不安全",
+        "服务器时区需要统一",
+        "接口调用比静态方法快"
+      ],
+      "answer": 0,
+      "explanation": "「持续满 2 秒才报警」的逻辑，不拨表就没法测——总不能让测试真睡 2 秒。时钟走接缝，FakeClock 随便拨。这是测试替身最实用的一次落地。"
+    },
+    {
+      "type": "single",
+      "prompt": "迁移第②步「影子模式」的目的是？",
+      "options": [
+        "新引擎先只写历史不接管UI",
+        "新旧引擎各管一半画面负载",
+        "老报警直接退役由新顶上",
+        "两套系统互为热备容灾"
+      ],
+      "answer": 0,
+      "explanation": "影子模式 = 并行运行、只观测不接管：新引擎把判定结果写进历史但不碰 UI，与老逻辑的行为差异全部现形之后，才谈切换。"
+    },
+    {
+      "type": "multiple",
+      "prompt": "迁移第①步「只建历史库、不动报警」能带来什么？（多选）",
+      "options": [
+        "立刻得到 KPI 基线",
+        "零风险不动现有行为",
+        "为三问复查备好证据",
+        "顺便把老报警全部修好"
+      ],
+      "answer": [0, 1, 2],
+      "explanation": "历史库是纯增量：不改任何现有行为（零风险），一周后 KPI 基线就有了（记分卡的数字从这来），每条记录都是三问复查与回炉评审的证据。「顺便修好」不存在——修报警是第③步以后的事。"
+    }
+  ]
+}'></div>
+
+<h2>课后作业：把骨架立起来，点亮第一盏红灯</h2>
+
+<p>建练习场（和 TddLab 同款）：</p>
+
+<pre><code>dotnet new sln -n AlarmLab
+dotnet new classlib -o AlarmLab.Core
+dotnet new xunit    -o AlarmLab.Core.Tests
+dotnet sln add AlarmLab.Core AlarmLab.Core.Tests
+dotnet add AlarmLab.Core.Tests reference AlarmLab.Core</code></pre>
+
+<ol>
+  <li><strong>立骨架</strong>：把 <code>AlarmEvent</code> 族、<code>AlarmDefinition</code>（第 4 课）、三个接缝接口放进 Core。</li>
+  <li><strong>第一盏红灯</strong>（本课示范的测试，抄进 Tests 里）：</li>
+</ol>
+
+<pre><code>[Fact]
+public void 越限持续满延时_产出Raised事件()
+{
+    var clock = new FakeClock();
+    var engine = new AlarmEngine(StoreWith(HEAT01_TEMP_HI, onDelay: TimeSpan.FromSeconds(2)), clock);
+    var events = new List&lt;AlarmEvent&gt;();
+    engine.EventRaised += events.Add;
+
+    engine.OnCondition(new ConditionChanged("HEAT01_TEMP", 251, clock.At(0)));
+    Assert.Empty(events);          // 延时未满——寂静也是断言
+
+    engine.OnCondition(new ConditionChanged("HEAT01_TEMP", 252, clock.At(TimeSpan.FromSeconds(2.1))));
+    Assert.IsType&lt;AlarmRaised&gt;(events.Single());
+}</code></pre>
+
+<p>这条红灯一红，它会把骨架里缺的每个零件逐个逼出来：档案存储、时钟接缝、延时判定、事件出口——<strong>让测试替你画架构图</strong>。</p>
+
+<ol start="3">
+  <li><strong>走完红 → 绿 → 重构</strong>；绿的时候回答一个问题带回：FakeClock 属于测试替身里的哪一种（dummy/stub/spy）？</li>
+  <li><strong>回收零件</strong>：第 3 课的 <code>AlarmStateMachine</code>、第 5 课的 <code>HysteresisEvaluator</code> 做过的直接搬进 Core 当引擎内脏；没做的这课正好补——它们马上就要上岗了。</li>
+</ol>
+
+<footer class="lesson-foot">
+  <p><span class="primary-source">本课依据：GB/T 41261-2022</span>「实施」与「运行」部分的概念要求；分层架构与迁移路径为工程实践提炼（对照原文可读 <a href="../reference/architecture.html">架构蓝图速查卡</a> 的出处注记）。搭配旧课：<a href="0003-alarm-state-machine.html">状态机</a> · <a href="0004-rationalization-priority.html">MADB</a> · <a href="0005-detailed-design.html">组态参数</a>。</p>
+  <p>红灯报错看不懂、接口形状拿不准、FakeClock 怎么写——随时回到对话里问你的老师（Claude）。下一课预告：<strong>引擎深潜</strong>——把四状态机完整接进引擎：确认/RTN 的事件流、活跃列表查询、搁置的正门实现，全是纯逻辑 TDD。</p>
+  <p class="next-link"><a href="0008-engine-deep-dive.html">下一课：引擎深潜 →</a> · <a href="0006-kpi-monitoring.html">上一课：KPI 与性能监测</a> · <a href="../reference/architecture.html">回看：架构蓝图速查卡</a></p>
+</footer>
+
+</main>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

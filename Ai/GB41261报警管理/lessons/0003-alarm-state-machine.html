@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 3 课 · 报警状态机</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="lesson-head">
+  <div class="kicker">GB/T 41261 报警管理课程 · 第 3 课</div>
+  <h1>报警状态机<span class="subtitle">四状态五转换，和那个最常被省掉的 RTN ——「状态管理缺失」的主手术</span></h1>
+</header>
+
+<p>先做个体检：在你现在的报警模块里，一条报警有几种状态？大概率是两种——<strong>「在列表里」和「不在列表里」</strong>。触发就进列表，恢复就消失，确认与否顶多改个颜色。这不是状态管理，这是名单管理。GB/T 41261-2022 给每条报警一台状态机：四个状态、五条合法转换——你的「记录混乱难追溯」，病根就在这台机器从来没被建过。</p>
+
+<h2>先分清：条件 vs 状态</h2>
+
+<p>混淆的总根源在这里。<strong>条件（condition）</strong>由工艺量决定：温度越没越限，采集层说了算。<strong>状态（state）</strong>由条件和人机交互共同决定：确认了没有、恢复确认了没有。温度回到限内 = <strong>条件恢复了</strong>，但报警<strong>状态</strong>未必走完——还没人看见呢。把这两样塞进同一个 bool，就是你模块里「报警忽闪忽现、记录对不上账」的技术起点。</p>
+
+<div class="key">
+  <span class="callout-label">本课核心</span>
+  条件看工艺，状态看交互。状态机管理的是<strong>「这条报警被人处理到哪一步了」</strong>——这是报警和普通日志行的本质区别。
+</div>
+
+<h2>四状态五转换</h2>
+
+<table>
+  <thead>
+    <tr><th>当前状态</th><th>事件</th><th>去向</th><th>系统行为</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Normal 正常</td><td>条件越限</td><td><strong>未确认</strong></td><td>声光起，进报警列表，事件入库</td></tr>
+    <tr><td>未确认</td><td>操作员确认</td><td><strong>已确认</strong></td><td>由闪变稳（闪红→稳红），责任接管</td></tr>
+    <tr><td>未确认</td><td>条件恢复</td><td><strong>RTN</strong> 恢复未确认</td><td>变闪绿，仍留列表等确认</td></tr>
+    <tr><td>已确认</td><td>条件恢复</td><td><strong>Normal</strong></td><td>移出列表</td></tr>
+    <tr><td>RTN</td><td>确认恢复</td><td><strong>Normal</strong></td><td>移出列表，闭环</td></tr>
+  </tbody>
+</table>
+
+<p>颜色约定出自 ISA-18.1 惯例：未确认闪红、已确认稳红、恢复未确认闪绿（<a href="https://documentation.iconics.com/v10.97.3/Content/Alarming/Alarm%20Server/Alarm%20References/alarm-state-transition-diagram.htm">厂商实现的状态图对照</a>；概念以国标正文为准，完整速查卡见 <a href="../reference/alarm-states.html">报警状态机速查卡</a>）。</p>
+
+<div class="note">
+  <span class="callout-label">注意那格最容易做错的</span>
+  <strong>RTN 只从「未确认」进入。</strong>标准的口径：RTN 是「条件在操作员确认之前就自己恢复了（auto-reset）」的状态。已确认的报警条件恢复后<strong>直接回 Normal</strong>——有主人的报警，回家不用再敲门。
+</div>
+
+<h2>RTN：最常被省掉的状态，最不能省的状态</h2>
+
+<p>设想半夜三点，某温度报警触发，凌晨两点自行恢复——注意，是先触发后恢复，全程没人开过界面。没有 RTN 的系统里，这条报警已经悄悄蒸发了；早班打开列表，一片祥和，<strong>昨夜发生过什么，列表不说，只能去翻流水账</strong>。这就是你「记录混乱难追溯」的经典现场。</p>
+
+<p>RTN 的规矩是：条件在确认之前恢复，报警不消失，变闪绿留在列表里，<strong>等人补一个「看见了」</strong>。发生有人接管，恢复有人看见——环才闭上。凌晨那条温度报警，早班一打开就会看到它的 RTN：夜里出过事，自己好了，但你要知道。</p>
+
+<p>补充一个进阶件：<strong>锁存（latch）</strong>——联锁、停机类报警常用，条件恢复也不灭，必须人工复位。它和 RTN 别混：RTN 等的是「确认看见」，锁存等的是「复位授权」。你的模块要不要锁存，写进《报警哲学》。</p>
+
+<h2>三种「合法闭嘴」：搁置、抑制、退出服务</h2>
+
+<p>报警烦人怎么办？标准给的答案不是「删」，而是三扇正门：</p>
+
+<table>
+  <thead>
+    <tr><th></th><th>搁置 shelving</th><th>运行态抑制 suppression</th><th>退出服务 out-of-service</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>谁发起</td><td>操作员（现场）</td><td>组态逻辑（设计态）</td><td>工程/维护</td></tr>
+    <tr><td>时限</td><td>必须有，到期自动恢复（常以一个班次为上限）</td><td>随设备状态自动生效/失效</td><td>到检修结束</td></tr>
+    <tr><td>审批</td><td>即时，但全量留痕</td><td>走组态变更</td><td>变更管理（MOC）</td></tr>
+    <tr><td>可见性</td><td>主列表移除，<strong>搁置清单单独可见</strong></td><td>对操作员不可见（按设计）</td><td>退出服务清单可见</td></tr>
+    <tr><td>典型场景</td><td>吹扫期间某液位计乱报</td><td>停机时不报「运行参数异常」</td><td>检修仪表，相关报警长期退出</td></tr>
+  </tbody>
+</table>
+
+<p>三扇门的共同意义：给合法的「闭嘴」留正门，堵死「删报警」这个后门。所有动作全量留痕。优先级（第 4 课）不改变这台状态机——它只是每条报警自带的属性。</p>
+
+<h2>练一把：当一次操作员</h2>
+
+<p>下面是真机。按这个剧本走一遍，<strong>盯住日志区——每个动作都落了一条带时刻的事件记录</strong>（第 1 课说的「报警的生命周期靠事件记录留痕」，这就是实物）：</p>
+
+<ol>
+  <li>点<strong>「条件越限」</strong>——看它闪红；再点一次？按钮灰了：<strong>Normal 时触发是唯一入口</strong>。</li>
+  <li>点<strong>「条件恢复」</strong>——注意它没有回家，变成闪绿的 RTN：没人看见过的报警，不许悄悄走。</li>
+  <li>点<strong>「确认恢复」</strong>——闭环，回 Normal。</li>
+  <li>再来一轮，这次先<strong>「操作员确认」</strong>再<strong>「条件恢复」</strong>——有主人的报警直接回家，不用二次确认。</li>
+</ol>
+
+<div class="smsim" data-sm='{
+  "initial": "normal",
+  "events": [
+    { "name": "trigger", "label": "条件越限" },
+    { "name": "ack", "label": "操作员确认" },
+    { "name": "clear", "label": "条件恢复" },
+    { "name": "ackReturn", "label": "确认恢复" }
+  ],
+  "transitions": {
+    "normal:trigger": "unack",
+    "unack:ack": "acked",
+    "unack:clear": "rtn",
+    "acked:clear": "normal",
+    "rtn:ackReturn": "normal"
+  },
+  "stateLabels": {
+    "normal": "Normal 正常",
+    "unack": "未确认报警（闪红）",
+    "acked": "已确认报警（稳红）",
+    "rtn": "RTN 恢复未确认（闪绿）"
+  },
+  "journal": {
+    "trigger": "报警触发，声光起",
+    "ack": "责任接管",
+    "clear": "条件回到限内",
+    "ackReturn": "补上「看见了」"
+  }
+}'></div>
+
+<h2>检查一下手感</h2>
+
+<div class="quiz" data-quiz='{
+  "questions": [
+    {
+      "type": "single",
+      "prompt": "「温度回到限值以内了」和「报警记录还没清掉」，说的是哪两件事？",
+      "options": [
+        "条件已恢复，状态还没走完",
+        "状态已恢复，条件还没走完",
+        "条件在报警，状态在搁置",
+        "条件在日志，状态在列表"
+      ],
+      "answer": 0,
+      "explanation": "条件由工艺量决定（越没越限），状态由人机交互进度决定（确认链走没走完）。两者混成一个 bool，就是丢记录和刷屏的共同技术根源。"
+    },
+    {
+      "type": "single",
+      "prompt": "一条「已确认」的报警，条件恢复了，它去哪？",
+      "options": [
+        "直接回 Normal，不用再确认",
+        "进 RTN，恢复也要再点一次",
+        "保持已确认，等手动删除",
+        "进未确认，恢复等于重报"
+      ],
+      "answer": 0,
+      "explanation": "RTN 只接待「没人理的报警」——条件在确认之前就自己好了，操作员得补一个「看见了」。已确认的报警有主人，恢复即回家。（锁存类是故意的例外：不人工复位不灭。）"
+    },
+    {
+      "type": "single",
+      "prompt": "某报警半夜触发，凌晨自行恢复，早班八点才有人看列表。它此刻的状态是？",
+      "options": [
+        "RTN：恢复正常未确认",
+        "Normal：已经自己好了",
+        "已确认：视为已知晓",
+        "已消失：不在列表里"
+      ],
+      "answer": 0,
+      "explanation": "这就是 RTN 存在的理由——发生时没人看见，恢复时也必须留影。没有 RTN 的系统里它悄悄蒸发，早班永远不知道夜里发生过什么。"
+    },
+    {
+      "type": "multiple",
+      "prompt": "搁置（shelving）的规矩有哪些？（多选）",
+      "options": [
+        "必须带时限，到期自动恢复",
+        "搁置清单要单独可见",
+        "每次搁置都要留痕",
+        "嫌报警烦就无限期搁置"
+      ],
+      "answer": [0, 1, 2],
+      "explanation": "搁置是操作员的临时正门：限时（常以一个班次为上限）、单独清单可见、动作全量留痕。无限期搁置等于变相删报警——要长期闭嘴的，走退出服务（out-of-service）加变更管理。"
+    }
+  ]
+}'></div>
+
+<h2>课后作业：把状态机写进代码（TDD 回归）</h2>
+
+<p>TDD 课程毕业时说过，第一块试验田可以选「报警条件判断」——现在它来了，而且是纯逻辑，最适合先红后绿：</p>
+
+<ol>
+  <li><strong>建模</strong>：<code>AlarmState { Normal, Unacknowledged, Acknowledged, ReturnToNormal }</code>；<code>AlarmStateMachine</code> 提供 <code>Trigger() / Acknowledge() / Clear() / AcknowledgeReturn()</code> 与 <code>CurrentState</code>。转换表就是上面那张五行的表。</li>
+  <li><strong>先红</strong>：第一条测试定契约——<code>new</code> 出来是 <code>Normal</code>；<code>Trigger()</code> 之后是 <code>Unacknowledged</code>。亲眼看红再绿，节奏你熟。</li>
+  <li><strong>设计决策题</strong>：非法转换（比如 Normal 时点 Acknowledge）抛 <code>InvalidOperationException</code> 还是静默忽略？<strong>先写测试定契约再决定</strong>——想想哪种对你的报警引擎调用方更友好。</li>
+  <li><strong>边界分开测</strong>：<code>Clear()</code> 从 Acknowledged 进 Normal、从 Unacknowledged 进 RTN——两条路径的测试分开写。加分题：锁存要不要建模？想清楚再动手。</li>
+  <li><strong>带回第一盏红灯</strong>（测试名或截图），毕业答辩传统。</li>
+</ol>
+
+<footer class="lesson-foot">
+  <p><span class="primary-source">本课首选原文：GB/T 41261-2022《过程工业报警系统管理》</span>「报警状态与转换」部分（购买正文后精读）。免费导读：<a href="https://www.isa.org/getmedia/55b4210e-6cb2-4de4-89f8-2b5b6b46d954/PAS-Understanding-ISA-18-2.pdf">PAS 白皮书</a>的状态图小节；完整速查：<a href="../reference/alarm-states.html">报警状态机速查卡</a>。</p>
+  <p>状态机测试写出红、转换表哪格拿不准、搁置要不要进 v0.1 哲学文档——随时回到对话里问你的老师（Claude）。下一课预告：<strong>合理化与优先级矩阵</strong>——后果严重度 × 响应时间怎么定出高/中/低，主报警数据库的字段级模板（你的清单审计数字终于要派上用场）。</p>
+  <p class="next-link"><a href="0004-rationalization-priority.html">下一课：合理化与优先级矩阵 →</a> · <a href="0002-lifecycle-and-philosophy.html">上一课：报警的一生</a> · <a href="../reference/alarm-states.html">回看：状态机速查卡</a></p>
+</footer>
+
+</main>
+<script src="../assets/state-machine.js"></script>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

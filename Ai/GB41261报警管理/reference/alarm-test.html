@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>参考卡 · 报警判定三问</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="lesson-head">
+  <div class="kicker">GB/T 41261 报警管理课程 · 参考卡</div>
+  <h1>报警判定三问<span class="subtitle">评审任何一条「报警」前，先过这三关 —— 适合打印贴在工位</span></h1>
+</header>
+
+<h2>标准的定义</h2>
+
+<div class="def-quote">
+  <strong>报警（alarm）</strong>：通过声音和/或可视的手段，向操作员指示<strong>需要及时响应</strong>的<strong>设备故障、过程偏差或其他异常情况</strong>。
+  <span class="def-src">参照 GB/T 41261-2022《过程工业报警系统管理》译述。<a href="https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=4D10B2178BA5D885DF490BC136E943D2">官方标准信息页 →</a></span>
+</div>
+
+<p>关键词是「<strong>需要及时响应</strong>」。一条信息要配成报警，三个条件缺一不可——是异常、操作员能行动、行动有时间窗。</p>
+
+<h2>三问</h2>
+
+<div class="qcard-row">
+  <div class="qcard">
+    <div class="q-no">第一问</div>
+    <div class="q-title">需要操作员行动吗？</div>
+    <div class="q-body">不需要 → 不是报警。留痕的进<strong>事件</strong>，告知的进<strong>提示</strong>。</div>
+  </div>
+  <div class="qcard">
+    <div class="q-no">第二问</div>
+    <div class="q-title">要在限时窗口内行动吗？</div>
+    <div class="q-body">拖过窗口就有后果（报废/损坏/停产）→ 报警；只是「尽快关注」→ <strong>提示</strong>。</div>
+  </div>
+  <div class="qcard">
+    <div class="q-no">第三问</div>
+    <div class="q-title">操作员知道该干什么吗？</div>
+    <div class="q-body">答不出「下一步做什么」→ 先补操作指引，否则这不是一条合格的报警。</div>
+  </div>
+</div>
+
+<h2>三分类去向</h2>
+
+<table>
+  <thead>
+    <tr><th>分类</th><th>判据</th><th>去向</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>报警</strong> alarm</td><td>异常 + 操作员行动 + 限时窗口</td><td>报警列表、声光提示</td></tr>
+    <tr><td><strong>事件</strong> event</td><td>留痕追溯，无需响应</td><td>历史记录 / 操作日志</td></tr>
+    <tr><td><strong>提示</strong> notification</td><td>需关注，无需限时响应</td><td>状态栏 / 消息中心</td></tr>
+  </tbody>
+</table>
+
+<h2>两个基准数字</h2>
+
+<div class="num-band">
+  <div class="num-tile">
+    <div class="num">≤ 6 条 / 时</div>
+    <div class="num-label">稳态平均报警率目标（约 ≤150 条/天，EEMUA 191 基准，GB/T 41261 性能监测指标与之同源）</div>
+  </div>
+  <div class="num-tile">
+    <div class="num">&gt; 10 条 / 10 分</div>
+    <div class="num-label">即进入「报警泛滥」（alarm flood）——每操作员、每 10 分钟口径</div>
+  </div>
+</div>
+
+<h2>术语表（随课程扩充）</h2>
+
+<table>
+  <thead>
+    <tr><th>术语</th><th>一句话</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>alarm 报警</td><td>需要操作员限时响应的异常指示</td></tr>
+    <tr><td>event 事件</td><td>留痕记录，不要求响应</td></tr>
+    <tr><td>log 日志</td><td>按时间顺序记流水的存储；报警的触发/确认/恢复也写成事件记进去</td></tr>
+    <tr><td>notification 提示</td><td>告知性消息，不需限时响应</td></tr>
+    <tr><td>alarm philosophy 报警哲学/方针</td><td>项目级的报警规范文档，一切报警判定的依据</td></tr>
+    <tr><td>rationalization 合理化</td><td>逐条评审候选报警的资格与优先级的流程</td></tr>
+    <tr><td>master alarm database 主报警数据库</td><td>每条报警的字段档案：原因、后果、操作动作、优先级</td></tr>
+    <tr><td>alarm flood 报警泛滥</td><td>&gt;10 条 / 10 分钟 / 操作员</td></tr>
+    <tr><td>standing alarm 长期驻留报警</td><td>长时间挂着的报警，操作员已视而不见</td></tr>
+    <tr><td>chattering 报警颤抖</td><td>反复触发/恢复，源于死区与延时的缺失</td></tr>
+    <tr><td>shelving 报警搁置</td><td>操作员临时让某条报警「闭嘴」，需有期限</td></tr>
+    <tr><td>suppression 报警屏蔽</td><td>设计态的永久抑制，须经变更管理</td></tr>
+    <tr><td>deadband 死区</td><td>触发与恢复之间的回差，防颤抖</td></tr>
+  </tbody>
+</table>
+
+<footer class="lesson-foot">
+  <p>出自第 1 课 <a href="../lessons/0001-what-is-an-alarm.html">什么才算报警</a>。标准正文：<a href="https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=4D10B2178BA5D885DF490BC136E943D2">GB/T 41261-2022</a>（等同采用 IEC 62682:2014；正文需购买，官方信息页可核对标准号与状态）。</p>
+  <p>有拿不准的条目，随时回到对话里问你的老师（Claude）。</p>
+</footer>
+
+</main>
+</body>
+</html>

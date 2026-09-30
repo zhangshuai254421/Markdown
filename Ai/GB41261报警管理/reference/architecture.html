@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>参考卡 · 报警模块架构蓝图</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="lesson-head">
+  <div class="kicker">GB/T 41261 报警管理课程 · 参考卡</div>
+  <h1>架构蓝图速查卡<span class="subtitle">写代码时抬头看：概念住哪层、接缝在哪、迁移怎么走</span></h1>
+</header>
+
+<h2>三层 + 三横切</h2>
+
+<div class="arch-stack">
+  <div class="arch-layer">
+    <div class="a-name">出口/表现层 —— 声光、报警列表、弹窗（WPF）</div>
+    <div class="a-body">消费 AlarmEvent 流 + 查询当前活跃列表。按优先级呈现（闪红/稳红/闪绿），搁置清单单独可见。自己不做任何判定。</div>
+  </div>
+  <div class="arch-arrow">↑ 订阅事件 / 查询　↓ 条件事实</div>
+  <div class="arch-layer">
+    <div class="a-name">报警引擎层 —— 唯一的「懂报警」的地方</div>
+    <div class="a-body">读档案（AlarmDefinition）→ 死区/延时滤波（HysteresisEvaluator）→ 四状态机（AlarmStateMachine）→ 产出 AlarmEvent 流 + 活跃列表。纯逻辑，无 UI 依赖，全程可 TDD。</div>
+  </div>
+  <div class="arch-arrow">↑ 条件事实（ConditionChanged）</div>
+  <div class="arch-layer">
+    <div class="a-name">采集/条件层 —— 设备通讯、数值比较</div>
+    <div class="a-body">只产出「条件事实」（某点此刻的值/状态）。<strong>不懂得「报警」二字</strong>——是不是报警、几级、怎么表现，一层都不许管。</div>
+  </div>
+  <div class="arch-arrow">······横切（三层都落）······</div>
+  <div class="arch-layer cross">
+    <div class="a-name">横切：事件历史库 · 性能统计 · 哲学配置</div>
+    <div class="a-body">历史库 append-only（引擎产出全量落库）；性能统计 = 历史库上的只读聚合（KPI）；哲学配置 = AlarmDefinition 的存储（JSON / SQLite）。</div>
+  </div>
+</div>
+
+<h2>组件 ↔ 课程对照</h2>
+
+<table>
+  <thead>
+    <tr><th>代码里的东西</th><th>标准概念</th><th>哪课讲的</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>AlarmDefinition</code> record</td><td>主报警数据库 MADB 的投影</td><td>第 4 课</td></tr>
+    <tr><td><code>HysteresisEvaluator</code></td><td>死区 + 触发/恢复延时</td><td>第 5 课</td></tr>
+    <tr><td><code>AlarmStateMachine</code></td><td>四状态五转换</td><td>第 3 课</td></tr>
+    <tr><td><code>AlarmEvent</code> + <code>EventHistory</code></td><td>事件记录 / 报警历史</td><td>第 1、6 课</td></tr>
+    <tr><td><code>KpiService</code></td><td>监测与评估</td><td>第 6 课</td></tr>
+    <tr><td>《报警哲学》文档</td><td>报警哲学（文档，不是代码）</td><td>第 2 课</td></tr>
+  </tbody>
+</table>
+
+<h2>接缝清单（测试的入口）</h2>
+
+<table>
+  <thead>
+    <tr><th>接缝</th><th>为什么是接缝</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>IConditionSource</code></td><td>引擎不直连设备——测试里直接喂条件序列</td></tr>
+    <tr><td><code>IAlarmClock</code></td><td>延时、驻留判定都要看表——注入时钟才能「拨表」测试</td></tr>
+    <tr><td><code>IAlarmDefinitionStore</code></td><td>档案加载与真实存储解耦——测试用内存档案</td></tr>
+  </tbody>
+</table>
+
+<h2>迁移四步（存量项目）</h2>
+
+<table>
+  <thead>
+    <tr><th>步</th><th>动作</th><th>收益</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>1</td><td>只建事件历史库，<strong>不动现有报警</strong></td><td>零风险拿到 KPI 基线（第 6 课记分卡的数字从这来）</td></tr>
+    <tr><td>2</td><td>档案 + 引擎并行运行（影子模式）：只写历史，不接管 UI</td><td>新引擎与老逻辑对比验证</td></tr>
+    <tr><td>3</td><td>按工段切 UI 到新引擎；有档案的接管，没档案的回炉</td><td>老报警逐条退役，而不是一次性换血</td></tr>
+    <tr><td>4</td><td>KPI 看板上线</td><td>进入生命周期环，进入监测常态</td></tr>
+  </tbody>
+</table>
+
+<footer class="lesson-foot">
+  <p>出自第 7 课 <a href="../lessons/0007-architecture-blueprint.html">模块改造总装</a>。概念依据 GB/T 41261-2022（实施与运行部分），架构与迁移路径为工程实践提炼。</p>
+  <p>写代码时哪层住哪个概念拿不准——随时回到对话里问你的老师（Claude）。</p>
+</footer>
+
+</main>
+</body>
+</html>

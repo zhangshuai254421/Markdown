@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 9 课 · 给引擎一张脸：WPF 出口层</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="lesson-head">
+  <div class="kicker">GB/T 41261 报警管理课程 · 第 9 课 · C# 落地系列</div>
+  <h1>给引擎一张脸<span class="subtitle">WPF 出口层：列表、优先级呈现、搁置清单——与 Prism 合流</span></h1>
+</header>
+
+<p>引擎现在是全系统唯一懂报警的地方，但它是哑巴——这一课给它一张脸：报警列表、闪烁、声音入口、搁置清单页。出口层的纪律第 7 课就立下了，只有一条：<strong>不做任何判定</strong>。所以这课写的「逻辑」很少，要守的「纪律」很多——每条呈现规则都必须来自引擎的产出或档案的字段，UI 不许再发明任何一条。</p>
+
+<h2>先立接缝：UI 不认得引擎的具体类</h2>
+
+<pre><code>public interface IAlarmFeed : IDisposable     // 出口层的接缝
+{
+    event Action&lt;AlarmEvent&gt; EventRaised;     // 订阅事件流
+    IReadOnlyList&lt;ActiveAlarm&gt; Active { get; }  // 查询活跃列表
+    void Acknowledge(string tag, string op);
+    void Shelve(string tag, TimeSpan duration, string op);
+    void Unshelve(string tag);
+}</code></pre>
+
+<p>老理由（TDD 课）：ViewModel 对着接口写测试，fake 一个 feed 就能红绿灯，不用起真引擎。<strong>引擎在通讯线程吐事件，UI 在 UI 线程消费</strong>——这个跨线程编队是本课唯一的技术暗礁，两条路：直接 <code>SynchronizationContext.Post</code>（实验室用，简单直接），或 Prism 的 <code>IEventAggregator</code>（真实项目里解耦更舒服，你有 Prism 底子，选型你来）。</p>
+
+<h2>AlarmListViewModel：事件流的 UI 投影</h2>
+
+<pre><code>public class AlarmListViewModel : BindableBase
+{
+    public ObservableCollection&lt;AlarmItemViewModel&gt; Alarms { get; } = new();
+
+    public AlarmListViewModel(IAlarmFeed feed)
+    {
+        feed.EventRaised += e => _ui.Post(() => Apply(e));   // 跨线程编队到 UI 线程
+    }
+
+    private void Apply(AlarmEvent e)
+    {
+        switch (e)
+        {
+            case AlarmRaised r:        Alarms.Add(new AlarmItemViewModel(r)); break;
+            case AlarmAcknowledged:    Find(e.Tag)?.UpdateState(AlarmState.Acknowledged); break;
+            case AlarmAutoReturned:    Find(e.Tag)?.UpdateState(AlarmState.ReturnToNormal); break;
+            case AlarmClosed:          Remove(e.Tag); break;
+        }
+    }
+}</code></pre>
+
+<p>看清楚：<code>Apply</code> 里没有一行「判断温度」「判断等级」——UI 只是把事件翻译成集合变更。<strong>ActiveAlarm 里 RTN 还在列表、Closed 移出</strong>，这些规矩都是引擎定的（第 8 课测试钉死的），UI 照单全收。ViewModel 可测：fake feed 发一个 <code>AlarmRaised</code>，断言 <code>Alarms</code> 集合出现一行——老节奏，先红。</p>
+
+<h2>呈现纪律：闪的是「状态」，不是「数值」</h2>
+
+<pre><code>&lt;!-- 状态 → 视觉：一条 DataTrigger 一条规矩，全部来自 ISA-18.1 惯例 --&gt;
+&lt;Style x:Key="AlarmRow" TargetType="Border"&gt;
+  &lt;Style.Triggers&gt;
+    &lt;DataTrigger Binding="{Binding State}" Value="Unacknowledged"&gt;   &lt;!-- 闪红 --&gt;
+      &lt;Setter Property="Background" Value="#B3261E"/&gt;
+      &lt;Setter Property="Tag" Value="flash-red"/&gt;
+    &lt;/DataTrigger&gt;
+    &lt;DataTrigger Binding="{Binding State}" Value="Acknowledged"&gt;     &lt;!-- 稳红 --&gt;
+      &lt;Setter Property="Background" Value="#B3261E"/&gt;
+    &lt;/DataTrigger&gt;
+    &lt;DataTrigger Binding="{Binding State}" Value="ReturnToNormal"&gt;   &lt;!-- 闪绿 --&gt;
+      &lt;Setter Property="Background" Value="#2E7D32"/&gt;
+      &lt;Setter Property="Tag" Value="flash-green"/&gt;
+    &lt;/DataTrigger&gt;
+  &lt;/Style.Triggers&gt;
+&lt;/Style&gt;</code></pre>
+
+<p><code>Tag</code> 上的动画名挂 Storyboard（两帧透明度动画做闪烁）。注意绑定的是什么：<strong>State</strong>——引擎流转的状态，不是「当前值和限值的差」。UI 一旦开始比较数值，判定权就漏出去了（第 7 课分层就破了）。排序与置顶同理：按档案里的 Priority 排，高优先级永远在顶——操作员第一眼看到的必须是引擎认为最急的。</p>
+
+<h2>第三问终于上屏：报警详情 = MADB 的操作指导书</h2>
+
+<p>双击报警行弹出的详情页，就是你第 4 课填的那张档案——<strong>原因、后果、操作动作、MTR、优先级依据、评审留痕</strong>，原样呈现：</p>
+
+<pre><code>&lt;StackPanel&gt;
+  &lt;TextBlock Text="{Binding Description}"    FontSize="18" FontWeight="Bold"/&gt;
+  &lt;TextBlock Text="{Binding Cause}"          /&gt;  &lt;!-- 最可能原因：排查起点 --&gt;
+  &lt;TextBlock Text="{Binding Consequence}"    /&gt;  &lt;!-- 不处理后果 --&gt;
+  &lt;TextBlock Text="{Binding OperatorAction}" FontSize="16" FontWeight="Bold"/&gt; &lt;!-- 该干什么 --&gt;
+  &lt;TextBlock Text="{Binding MaxResponseTime, StringFormat=响应窗：{0}分}" /&gt;
+&lt;/StackPanel&gt;</code></pre>
+
+<p>第 1 课的第三问「操作员知道该干什么吗」、第 4 课的「操作动作」字段，在这一屏兑现：报警响 → 操作员点开 → <strong>第一步做什么就写在最显眼的位置</strong>。「报警与操作脱节」这个痛，到此在代码里治完。</p>
+
+<h2>搁置清单页：正门要有门牌</h2>
+
+<p>单独一页，数据就是 <code>feed.Active</code> 按 <code>ShelvedUntil &gt; now</code> 过滤（第 8 课打好的标），每行带「解除搁置」按钮调 <code>feed.Unshelve(tag)</code>。第 3 课说的「搁置清单单独可见」，在这一页兑现——<strong>正门要有门牌，被搁置的报警永远找得到</strong>。</p>
+
+<h2>检查一下呈现纪律</h2>
+
+<div class="quiz" data-quiz='{
+  "questions": [
+    {
+      "type": "single",
+      "prompt": "出口层的铁律是？",
+      "options": [
+        "只呈现引擎产出，不重新判定",
+        "紧急时可以直接修改限值",
+        "为了性能自己再过滤一遍条件",
+        "确认逻辑放 UI 里响应最快"
+      ],
+      "answer": 0,
+      "explanation": "判定权只住引擎层。UI 一旦重新判定（改限值、再过滤、自己定级），第 7 课的分层就破了——两份真相必有一份是假的。"
+    },
+    {
+      "type": "single",
+      "prompt": "闪烁样式应该绑定什么？",
+      "options": [
+        "状态：来自引擎的流转结果",
+        "当前值与限值的差值",
+        "报警持续的时间长短",
+        "操作员的配色偏好设置"
+      ],
+      "answer": 0,
+      "explanation": "闪红/稳红/闪绿绑 State。绑定数值差，等于 UI 在做「是否越限」的判定——判定权漏出去了，引擎和画面对不上账只是时间问题。"
+    },
+    {
+      "type": "single",
+      "prompt": "搁置清单页的数据从哪来？",
+      "options": [
+        "Active 查询按 ShelvedUntil 过滤",
+        "UI 另行维护一张搁置表",
+        "记录被点了搁置的那些行",
+        "从历史库里反查搁置事件"
+      ],
+      "answer": 0,
+      "explanation": "第 8 课的打标设计在这里收货：引擎不撒谎（全量记录），UI 按标过滤（主列表不显示、搁置清单单独显示）。另建搁置表 = 第二份真相，必对不上账。"
+    },
+    {
+      "type": "multiple",
+      "prompt": "报警详情页应原样呈现哪些 MADB 字段？（多选）",
+      "options": [
+        "操作动作：第一步干什么",
+        "不处理后果与最可能原因",
+        "MTR 与优先级依据",
+        "该点位的通讯报文原文"
+      ],
+      "answer": [0, 1, 2],
+      "explanation": "详情页 = 档案的呈现视图：动作、后果、原因、响应窗、定级依据、评审留痕。通讯报文是采集层的调试细节——给开发排错用，不该在操作员工位上。"
+    }
+  ]
+}'></div>
+
+<h2>课后作业：让引擎开口说话</h2>
+
+<ol>
+  <li><strong>建 UI 工程</strong>：AlarmLab 里加 WPF 项目（Prism 模块化你熟，实验室里单工程也行）。</li>
+  <li><strong>ViewModel 先红</strong>：<code>AlarmListViewModel</code> 对着 fake feed 写第一条测试（feed 发 Raised → Alarms 出现一行），红 → 绿。跨线程编队在测试里用同步执行路径绕过（构造函数注入个同步的「ui」即可——又一个接缝）。</li>
+  <li><strong>三态样式</strong>：闪红 / 稳红 / 闪绿的 DataTrigger + Storyboard；列表按 Priority 置顶排序。</li>
+  <li><strong>详情弹窗</strong>：绑定 MADB 字段，操作动作放最显眼处。</li>
+  <li><strong>搁置清单页</strong>：按标过滤 + 解除搁置按钮。</li>
+  <li><strong>带回</strong>：跑起来的截图（fake feed 喂三条不同状态的报警最有说服力），或 ViewModel 的绿灯清单。</li>
+</ol>
+
+<footer class="lesson-foot">
+  <p><span class="primary-source">本课无外部新知——呈现惯例出自第 3 课（ISA-18.1 颜色），字段出自第 4 课档案，打标出自第 8 课。</span>对照物：<a href="../reference/architecture.html">架构蓝图速查卡</a>（出口层纪律）。</p>
+  <p>跨线程编队报错、Storyboard 不闪、fake feed 怎么写——随时回到对话里问你的老师（Claude）。下一课预告：<strong>收官</strong>——历史库持久化 + <code>KpiService</code>（第 6 课 LINQ 落地）+ 对照记分卡的总答辩：你的模块从「看情况定义」到「按 GB/T 41261 站进生命周期环」，验收就在下一课。</p>
+  <p class="next-link"><a href="0010-history-kpi-graduation.html">下一课：收官 →</a> · <a href="0008-engine-deep-dive.html">上一课：引擎深潜</a> · <a href="../reference/architecture.html">回看：架构蓝图速查卡</a></p>
+</footer>
+
+</main>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

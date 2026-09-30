@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>参考卡 · 报警状态机</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="lesson-head">
+  <div class="kicker">GB/T 41261 报警管理课程 · 参考卡</div>
+  <h1>报警状态机速查卡<span class="subtitle">四状态 + 五转换 + 三种「合法闭嘴」—— 写代码、评审时对照</span></h1>
+</header>
+
+<h2>四状态五转换</h2>
+
+<p>状态显示约定（<a href="https://industrialmonitordirect.com">ISA-18.1 惯例</a>）：未确认 = 闪红，已确认 = 稳红，恢复未确认 = 闪绿。</p>
+
+<table>
+  <thead>
+    <tr><th>当前状态</th><th>事件</th><th>去向</th><th>系统行为</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Normal 正常</td><td>条件越限</td><td><strong>未确认</strong></td><td>声光起，进报警列表，事件入库</td></tr>
+    <tr><td>未确认</td><td>操作员确认</td><td><strong>已确认</strong></td><td>由闪变稳，责任接管</td></tr>
+    <tr><td>未确认</td><td>条件恢复</td><td><strong>RTN</strong>（恢复未确认）</td><td>由闪红变闪绿，仍留列表等确认</td></tr>
+    <tr><td>已确认</td><td>条件恢复</td><td><strong>Normal</strong></td><td>移出列表——有主人的报警，回家不用再敲门</td></tr>
+    <tr><td>RTN</td><td>确认恢复</td><td><strong>Normal</strong></td><td>移出列表，闭环</td></tr>
+  </tbody>
+</table>
+
+<div class="key">
+  <span class="callout-label">最容易做错的一格</span>
+  <strong>RTN 只从「未确认」进入。</strong>标准原文口径：RTN = 条件在操作员确认<strong>之前</strong>就自动恢复了（auto-reset）。已确认的报警条件恢复后直接回 Normal。别让每条恢复都多敲一次确认门。
+</div>
+
+<h2>条件 vs 状态</h2>
+
+<table>
+  <thead>
+    <tr><th></th><th>条件 condition</th><th>状态 state</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>由谁决定</td><td>工艺量（越没越限）</td><td>条件 + 人机交互进度</td></tr>
+    <tr><td>谁维护</td><td>数据采集/比较逻辑</td><td>报警引擎（状态机）</td></tr>
+    <tr><td>典型错误</td><td colspan="2">两者混成一个 bool——丢记录与刷屏的共同根源</td></tr>
+  </tbody>
+</table>
+
+<h2>三种「合法闭嘴」</h2>
+
+<table>
+  <thead>
+    <tr><th></th><th>搁置 shelving</th><th>运行态抑制 suppression</th><th>退出服务 out-of-service</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>谁发起</td><td>操作员（现场）</td><td>组态逻辑（设计态）</td><td>工程/维护</td></tr>
+    <tr><td>时限</td><td>必须有，到期自动恢复（常以一个班次为上限）</td><td>随设备状态自动生效/失效</td><td>到检修结束</td></tr>
+    <tr><td>审批</td><td>即时，但全量留痕</td><td>走组态变更</td><td>变更管理（MOC）</td></tr>
+    <tr><td>可见性</td><td>主列表移除，<strong>搁置清单单独可见</strong></td><td>对操作员不可见（按设计）</td><td>退出服务清单可见</td></tr>
+    <tr><td>典型场景</td><td>吹扫期间某液位计乱报</td><td>停机时不报「运行参数异常」类报警</td><td>检修某仪表，相关报警长期退出</td></tr>
+  </tbody>
+</table>
+
+<p>三种存在的共同意义：给合法的「闭嘴」留正门，堵死「删报警」这个后门。所有动作必须留痕（<a href="https://www.grahamnasby.com">Nasby</a>：shelving 与 out-of-service 全量记日志）。</p>
+
+<h2>补充：锁存 latch</h2>
+
+<p>联锁/停机类报警常用<strong>锁存</strong>：条件恢复也不自动灭，必须人工复位——因为要确认「人真的看过并处理了根因」。它是四状态之上的可选子状态，别跟 RTN 混淆：RTN 等的是「确认看见」，锁存等的是「复位授权」。</p>
+
+<footer class="lesson-foot">
+  <p>出自第 3 课 <a href="../lessons/0003-alarm-state-machine.html">报警状态机</a>。图形版全状态机（含子状态）可对照 <a href="https://documentation.iconics.com/v10.97.3/Content/Alarming/Alarm%20Server/Alarm%20References/alarm-state-transition-diagram.htm">ICONICS 对 ISA-18.2 状态图的实现文档</a>。概念以 GB/T 41261-2022 正文为准。</p>
+  <p>拿不准的转换、C# 建模疑问——随时回到对话里问你的老师（Claude）。</p>
+</footer>
+
+</main>
+</body>
+</html>

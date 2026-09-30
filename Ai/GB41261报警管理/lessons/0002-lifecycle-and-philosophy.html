@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 2 课 · 报警的一生：生命周期与报警哲学</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="lesson-head">
+  <div class="kicker">GB/T 41261 报警管理课程 · 第 2 课</div>
+  <h1>报警的一生<span class="subtitle">生命周期七阶段，和第一块多米诺：报警哲学文档</span></h1>
+</header>
+
+<p>第 1 课你拿到了一把刀（三问），这一课先别急着切清单——先看地图。GB/T 41261-2022 把报警系统当成一个<strong>有生命的东西</strong>：它被「生」出来（识别、合理化），被养大（详细设计、实施），过日子（运行），会衰老（工艺改了它没改），也需要被治（维护、评估）。你们的报警为什么「看情况定义」也能凑合用这么多年？因为只做了「组态」这一步——<strong>报警从没办过出生证，也没参加过体检</strong>。</p>
+
+<h2>生命周期：七个阶段转成一个环</h2>
+
+<div class="lifecycle">
+  <div class="life-step">
+    <div class="step-no">阶段 1</div>
+    <div class="step-name">报警哲学</div>
+    <div class="step-out">《报警哲学》文档——先立规矩</div>
+  </div>
+  <div class="life-arrow">→</div>
+  <div class="life-step">
+    <div class="step-no">阶段 2</div>
+    <div class="step-name">识别</div>
+    <div class="step-out">候选报警清单</div>
+  </div>
+  <div class="life-arrow">→</div>
+  <div class="life-step">
+    <div class="step-no">阶段 3</div>
+    <div class="step-name">合理化</div>
+    <div class="step-out">主报警数据库</div>
+  </div>
+  <div class="life-arrow">→</div>
+  <div class="life-step">
+    <div class="step-no">阶段 4</div>
+    <div class="step-name">详细设计</div>
+    <div class="step-out">死区、延时、限值、显示</div>
+  </div>
+  <div class="life-arrow">→</div>
+  <div class="life-step">
+    <div class="step-no">阶段 5</div>
+    <div class="step-name">实施</div>
+    <div class="step-out">投用验证 + 操作员培训</div>
+  </div>
+  <div class="life-arrow">→</div>
+  <div class="life-step">
+    <div class="step-no">阶段 6</div>
+    <div class="step-name">运行</div>
+    <div class="step-out">日常使用与操作规程</div>
+  </div>
+  <div class="life-arrow">→</div>
+  <div class="life-step loop-end">
+    <div class="step-no">阶段 7</div>
+    <div class="step-name">维护</div>
+    <div class="step-out">测试与维修记录 ↺ 回到哲学修订</div>
+  </div>
+</div>
+
+<div class="note">
+  <span class="callout-label">外围三件事（贯穿全程）</span>
+  <strong>监测与评估</strong>：用 KPI 持续体检，结果反馈回哲学修订；<strong>变更管理</strong>：工艺、设备、程序一有改动，相关报警拉回环里重评审；<strong>审核</strong>：定期对照哲学文档查执行情况。
+</div>
+
+<table>
+  <thead>
+    <tr><th>阶段</th><th>核心问题</th><th>产出物</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>1 报警哲学</td><td>什么样的信息配当报警？</td><td>《报警哲学》文档（本课主角）</td></tr>
+    <tr><td>2 识别</td><td>哪些地方可能需要报警？</td><td>候选报警清单（访谈、危害分析、历史数据）</td></tr>
+    <tr><td>3 合理化</td><td>候选逐条过判据，够格吗？</td><td>主报警数据库（原因/后果/动作/优先级）</td></tr>
+    <tr><td>4 详细设计</td><td>每条报警怎么组态？</td><td>死区、延时、限值、优先级、显示方式</td></tr>
+    <tr><td>5 实施</td><td>怎么安全投用？</td><td>投用验证 + 操作员培训</td></tr>
+    <tr><td>6 运行</td><td>日常怎么用？</td><td>操作规程、班次使用</td></tr>
+    <tr><td>7 维护</td><td>坏了谁修、修完怎么测？</td><td>维护与测试记录</td></tr>
+  </tbody>
+</table>
+
+<h2>三个洞见</h2>
+
+<h3>一、它是环，不是清单</h3>
+<p>报警会老化。产线去年换了新型号电机，报警限值还是旧电机的——它要么永不触发（假安全感），要么乱触发（刷屏新来源）。这就是「遗产报警」：<strong>设备和工艺在变，报警没跟着变</strong>。变更管理就是防这个的——所以生命周期必须是个环。你们项目的报警清单，本质上就是一柜子没回过炉的遗产。</p>
+
+<h3>二、哲学文档是第一块多米诺</h3>
+<p>合理化阶段要做的是「逐条审判」，但审判得有法条——法条就是《报警哲学》。没有它，优先级就退化成「谁嗓门大谁高优」，三问退化成「感觉像不像报警」。<strong>你「定义随意无规范」的痛，病根就是缺这份文档。</strong>好消息是：它写一次，所有新项目直接复用——这正是你使命里「沉淀可复用框架」的第一块基石。</p>
+
+<h3>三、存量改造的进场路径</h3>
+<p>改造不是从第 1 格走到第 7 格，而是「插队」：写哲学 → 用识别 + 合理化<strong>回炉存量清单</strong>（你第 1 课的作业清单审计，就是回炉的原料）→ 补详细设计 → 进运行监测闭环。四步走完，你的报警模块就正式站进了这个环里。</p>
+
+<h2>报警哲学文档：一页纸骨架</h2>
+
+<p>标准配套技术报告（ISA-TR18.2.2，<a href="https://www.isa.org/getmedia/d1a80b18-cedd-4861-83a7-5de48bd26d9b/TR_18-2-2_Preview.pdf">预览含目录</a>）整本都在讲怎么写这份文档。下面是给你的<strong>最小可行骨架</strong>——教学提炼，不是标准原文目录——每节两三句话就能起步：</p>
+
+<ol>
+  <li><strong>目的与范围</strong>——管哪些系统、哪些画面、给谁看。</li>
+  <li><strong>报警判据</strong>——三问 + 报警/事件/提示三分类去向（第 1 课成品直接搬进来）。</li>
+  <li><strong>优先级体系</strong>——分几级、各级定义、数量配比目标（3~4 级封顶；配比细讲在第 4 课）。</li>
+  <li><strong>命名与描述规范</strong>——位号规则、消息文案格式、必须带操作指引。</li>
+  <li><strong>主报警数据库字段</strong>——每条报警的档案栏目（字段级模板在第 4 课）。</li>
+  <li><strong>搁置与屏蔽规则</strong>——谁能搁、搁多久、要不要审批、超期怎么处理。</li>
+  <li><strong>KPI 目标</strong>——平均报警率、泛滥阈值（第 1 课那两个数字，第 6 课展开）。</li>
+  <li><strong>角色与职责</strong>——报警负责人是谁、评审会都有谁。</li>
+  <li><strong>评审流程</strong>——合理化会议怎么开、新报警怎么准入、多久复审。</li>
+  <li><strong>文档自身的管理</strong>——版本、评审周期、与变更管理挂钩。</li>
+</ol>
+
+<div class="key">
+  <span class="callout-label">本课核心</span>
+  生命周期回答「改造要做哪些事」，哲学文档回答「按什么标准做」。<strong>先立规矩，再回炉清单</strong>——顺序反了，合理化就开成吵架会。
+</div>
+
+<h2>检查一下地图感</h2>
+
+<div class="quiz" data-quiz='{
+  "questions": [
+    {
+      "type": "single",
+      "prompt": "「操作员访谈、HAZOP 输出、历史数据挖掘」是哪个阶段的动作？",
+      "options": [
+        "识别：收集候选报警",
+        "合理化：逐条评审资格",
+        "详细设计：整定组态参数",
+        "维护：测试与修复设备"
+      ],
+      "answer": 0,
+      "explanation": "识别阶段的任务是把可能需要报警的地方一网打尽——访谈、危害分析（如 HAZOP）输出、历史数据都是候选来源。逐条审判是下一格（合理化）的事。"
+    },
+    {
+      "type": "single",
+      "prompt": "合理化评审时，判断一条候选「够不够格当报警」的依据是？",
+      "options": [
+        "报警哲学文档定的判据",
+        "评审会上资历最深的人",
+        "控制系统提供的默认模板",
+        "历史触发次数排行榜"
+      ],
+      "answer": 0,
+      "explanation": "这正是哲学文档存在的意义：先立规矩，再逐条对号。没有哲学，评审就退化成拍脑袋——你们「看情况定义」的历史，就是一场没有法条的合理化。"
+    },
+    {
+      "type": "single",
+      "prompt": "生命周期画成「环」而不是「清单」，最主要因为？",
+      "options": [
+        "工艺会变，报警会老化失效",
+        "七个阶段必须每季度重跑",
+        "监测报表需要循环滚动生成",
+        "文档版本需要周期性升版"
+      ],
+      "answer": 0,
+      "explanation": "设备改型、工艺调整、程序升级之后，旧报警可能永不触发或乱触发——遗产报警。变更管理把改动送回环里重评审，监测评估用 KPI 把问题拉回来。环是保鲜机制，不是机械重复。"
+    },
+    {
+      "type": "multiple",
+      "prompt": "一页纸《报警哲学》v0.1 至少要写清哪些？（多选）",
+      "options": [
+        "报警与事件提示的分界判据",
+        "优先级分级定义与数量目标",
+        "报警搁置的权限与时限规则",
+        "技改施工的网络计划横道图"
+      ],
+      "answer": [0, 1, 2],
+      "explanation": "判据、分级、搁置规则都是哲学骨架的核心节（第 2/3/6 节）；施工横道图属于项目管理文档，跟报警哲学无关。"
+    }
+  ]
+}'></div>
+
+<h2>课后作业</h2>
+
+<ol>
+  <li><strong>主作业</strong>：按上面的十节骨架，起草你项目的《报警哲学》v0.1——每节两三句话，一页纸封顶。写完贴回对话，我逐节帮你校对。</li>
+  <li><strong>回收第 1 课作业</strong>：还没做的——导出现有报警清单，逐条过三问打标签；做完了的——把「总条数 / 非报警占比」两个数字带回来。这份标注结果就是识别 + 合理化阶段的原料。</li>
+  <li><strong>想一想</strong>（不用写）：你的项目里，谁该当「报警负责人」？一个人、一个会，还是「反正现在没人管」？——第 4 课开评审会要用这个答案。</li>
+</ol>
+
+<footer class="lesson-foot">
+  <p><span class="primary-source">本课首选原著：GB/T 41261-2022《过程工业报警系统管理》</span>——购买正文后，对照「生命周期」与「报警哲学」两部分精读。免费导读（同一体系）：<a href="https://www.isa.org/getmedia/55b4210e-6cb2-4de4-89f8-2b5b6b46d954/PAS-Understanding-ISA-18-2.pdf">PAS 白皮书</a>的生命周期章节，以及<a href="https://www.grahamnasby.com/files_publications/NasbyG_2023_ISA18-AlarmMgmtIntro_isa-wwid-newsletter_apr2023.pdf">Nasby 实战指南</a>里「建立报警管理程序」部分。</p>
+  <p>骨架哪一节写不下去、清单审计数字想先讨论、哲学草稿想让人校对——随时回到对话里问你的老师（Claude）。下一课预告：<strong>报警状态机</strong>——Normal → 未确认 → 已确认 → 恢复，加上搁置与屏蔽：这是你模块「状态管理缺失」的主手术，而且会用 C# 枚举先建模（TDD 老朋友回归）。</p>
+  <p class="next-link"><a href="0003-alarm-state-machine.html">下一课：报警状态机 →</a> · <a href="0001-what-is-an-alarm.html">上一课：什么才算报警</a> · <a href="../reference/alarm-test.html">回看：三问速查卡</a></p>
+</footer>
+
+</main>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

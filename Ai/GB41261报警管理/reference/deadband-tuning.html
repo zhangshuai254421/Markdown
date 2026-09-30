@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>参考卡 · 组态参数与颤抖治理</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="lesson-head">
+  <div class="kicker">GB/T 41261 报警管理课程 · 参考卡</div>
+  <h1>组态参数速查卡<span class="subtitle">详细设计阶段定什么、颤抖报警怎么治——整定参数时对照</span></h1>
+</header>
+
+<h2>病灶 → 对策对照</h2>
+
+<table>
+  <thead>
+    <tr><th>病灶</th><th>长相</th><th>首选对策</th><th>盲区代价</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>毛刺</td><td>短促尖峰越过限值就回</td><td>触发延时 on-delay</td><td>真实的短暂越限被吞掉</td></tr>
+    <tr><td>徘徊</td><td>在限值附近慢速抖动</td><td>死区 deadband（回差）</td><td>死区带内的真实越限不报警</td></tr>
+    <tr><td><strong>颤抖</strong> chattering</td><td><strong>≥3 次状态转换 / 60 秒</strong>（ISA-18.2 判据，即一台仪器 180 条/时）</td><td>死区 + 延时组合；仍频繁则回查限值</td><td>组合各自的代价叠加</td></tr>
+    <tr><td>限值本身错了</td><td>治理后依然频繁触发</td><td>回合理化：工艺变了，限值还成立吗</td><td>—</td></tr>
+  </tbody>
+</table>
+
+<div class="key">
+  <span class="callout-label">两条铁律</span>
+  ① <strong>触发延时 &lt; MTR</strong>——响应窗口从「条件越限」起算，延时把窗口吃掉一截：MTR 5 秒的报警配 3 秒延时，操作员只剩 2 秒。② <strong>死区 ≥ 信号噪声幅值</strong>——太小等于没设。治理的终点不是零报警，是<strong>剩下的都是真报警</strong>。
+</div>
+
+<h2>鉴别诊断：「处理完又报」算颤抖吗？</h2>
+
+<p>颤抖判据（≥3 次/60 秒）是<strong>探测器不是诊断书</strong>——它只看数据。同一台「高频复发」的仪器，先看恢复值再开药：</p>
+
+<table>
+  <thead>
+    <tr><th>看什么</th><th>颤抖 / 假恢复（设计病）</th><th>真复发（根因病）</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>恢复时的值</td><td>压线恢复（刚低于限值就清）</td><td>深度回落</td></tr>
+    <tr><td>活跃时长</td><td>秒级</td><td>完整处理周期</td></tr>
+    <tr><td>有没有确认</td><td>常没来得及确认（RTN 常客）</td><td>每次都有 ack 记录</td></tr>
+    <tr><td>判定</td><td>设计病：死区太小 / 限值落在控制回路振荡带里</td><td>报警没错，根因没除</td></tr>
+    <tr><td>药方</td><td>加大死区或延时；限值挪出振荡带；查回路整定</td><td>修根因；短期修不了走限时搁置 + 留痕</td></tr>
+  </tbody>
+</table>
+
+<p class="warn"><strong>别做的事</strong>：因为「烦」把限值放宽——那会把真复发也放走，是「删报警后门」的另一种形态。</p>
+
+<h2>详细设计组态参数清单（记入 MADB）</h2>
+
+<table>
+  <thead>
+    <tr><th>参数</th><th>作用</th><th>整定原则</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>限值 setpoint</td><td>触发点</td><td>来自合理化（工艺依据），不是出厂默认</td></tr>
+    <tr><td>死区 deadband</td><td>恢复点 = 限值 − 死区</td><td>略大于信号噪声幅值</td></tr>
+    <tr><td>触发延时 on-delay</td><td>越限持续满 X 秒才报警</td><td>略长于毛刺时长，且 &lt; MTR</td></tr>
+    <tr><td>恢复延时 off-delay</td><td>条件恢复满 X 秒才清</td><td>条件在限附近抖动时才需要</td></tr>
+    <tr><td>分组 group/class</td><td>按区域/工段/模式归类</td><td>支撑画面过滤与停机态抑制</td></tr>
+    <tr><td>显示呈现</td><td>颜色/声音/列表位置</td><td>按优先级（ISA-18.1 惯例：闪红/稳红/闪绿）</td></tr>
+  </tbody>
+</table>
+
+<p>模拟量报警的常见限值家族：HI / HIHI / LO / LOLO / 偏差（DEV）——HIHI/LOLO 通常给更高优先级。开关量报警没有死区问题，但毛刺同样存在，延时照用。</p>
+
+<footer class="lesson-foot">
+  <p>出自第 5 课 <a href="../lessons/0005-detailed-design.html">详细设计：死区、延时与颤抖</a>。颤抖判据（≥3 次/60 秒）出自 ISA-18.2（见 <a href="https://chemrxiv.org/doi/pdf/10.26434/chemrxiv.15003665">ChemRxiv 论文的定义引证</a>）；机理细读 <a href="https://aliresources.hexagon.com/operations-maintenance/shut-up-fixing-chattering-and-fleeting-alarms">Hexagon：Fixing Chattering and Fleeting Alarms</a>。概念以 GB/T 41261-2022 正文为准。</p>
+  <p>现场哪台仪表抽风、参数怎么选——随时回到对话里问你的老师（Claude）。</p>
+</footer>
+
+</main>
+</body>
+</html>

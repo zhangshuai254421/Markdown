@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>参考卡 · 报警模块验收清单</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="lesson-head">
+  <div class="kicker">GB/T 41261 报警管理课程 · 参考卡</div>
+  <h1>模块验收清单<span class="subtitle">六项验收，每项都要「活的证据」——真实项目改造时照单点验</span></h1>
+</header>
+
+<table>
+  <thead>
+    <tr><th>#</th><th>验收项</th><th>活的证据（没有证据 = 没做完）</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>1</td><td>概念分家</td><td>三层架构：判定权只在引擎；采集层无报警概念；UI 无数值比较。证据：分层代码目录 + 接缝接口清单</td></tr>
+    <tr><td>2</td><td>判据与哲学</td><td>《报警哲学》v0.1+（判据/分档/配比/搁置规则/保留期），新报警准入走评审。证据：文档 + 评审记录</td></tr>
+    <tr><td>3</td><td>档案驱动</td><td>每条报警有 MADB 档案（含操作动作）；无档案的条件不报警。证据：档案表 + 抽查记录</td></tr>
+    <tr><td>4</td><td>状态可管理</td><td>四状态机 + RTN 留列表；确认/恢复有事件留痕；搁置走正门（到期自动/单独可见/全量落库）。证据：状态机测试全绿 + 历史库抽查</td></tr>
+    <tr><td>5</td><td>参数有意化</td><td>死区/延时/限值逐条整定并记入档案，触发延时 &lt; MTR；无「出厂默认裸奔」。证据：档案组态栏填满</td></tr>
+    <tr><td>6</td><td>体检闭环</td><td>事件历史库 append-only + KpiService 七项指标 + 记分卡数字（达标 N/7）+ 周会 Top-10 节奏。证据：看板/报表 + 最近一次体检数字</td></tr>
+  </tbody>
+</table>
+
+<div class="key">
+  <span class="callout-label">使用方式</span>
+  结业答辩照这份清单讲；真实项目改造时照这份清单点验。<strong>每项的证据必须是「活物」</strong>——能打开的文档、能跑的测试、能查的数字，不是「我们打算这么做」。
+</div>
+
+<footer class="lesson-foot">
+  <p>出自第 10 课 <a href="../lessons/0010-history-kpi-graduation.html">历史库、体检服务与总答辩</a>。概念依据 GB/T 41261-2022 全生命周期；清单为课程教学提炼。</p>
+</footer>
+
+</main>
+</body>
+</html>

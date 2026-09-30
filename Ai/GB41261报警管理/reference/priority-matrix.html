@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>参考卡 · 优先级矩阵与主报警数据库</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="lesson-head">
+  <div class="kicker">GB/T 41261 报警管理课程 · 参考卡</div>
+  <h1>优先级矩阵速查卡<span class="subtitle">合理化评审会人手一张：怎么定级、定完记什么</span></h1>
+</header>
+
+<h2>优先级 = 后果严重度 × 最大响应时间</h2>
+
+<p>铁律：<strong>优先级查矩阵，不凭嗓门</strong>（per your alarm philosophy——矩阵分档写在你自己的《报警哲学》里，下表是示例）。分级数量封顶 3~4 级。</p>
+
+<table>
+  <thead>
+    <tr><th>示例矩阵</th><th>T1：需立即处理（≤5 分钟）</th><th>T2：需尽快处理（5–30 分钟）</th><th>T3：可计划处理（&gt;30 分钟）</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>S1</strong> 人身安全 / 重大环境</td><td style="background:var(--bad-bg)"><strong>高</strong></td><td style="background:var(--bad-bg)"><strong>高</strong></td><td style="background:var(--accent-soft)"><strong>中</strong></td></tr>
+    <tr><td><strong>S2</strong> 停产 / 设备损坏</td><td style="background:var(--bad-bg)"><strong>高</strong></td><td style="background:var(--accent-soft)"><strong>中</strong></td><td>低</td></tr>
+    <tr><td><strong>S3</strong> 质量 / 产量 / 经济性</td><td style="background:var(--accent-soft)"><strong>中</strong></td><td>低</td><td>低</td></tr>
+  </tbody>
+</table>
+
+<div class="num-band">
+  <div class="num-tile">
+    <div class="num">~ 5%</div>
+    <div class="num-label">高优先级占比目标</div>
+  </div>
+  <div class="num-tile">
+    <div class="num">~ 15%</div>
+    <div class="num-label">中优先级占比目标</div>
+  </div>
+  <div class="num-tile">
+    <div class="num">~ 80%</div>
+    <div class="num-label">低优先级占比目标</div>
+  </div>
+</div>
+
+<p>配比失衡的信号：高优先级超过一成——「狼来了」常态化，优先级失去意义。评审后统计一下配比，偏差大的回炉。</p>
+
+<h2>主报警数据库（MADB）字段清单</h2>
+
+<p>合理化阶段的法定产出：每条报警的出生档案。通常就是一张 Excel / 数据库表（Nasby：实践中多为基础表格工具）。</p>
+
+<table>
+  <thead>
+    <tr><th>字段</th><th>填什么</th><th>示例</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>位号 Tag</td><td>全系统唯一 ID</td><td>HEAT01_TEMP_HI</td></tr>
+    <tr><td>描述</td><td>发生了什么（一句话，含方向）</td><td>加热板温度高于工艺上限</td></tr>
+    <tr><td>分类</td><td>安全 / 环境 / 设备 / 工艺</td><td>工艺</td></tr>
+    <tr><td>不处理后果</td><td>放着不管会怎样</td><td>本炉产品全部报废</td></tr>
+    <tr><td>最可能原因</td><td>排查起点</td><td>加热管失控或热电偶漂移</td></tr>
+    <tr><td>操作动作</td><td>第三问的答案：第一步干什么</td><td>停炉切手动，通知工艺员</td></tr>
+    <tr><td>MTR 最大响应时间</td><td>后果发生前的窗口</td><td>≤5 分钟</td></tr>
+    <tr><td>严重度档</td><td>S1 / S2 / S3（按你的哲学）</td><td>S2</td></tr>
+    <tr><td>优先级 + 依据</td><td>查矩阵的输出，附坐标</td><td>高（S2 × T1）</td></tr>
+    <tr><td>组态参数</td><td>限值 / 死区 / 延时（第 5 课）</td><td>限值 250℃ / 死区 2℃</td></tr>
+    <tr><td>评审留痕</td><td>评审人 / 日期 / 文档版本</td><td>张三 2026-09-30 v0.1</td></tr>
+  </tbody>
+</table>
+
+<footer class="lesson-foot">
+  <p>出自第 4 课 <a href="../lessons/0004-rationalization-priority.html">合理化与优先级矩阵</a>。出处：<a href="https://literature.rockwellautomation.com/idc/groups/literature/documents/wp/proces-wp015_-en-p.pdf">Rockwell 合理化白皮书</a>（MADB=合理化的法定产出）、<a href="https://www.merobix.com/resources/alarm-rationalization-worksheet">MeroBix 合理化工作表</a>（优先级从矩阵来，不从会上的直觉来）。概念以 GB/T 41261-2022 正文为准。</p>
+  <p>评审会现场拿不准的条目——随时回到对话里问你的老师（Claude）。</p>
+</footer>
+
+</main>
+</body>
+</html>

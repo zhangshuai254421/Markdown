@@ -1,0 +1,722 @@
+/* ==========================================================================
+   Shared stylesheet — GB/T 41261 报警管理课程
+   Tufte-inspired: paper, ink, one accent, generous measure, print-ready.
+   Every lesson links this file. (Adapted from the c#TDD course styles;
+   accent switched to amber for the alarm-management theme.)
+   ========================================================================== */
+
+:root {
+  --paper: #fffffb;
+  --ink: #1c1b1a;
+  --muted: #6f6a63;
+  --faint: #9a948c;
+  --accent: #b45309;          /* amber — the alarm-management hue */
+  --accent-soft: #f9efdd;
+  --rule: #e4ded6;            /* hairline */
+  --code-bg: #f5f2ed;
+  --code-ink: #3a3430;
+  --good: #2e7d32;
+  --bad: #b3261e;
+  --good-bg: #edf5ee;
+  --bad-bg: #fbecea;
+
+  --measure: 42rem;           /* ~72ch for the body */
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia,
+           "Noto Serif SC", "Songti SC", "SimSun", serif;
+  --sans: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC",
+          "Noto Sans SC", "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas,
+          "Courier New", monospace;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 17px;
+  line-height: 1.65;
+  text-rendering: optimizeLegibility;
+}
+
+/* ---- Layout ----------------------------------------------------------- */
+main {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 3rem 1.5rem 6rem;
+}
+
+.lesson-head { margin-bottom: 2.5rem; }
+
+.kicker {
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+h1 {
+  font-size: 2.2rem;
+  line-height: 1.15;
+  margin: 0.4rem 0 0.6rem;
+  font-weight: 600;
+}
+
+h1 .subtitle {
+  display: block;
+  font-size: 1.05rem;
+  font-weight: 400;
+  color: var(--muted);
+  margin-top: 0.5rem;
+  line-height: 1.5;
+}
+
+h2 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  margin: 2.4rem 0 0.7rem;
+  padding-top: 0.4rem;
+}
+
+h3 { font-size: 1.05rem; font-weight: 600; margin: 1.6rem 0 0.5rem; }
+
+p { margin: 0.8rem 0; }
+
+strong { font-weight: 600; }
+
+em { font-style: italic; }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ---- Inline code & code blocks --------------------------------------- */
+code {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  background: var(--code-bg);
+  color: var(--code-ink);
+  padding: 0.12em 0.35em;
+  border-radius: 3px;
+}
+
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  padding: 0.9rem 1.1rem;
+  overflow-x: auto;
+  line-height: 1.5;
+  margin: 1rem 0;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.82rem;
+  color: var(--code-ink);
+}
+
+/* ---- Callouts --------------------------------------------------------- */
+.note, .key, .warn {
+  border-radius: 4px;
+  padding: 0.8rem 1.1rem;
+  margin: 1.1rem 0;
+  font-size: 0.95rem;
+}
+
+.note  { background: var(--code-bg); border-left: 3px solid var(--faint); }
+.key   { background: var(--accent-soft); border-left: 3px solid var(--accent); }
+.warn  { background: #fbf0d9; border-left: 3px solid #c98a1b; }
+
+.callout-label {
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 700;
+  display: block;
+  margin-bottom: 0.2rem;
+}
+.note  .callout-label { color: var(--muted); }
+.key   .callout-label { color: var(--accent); }
+.warn  .callout-label { color: #8a5f12; }
+
+/* ---- Standard definition quote ---------------------------------------- */
+.def-quote {
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  padding: 0.8rem 1.1rem;
+  margin: 1.2rem 0;
+  font-size: 1.02rem;
+}
+.def-quote .def-src {
+  display: block;
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-top: 0.45rem;
+}
+
+/* ---- Decision question cards ------------------------------------------ */
+.qcard-row {
+  display: flex;
+  gap: 0.6rem;
+  margin: 1.2rem 0;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.qcard {
+  flex: 1 1 11rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 0.8rem 0.95rem;
+  background: var(--code-bg);
+}
+
+.qcard .q-no {
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+
+.qcard .q-title { font-weight: 600; margin: 0.15rem 0 0.3rem; }
+
+.qcard .q-body {
+  font-size: 0.86rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* ---- Number band (KPI teasers) ----------------------------------------- */
+.num-band {
+  display: flex;
+  gap: 0.6rem;
+  margin: 1.2rem 0;
+  flex-wrap: wrap;
+}
+
+.num-tile {
+  flex: 1 1 10rem;
+  text-align: center;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 0.9rem 0.6rem;
+  background: var(--paper);
+}
+
+.num-tile .num {
+  font-family: var(--sans);
+  font-size: 1.7rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.num-tile .num-label {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin-top: 0.2rem;
+  line-height: 1.4;
+}
+
+/* ---- Lifecycle flow ----------------------------------------------------- */
+.lifecycle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1.2rem 0;
+  align-items: stretch;
+}
+
+.life-step {
+  flex: 1 1 8.5rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--code-bg);
+  padding: 0.6rem 0.75rem;
+}
+
+.life-step .step-no {
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+
+.life-step .step-name {
+  font-weight: 600;
+  font-size: 0.92rem;
+  margin-top: 0.1rem;
+}
+
+.life-step .step-out {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 0.15rem;
+  line-height: 1.45;
+}
+
+.life-arrow {
+  align-self: center;
+  color: var(--faint);
+  font-family: var(--sans);
+  flex: 0 0 auto;
+}
+
+.life-step.loop-end { border-style: dashed; }
+
+/* ---- State machine simulator -------------------------------------------- */
+.smsim {
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 1rem 1.1rem;
+  margin: 1.4rem 0;
+  background: var(--paper);
+}
+
+.smsim-state {
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 1.02rem;
+  padding: 0.6rem 1rem;
+  border-radius: 6px;
+  text-align: center;
+  border: 2px solid;
+}
+
+/* Display conventions follow ISA-18.1: unack = red flashing,
+   acked = red steady, return-to-normal unack = green flashing. */
+.smsim-state.normal {
+  color: var(--good);
+  border-color: var(--good);
+  background: var(--good-bg);
+}
+
+.smsim-state.unack {
+  color: #fff;
+  border-color: var(--bad);
+  background: var(--bad);
+  animation: smsim-flash 1.1s ease-in-out infinite;
+}
+
+.smsim-state.acked {
+  color: #fff;
+  border-color: var(--bad);
+  background: var(--bad);
+}
+
+.smsim-state.rtn {
+  color: var(--good);
+  border-color: var(--good);
+  background: var(--good-bg);
+  animation: smsim-flash 1.1s ease-in-out infinite;
+}
+
+@keyframes smsim-flash {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+
+.smsim-events {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.8rem;
+}
+
+.smsim-btn {
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--code-bg);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.smsim-btn:hover:not(:disabled) { background: var(--accent-soft); }
+.smsim-btn:disabled { opacity: 0.35; cursor: default; }
+
+.smsim-journal {
+  margin-top: 0.9rem;
+  border-top: 1px dashed var(--rule);
+  padding-top: 0.6rem;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  max-height: 12rem;
+  overflow-y: auto;
+}
+
+.smsim-journal div { margin: 0.15rem 0; }
+
+.smsim-reset { margin-top: 0.7rem; }
+
+/* ---- Deadband lab -------------------------------------------------------- */
+.deadlab {
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 1rem 1.1rem;
+  margin: 1.4rem 0;
+  background: var(--paper);
+}
+
+.lab-stats { display: flex; gap: 0.6rem; margin-bottom: 0.7rem; }
+
+.lab-tile {
+  flex: 1;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 0.45rem 0.7rem;
+  text-align: center;
+}
+
+.lab-k {
+  font-family: var(--sans);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.lab-v {
+  font-family: var(--sans);
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-top: 0.1rem;
+}
+
+.lab-v.big { color: var(--accent); }
+
+.lab-badge {
+  font-family: var(--sans);
+  font-size: 0.92rem;
+  font-weight: 700;
+  margin-top: 0.18rem;
+}
+
+.lab-badge.calm  { color: var(--good); }
+.lab-badge.calm2 { color: var(--good); }
+.lab-badge.hot   { color: var(--bad); }
+.lab-badge.ok    { color: var(--good); }
+
+.lab-canvas { width: 100%; height: auto; display: block; }
+
+.lab-readout {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 0.4rem;
+  min-height: 1.2em;
+}
+
+.lab-controls {
+  display: flex;
+  gap: 1.2rem;
+  flex-wrap: wrap;
+  margin-top: 0.6rem;
+}
+
+.lab-slider {
+  flex: 1 1 14rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--sans);
+  font-size: 0.85rem;
+}
+
+.lab-slider-name { white-space: nowrap; color: var(--ink); }
+
+.lab-slider input { flex: 1; }
+
+.lab-slider-out {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  min-width: 3ch;
+  text-align: right;
+}
+
+.lab-btns { display: flex; gap: 0.5rem; margin-top: 0.7rem; }
+
+.lab-btn {
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  padding: 0.45rem 1rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+.lab-btn.ghost { background: var(--paper); color: var(--muted); }
+.lab-btn.ghost:hover { color: var(--ink); }
+
+/* ---- KPI scorecard ------------------------------------------------------- */
+.scorecard { margin: 1.4rem 0; }
+
+.kpi-input {
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  width: 6rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.kpi-target { font-family: var(--mono); font-size: 0.85rem; white-space: nowrap; }
+
+.kpi-verdict-cell {
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.kpi-verdict-cell.pass { color: var(--good); font-weight: 600; }
+.kpi-verdict-cell.fail { color: var(--bad);  font-weight: 600; }
+
+tr.kpi-pass td { background: var(--good-bg); }
+tr.kpi-fail td { background: var(--bad-bg); }
+
+.kpi-verdict {
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-top: 0.6rem;
+}
+
+/* ---- Architecture stack (vertical layers) -------------------------------- */
+.arch-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin: 1.2rem 0;
+}
+
+.arch-layer {
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--code-bg);
+  padding: 0.65rem 0.95rem;
+}
+
+.arch-layer .a-name {
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.arch-layer .a-body {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-top: 0.2rem;
+  line-height: 1.5;
+}
+
+.arch-layer.cross { border-style: dashed; background: var(--paper); }
+
+.arch-arrow {
+  text-align: center;
+  color: var(--faint);
+  font-family: var(--sans);
+  line-height: 1;
+}
+
+/* ---- Triage widget ------------------------------------------------------ */
+.triage {
+  margin: 2rem 0;
+  border-top: 1px solid var(--rule);
+  padding-top: 1.2rem;
+}
+
+.triage-score {
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 1rem;
+}
+
+.triage-card {
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 0.9rem 1.1rem;
+  margin-bottom: 1rem;
+  background: var(--paper);
+}
+
+.triage-card.correct { border-color: var(--good); background: var(--good-bg); }
+.triage-card.wrong   { border-color: var(--bad);  background: var(--bad-bg); }
+
+.triage-scenario { font-weight: 600; }
+
+.triage-detail {
+  font-size: 0.9rem;
+  color: var(--muted);
+  margin: 0.15rem 0 0.6rem;
+}
+
+.triage-choices { display: flex; gap: 0.5rem; }
+
+.triage-btn {
+  flex: 1;
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  padding: 0.45rem 0;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.triage-btn:hover { background: var(--code-bg); }
+.triage-btn:disabled { cursor: default; opacity: 0.85; }
+.triage-btn.picked { border-color: var(--ink); }
+.triage-btn.right  { border-color: var(--good); background: var(--good-bg); font-weight: 600; }
+.triage-btn.miss   { border-color: var(--bad);  background: var(--bad-bg); }
+
+.triage-explain {
+  display: none;
+  font-size: 0.9rem;
+  color: var(--ink);
+  margin-top: 0.6rem;
+}
+.triage-explain.show { display: block; }
+
+/* ---- Footnotes / margin notes ---------------------------------------- */
+.footnote { font-size: 0.85rem; color: var(--muted); }
+
+/* ---- Quiz ------------------------------------------------------------- */
+.quiz {
+  margin: 2rem 0;
+  border-top: 1px solid var(--rule);
+  padding-top: 1.2rem;
+}
+
+.quiz-score {
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 1rem;
+}
+
+.quiz-q { margin-bottom: 1.6rem; }
+
+.quiz-prompt { font-weight: 600; margin-bottom: 0.5rem; }
+
+.quiz-options { list-style: none; margin: 0; padding: 0; }
+
+.quiz-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-family: var(--serif);
+  font-size: 0.95rem;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 0.55rem 0.9rem;
+  margin-bottom: 0.45rem;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.quiz-option:hover { background: var(--code-bg); }
+
+.quiz-option.selected { border-color: var(--accent); background: var(--accent-soft); }
+.quiz-option.correct   { border-color: var(--good); background: var(--good-bg); }
+.quiz-option.wrong     { border-color: var(--bad);  background: var(--bad-bg); }
+.quiz-option:disabled  { cursor: default; opacity: 0.9; }
+
+.quiz-explain {
+  display: none;
+  font-size: 0.9rem;
+  color: var(--ink);
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: 0.7rem 0.9rem;
+  margin-top: 0.6rem;
+}
+.quiz-explain.show { display: block; }
+
+.quiz-actions { margin-top: 0.5rem; }
+
+.quiz-btn {
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.45rem 0.9rem;
+  cursor: pointer;
+}
+.quiz-btn:hover { filter: brightness(1.08); }
+.quiz-btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--rule); }
+.quiz-btn.ghost:hover { color: var(--ink); }
+
+/* ---- Footer ----------------------------------------------------------- */
+.lesson-foot {
+  margin-top: 3rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--rule);
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.lesson-foot .primary-source { color: var(--ink); }
+
+.next-link {
+  display: inline-block;
+  margin-top: 1rem;
+  font-family: var(--sans);
+  font-weight: 600;
+}
+
+/* ---- Tables ------------------------------------------------------------ */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0;
+  font-size: 0.92rem;
+}
+
+th, td {
+  border: 1px solid var(--rule);
+  padding: 0.5rem 0.7rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: var(--code-bg);
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---- Print ------------------------------------------------------------ */
+@media print {
+  body { font-size: 11pt; }
+  main { max-width: none; padding: 0; }
+  .quiz-option, .quiz-btn, .triage-btn { border-color: #999; }
+  a { color: var(--ink); }
+  pre { page-break-inside: avoid; }
+}

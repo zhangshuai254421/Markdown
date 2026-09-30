@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>参考卡 · 报警 KPI 目标表</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="lesson-head">
+  <div class="kicker">GB/T 41261 报警管理课程 · 参考卡</div>
+  <h1>报警 KPI 目标表<span class="subtitle">七项体检指标：定义、算法、目标值——贴在值班室</span></h1>
+</header>
+
+<table>
+  <thead>
+    <tr><th>指标</th><th>定义与算法</th><th>目标</th><th>超标后查什么</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>平均报警率</strong></td>
+      <td>报警总数 ÷ 小时数（每操作员口径）</td>
+      <td>≤6 条/时（≈1 条/10 分，≈150 条/天）</td>
+      <td>非报警混入（三问复查）、颤抖源、泛滥源</td>
+    </tr>
+    <tr>
+      <td><strong>峰值（10 分钟桶）</strong></td>
+      <td>任一 10 分钟桶内的最大报警数</td>
+      <td>≤5 条；10 条是可管理上限</td>
+      <td>停机/扰动瞬间的连锁触发（分组+抑制）</td>
+    </tr>
+    <tr>
+      <td><strong>泛滥 flood</strong></td>
+      <td>10 分钟 &gt;10 条即进入泛滥；统计处于泛滥的时间占比</td>
+      <td>时间占比 &lt;1%</td>
+      <td>泛滥源回放：第一条是什么、哪些跟着哄</td>
+    </tr>
+    <tr>
+      <td><strong>优先级配比</strong></td>
+      <td>各级报警数占比（年检）</td>
+      <td>~5% 高 / ~15% 中 / ~80% 低</td>
+      <td>评审会是否被嗓门劫持（回查矩阵坐标）</td></tr>
+    <tr>
+      <td><strong>颤抖 chattering</strong></td>
+      <td>同一来源 60 秒内 ≥3 次转换；统计此类报警台数</td>
+      <td>0 台</td>
+      <td>死区/延时（第 5 课实验室），或限值已过时</td>
+    </tr>
+    <tr>
+      <td><strong>驻留 standing</strong></td>
+      <td>活跃持续 &gt;1 小时的报警</td>
+      <td>0 条（现实 &lt;5）</td>
+      <td>该条件是常态？→ 回合理化降级为事件/提示</td>
+    </tr>
+    <tr>
+      <td><strong>陈旧 stale</strong></td>
+      <td>活跃持续 &gt;24 小时（或长期无操作员动作）</td>
+      <td>0 条（现实 &lt;5）</td>
+      <td>变更管理失守的信号——限值/设备早变了</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="key">
+  <span class="callout-label">读表须知</span>
+  目标值来自 EEMUA 191 基准（ISA-18.2 监测指标与其一致），是<strong>行业经验值不是法定值</strong>——写进你家《报警哲学》时可以按现实收紧或放宽，但要有意为之。所有算法的数据源只有一个：<strong>事件历史库</strong>（第 1 课那个「本子」）。
+</div>
+
+<h2>体检节奏</h2>
+
+<table>
+  <thead>
+    <tr><th>频率</th><th>动作</th><th>谁</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>每班</td><td>看板 1 分钟：昨日总数、当前泛滥/驻留数</td><td>操作员/班长</td></tr>
+    <tr><td>每周</td><td>Top-10 最响仪器排行 + 颤抖清单跟踪归零</td><td>报警负责人</td></tr>
+    <tr><td>每年</td><td>全量 KPI 评审 → 修订《报警哲学》→ 触发回炉</td><td>评审会</td></tr>
+  </tbody>
+</table>
+
+<footer class="lesson-foot">
+  <p>出自第 6 课 <a href="../lessons/0006-kpi-monitoring.html">KPI 与性能监测</a>。数字出处：<a href="https://www.merobix.com/blog/what-is-eemua-191">MeroBix：What is EEMUA 191</a>、<a href="https://ifactoryapp.com/blog/alarm-management-rationalization-chemical">standing/stale 定义</a>、<a href="https://bellascada.com">BellaScada：How to Measure Alarm Performance</a>（stale 目标 0/现实 &lt;5）。</p>
+  <p>指标怎么算、超标怎么追——随时回到对话里问你的老师（Claude）。</p>
+</footer>
+
+</main>
+</body>
+</html>

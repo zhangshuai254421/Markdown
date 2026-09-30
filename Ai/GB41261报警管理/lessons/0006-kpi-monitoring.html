@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 6 课 · KPI 与性能监测</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="lesson-head">
+  <div class="kicker">GB/T 41261 报警管理课程 · 第 6 课</div>
+  <h1>KPI 与性能监测<span class="subtitle">给报警系统建体检中心——七项指标，一个数据源</span></h1>
+</header>
+
+<p>前五课我们造了一台机器：判据（第 1 课）、生命周期与哲学（第 2 课）、状态机（第 3 课）、档案（第 4 课）、参数（第 5 课）。然后呢？第 2 课说过：<strong>报警会老化</strong>——工艺在变，设备在变，报警不会自己跟着变。没有体检，半年后一切打回原形，回到「看情况定义 2.0」。这就是生命周期外围那件贯穿全程的事：<strong>监测与评估</strong>。好消息是，全部指标只有一个数据源——你第 1 课就建好的那个「本子」：事件历史库。</p>
+
+<h2>七项体检指标</h2>
+
+<table>
+  <thead>
+    <tr><th>指标</th><th>定义与算法</th><th>目标</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>平均报警率</strong></td><td>报警总数 ÷ 小时（每操作员口径）</td><td>≤6 条/时（≈1 条/10 分，≈150 条/天）</td></tr>
+    <tr><td><strong>峰值（10 分钟桶）</strong></td><td>任一 10 分钟桶内的最大报警数</td><td>≤5 条；10 条是可管理上限</td></tr>
+    <tr><td><strong>泛滥 flood</strong></td><td>10 分钟 &gt;10 条即入泛滥；统计泛滥时间占比</td><td>占比 &lt;1%</td></tr>
+    <tr><td><strong>优先级配比</strong></td><td>高/中/低各级占比</td><td>~5% / ~15% / ~80%</td></tr>
+    <tr><td><strong>颤抖 chattering</strong></td><td>同一来源 60 秒内 ≥3 次转换</td><td>此类报警 0 台</td></tr>
+    <tr><td><strong>驻留 standing</strong></td><td>活跃持续 &gt;1 小时</td><td>0 条（现实 &lt;5）</td></tr>
+    <tr><td><strong>陈旧 stale</strong></td><td>活跃持续 &gt;24 小时</td><td>0 条（现实 &lt;5）</td></tr>
+  </tbody>
+</table>
+
+<p>目标值是 EEMUA 191 基准（ISA-18.2 监测指标与其一致），<strong>行业经验值而非法定值</strong>——写进你家《报警哲学》时可按现实调整，但要有意为之。逐项出处与「超标后查什么」见 <a href="../reference/kpi-table.html">KPI 目标表速查卡</a>。</p>
+
+<div class="key">
+  <span class="callout-label">本课核心</span>
+  七项指标全部<strong>从事件历史库算出来</strong>——第 1 课那句「报警的生命周期靠事件记录留痕」在这里收利息：留痕是复利，体检是提现。没有结构化的事件记录，这七项一个都算不出来——这正是很多老系统「想管也无从管起」的原因。
+</div>
+
+<h2>怎么算：全是历史库上的聚合</h2>
+
+<p>对 C# 程序员来说，体检中心就是一组 LINQ 聚合。两个代表：</p>
+
+<pre><code>// ① 10 分钟桶：峰值与泛滥的基础
+var buckets =
+    from r in history                                  // 事件历史库
+    group r by (int)(r.Timestamp.Ticks / TimeSpan.FromMinutes(10).Ticks) into g
+    select new { Bucket = g.Key, Count = g.Count() };
+
+int peak        = buckets.Max(b => b.Count);
+int floodBuckets = buckets.Count(b => b.Count > 10);
+double floodPct = 100.0 * floodBuckets * 10 / totalMinutes;
+
+// ② 颤抖检测：同一来源的滑动 60 秒转换窗口
+// 按位号分组 → 时间排序 → 滑窗计数 ≥3 即上榜
+var chatteringTags = DetectChattering(history, window: TimeSpan.FromSeconds(60), threshold: 3);</code></pre>
+
+<p>注意体检的对象是<strong>报警</strong>，不是事件——所以进聚合前先按类别过滤：这就是第 1 课三问分类在数据层的直接回报。混进去一批「启机记录」，平均率直接失真。</p>
+
+<h2>体检的节奏：三个频率</h2>
+
+<table>
+  <thead>
+    <tr><th>频率</th><th>动作</th><th>谁</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>每班</td><td>看板 1 分钟：昨日总数、当前泛滥/驻留数</td><td>操作员 / 班长</td></tr>
+    <tr><td>每周</td><td><strong>Top-10 最响仪器</strong>排行 + 颤抖清单跟踪归零</td><td>报警负责人</td></tr>
+    <tr><td>每年</td><td>全量 KPI 评审 → 修订《报警哲学》→ 触发回炉</td><td>评审会</td></tr>
+  </tbody>
+</table>
+
+<p>周会的 Top-10 排行几乎是白捡的收益：行业经验里，最响的少数几台仪器常年贡献大头的报警记录——修好它们，报表立刻好看。第 5 课作业让你翻的「最烦的那台」，就是这份排行榜的 1 号展品。年度评审则是生命周期闭环的最后一口：体检结果回灌哲学，环就转起来了（第 2 课的「环不是清单」在这里落地）。</p>
+
+<h2>体检室：把你的数字放进来</h2>
+
+<p>作业会让你从自己系统导出 24 小时数据。先把记分卡放在这——填入数字即自动判定，红行就是你的改造清单：</p>
+
+<div class="scorecard" data-kpis='{
+  "kpis": [
+    { "name": "平均报警率（每操作员）", "unit": "条/时", "target": "≤ 6", "limit": 6 },
+    { "name": "峰值（最差 10 分钟）", "unit": "条", "target": "≤ 5", "limit": 5 },
+    { "name": "泛滥时间占比", "unit": "%", "target": "< 1", "limit": 1 },
+    { "name": "高优先级占比", "unit": "%", "target": "≤ 5", "limit": 5 },
+    { "name": "颤抖报警台数", "unit": "台", "target": "0", "limit": 0 },
+    { "name": "驻留报警数（>1 时）", "unit": "条", "target": "0（现实 <5）", "limit": 5 },
+    { "name": "陈旧报警数（>24 时）", "unit": "条", "target": "0（现实 <5）", "limit": 5 }
+  ]
+}'></div>
+
+<h2>检查一下体检知识</h2>
+
+<div class="quiz" data-quiz='{
+  "questions": [
+    {
+      "type": "single",
+      "prompt": "「报警泛滥（flood）」的准确定义是？",
+      "options": [
+        "10 分钟超 10 条（每人）",
+        "1 小时超 60 条（每人）",
+        "10 分钟超 10 条（全班）",
+        "1 小时超 10 条（每人）"
+      ],
+      "answer": 0,
+      "explanation": "泛滥 = 单个操作员在 10 分钟内收到超过 10 条报警。注意口径：每操作员、每 10 分钟。目标不仅是少泛滥，而是泛滥时间占比 <1%。"
+    },
+    {
+      "type": "single",
+      "prompt": "「驻留报警（standing）」指的是？",
+      "options": [
+        "活跃超过 1 小时的报警",
+        "24 小时没人确认的报警",
+        "10 分钟内没恢复的报警",
+        "确认后 1 小时没恢复的"
+      ],
+      "answer": 0,
+      "explanation": "驻留 = 活跃 >1 小时；陈旧（stale）= 活跃 >24 小时。两者目标都是 0（现实先做到 <5）。驻留多的潜台词：这个条件可能根本不是报警，是常态。"
+    },
+    {
+      "type": "single",
+      "prompt": "泛滥时间占比的体检目标是？",
+      "options": [
+        "小于 1% 的运行时间",
+        "小于 10% 的运行时间",
+        "小于 30% 的运行时间",
+        "泛滥本身不算指标"
+      ],
+      "answer": 0,
+      "explanation": "目标 <1%。偶尔扰动难免进入泛滥，好的系统一年到头绝大部分时间都在泛滥线以下。"
+    },
+    {
+      "type": "multiple",
+      "prompt": "哪些是性能监测的固定动作？（多选）",
+      "options": [
+        "Top-10 最响仪器排行榜",
+        "颤抖清单跟踪归零",
+        "体检结果回灌哲学修订",
+        "每月全部报警重新组态"
+      ],
+      "answer": [0, 1, 2],
+      "explanation": "周会看 Top-10（收益最大）、颤抖清单只减不增、年度评审把结果回灌哲学——这是生命周期闭环的常态动作。全部推倒重组态是灾难片，不是体检。"
+    }
+  ]
+}'></div>
+
+<h2>课后作业：给自家系统做第一次体检</h2>
+
+<ol>
+  <li><strong>导数</strong>：从你现有系统导出最近 24 小时的报警记录（能导 CSV 最好；只能人工统计就数：总数、最差 10 分钟、活跃超 1 时的条数）。</li>
+  <li><strong>体检</strong>：填进上面的记分卡，把「达标 N / 7」带回对话。第 1 课你统计过「非报警占比」——对照一下平均报警率超标多少，两个数字互相印证。</li>
+  <li><strong>诊断 Top-3</strong>：最响的三台仪器，各给一句诊断（颤抖？驻留？泛滥源？）——它们就是第 7 课改造方案的三个首发病例。</li>
+</ol>
+
+<footer class="lesson-foot">
+  <p><span class="primary-source">本课首选原文：GB/T 41261-2022《过程工业报警系统管理》</span>「监测与评估」部分（购买正文后精读）。免费导读：<a href="https://www.yokogawa.com/library/resources/media-publications/implementing-alarm-management-per-the-ansi-isa-182-standard-control-engineering/">Yokogawa：Implementing Alarm Management per ANSI/ISA-18.2</a>（监测阶段与 KPI 框架）、<a href="https://www.merobix.com/blog/what-is-eemua-191">MeroBix：What is EEMUA 191</a>。</p>
+  <p>记分卡全红不丢人——那是你的改造清单按优先级排好了序。数字想找人一起读、Top-3 诊断拿不准——随时回到对话里问你的老师（Claude）。下一课预告：<strong>模块改造落地（第 7 课起 C# 系列）</strong>——把六课的成果总装进你的上位机：三层架构（报警引擎 / 事件历史库 / 性能统计）、迁移路径图、与 TDD 练习场合流。</p>
+  <p class="next-link"><a href="0007-architecture-blueprint.html">下一课：模块改造总装 →</a> · <a href="0005-detailed-design.html">上一课：详细设计</a> · <a href="../reference/kpi-table.html">回看：KPI 目标表速查卡</a></p>
+</footer>
+
+</main>
+<script src="../assets/kpi-scorecard.js"></script>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>
