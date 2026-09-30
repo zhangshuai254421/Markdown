@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 7 课 · 角块归位</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<article class="lesson">
+
+  <div class="kicker">第 7 课 · 顶层第 3 步</div>
+  <h1>角块归位：把四个黄角送到正确角落</h1>
+  <p class="lede">顶层只剩 4 个角块了。这一课先做「归位」——把每个角块放到<strong>正确的位置</strong>；至于它的黄色贴纸还朝不朝上，留到最后一课再翻。</p>
+
+  <h2>什么是「位置对」</h2>
+  <p>一个角块有 3 张贴纸。它的<strong>家</strong>，就是这三种颜色对应的<strong>三个中心块交汇的那个角落</strong>。只要角块坐在自己家的角落，位置就「对」了——<strong>不管它现在是哪面朝上</strong>。</p>
+  <div class="figure-row">
+    <figure class="figure">
+      <div id="corner-piece"></div>
+      <figcaption>一个角块：黄—红—绿。</figcaption>
+    </figure>
+    <figure class="figure">
+      <div id="corner-home"></div>
+      <figcaption>它的家：黄、红、绿三个中心交汇的角落。贴纸颜色对得上 = 位置对。</figcaption>
+    </figure>
+  </div>
+
+  <h2>数一数：有几个角块位置对</h2>
+  <p>转动顶层 <code>U</code>，检查每个角块的三种颜色是否和周围三个中心一致。位置对的角块数<strong>只可能是 0、1、4 个</strong>——如果你数出 2 或 3 个，多半是看错了。</p>
+
+  <h2>公式：<code>U R U' L' U R' U' L</code></h2>
+  <p>这个公式让<strong>三个角块绕圈换位置</strong>，同时<strong>留下一个角块不动</strong>——所以你得先把那个已经「位置对」的角块放到不动的位置（右前上）。</p>
+
+  <div class="insight">
+    <span class="insight-label">流程</span>
+    <p>找到 1 个位置对的角块 → 把它放到<strong>右前上</strong> → 做 <code>U R U' L' U R' U' L</code> → 检查；还没全对就再放再做一个 → 直到 4 个全对。若一个都不对，就先随便做一次，自然会有一个变对。</p>
+  </div>
+
+  <h2>测验：检验你能否独立归位角块</h2>
+  <div id="quiz"></div>
+
+  <h2>下一步</h2>
+  <p>四个角块都归位后，只剩最后一步：<strong>翻正角块</strong>——把还朝侧面的黄色贴纸翻到朝上。做完，整个魔方就还原了。</p>
+
+  <div class="lesson-nav">
+    <a href="0006-line-up-yellow-edges.html">第 6 课 · 对齐顶层棱块</a>
+    <a href="0008-orient-yellow-corners.html">第 8 课 · 翻正角块（完成）</a>
+    <a href="../reference/algorithms.html">公式速查</a>
+  </div>
+
+  <div class="source-note">
+    <strong>主要资料来源（建议观看）</strong>：
+    <a href="https://jperm.net/3x3">J Perm《How to Solve a 3x3 Rubik's Cube》</a>——「Position Yellow Corners」一节，示范了「位置对的角放右前上 + 公式」。
+    <br><br>
+    <strong>有问题？</strong>随时问我——「怎么判断位置对不对」「做完还是没归位」这类卡点，我帮你拆。
+  </div>
+
+</article>
+
+<script src="../assets/cube.js"></script>
+<script src="../assets/quiz.js"></script>
+<script>
+  (function () {
+    function threeCells(keys) {
+      var d = document.createElement("div");
+      d.style.display = "flex";
+      d.style.gap = "3px";
+      keys.forEach(function (k) {
+        var c = document.createElement("div");
+        c.style.width = "46px";
+        c.style.height = "46px";
+        c.style.borderRadius = "6px";
+        c.style.background = Cube.COLORS[k] || "#888";
+        d.appendChild(c);
+      });
+      return d;
+    }
+    document.getElementById("corner-piece").appendChild(threeCells(["Y","R","G"]));
+    document.getElementById("corner-home").appendChild(threeCells(["Y","R","G"]));
+
+    CubeQuiz.mount(document.getElementById("quiz"), [
+      {
+        prompt: "「角块归位」是让角块的什么与中心一致？",
+        options: ["三种颜色", "一种颜色", "黄色方向", "侧面方向"],
+        answer: 0,
+        explain: "角块三张贴纸的颜色，要等于它所在角落的三个中心颜色。"
+      },
+      {
+        prompt: "有 1 个角块位置对时，把它放哪儿再做公式？",
+        options: ["右前上", "左前上", "右后上", "左后上"],
+        answer: 0,
+        explain: "放在「右前上」，这个角保持不动，另外三个绕圈交换。"
+      },
+      {
+        prompt: "一个角块位置都不对时，先怎么办？",
+        options: ["先做一次", "直接跳过", "全部拆掉", "重新打乱"],
+        answer: 0,
+        explain: "随便做一次公式，自然会产生一个位置对的角块。"
+      },
+      {
+        prompt: "归位完成后，角块的黄色贴纸一定朝上吗？",
+        options: ["不一定", "一定朝上", "一定朝下", "一定朝侧"],
+        answer: 0,
+        explain: "归位只动位置；黄色朝上要留到下一课「翻正角块」。"
+      }
+    ]);
+  })();
+</script>
+</body>
+</html>

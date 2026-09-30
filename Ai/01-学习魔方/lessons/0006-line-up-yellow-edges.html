@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 6 课 · 对齐顶层棱块</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<article class="lesson">
+
+  <div class="kicker">第 6 课 · 顶层第 2 步</div>
+  <h1>对齐顶层棱块：让十字也对准中心</h1>
+  <p class="lede">黄色十字已经做好，但它的四条棱的<strong>侧面颜色</strong>可能还没对准各自的中心。这一课用「Sune」公式把它们摆正。</p>
+
+  <h2>目标：棱的侧面颜色对齐中心</h2>
+  <p>看侧面：顶层那条棱的侧面贴纸，颜色是否和它下面的中心块一致？</p>
+  <div class="figure-row">
+    <figure class="figure">
+      <div id="edge-ok"></div>
+      <figcaption>对齐：顶层棱（红）对着红中心。</figcaption>
+    </figure>
+    <figure class="figure">
+      <div id="edge-bad"></div>
+      <figcaption>没对齐：这条棱是绿的，却坐在红中心上方。</figcaption>
+    </figure>
+  </div>
+
+  <h2>先转 <code>U</code>，数一数</h2>
+  <p>转顶层 <code>U</code>，让尽可能多的棱对齐中心，然后数有几条对上了。</p>
+  <ul>
+    <li><strong>4 条全对齐</strong> → 完成，直接进入下一步。</li>
+    <li><strong>2 条相邻对齐</strong> → 看下面主流程。</li>
+    <li><strong>0 条，或 2 条相对对齐</strong> → 先做一次 Sune，再转 <code>U</code> 重新数。</li>
+  </ul>
+
+  <h2>公式：Sune <code>R U R' U R U2 R'</code></h2>
+  <p>读作「R、U、R 一撇、U、R、U 两次、R 一撇」。它把三条顶层棱「绕圈交换」，是顶层的万能小公式。</p>
+
+  <div class="insight">
+    <span class="insight-label">主流程：两条相邻 → 放后右 → Sune</span>
+    <p>当你有<strong>两条相邻</strong>的棱已对齐，把这两条放到<strong>后面和右面</strong>（让它们朝后、朝右），然后做一次 Sune，四条就全对齐了（最后可再转 <code>U</code> 微调）。</p>
+  </div>
+
+  <h2>完整流程</h2>
+  <ol>
+    <li>转 <code>U</code>，让尽量多的棱对齐。</li>
+    <li>若 4 条全对齐 → 完成。</li>
+    <li>若 2 条相邻对齐 → 放「后 + 右」→ Sune 一次 → 完成。</li>
+    <li>否则（0 条 / 2 条相对）→ Sune 一次 → 回到第 1 步。</li>
+  </ol>
+  <p><span class="sidenote"><span class="sidenote-num">①</span> 常见错误：相邻对齐的两条棱放错了位置（比如放成「前 + 左」）。务必是「后 + 右」。</span></p>
+
+  <h2>测验：检验你能否独立对齐顶层棱</h2>
+  <div id="quiz"></div>
+
+  <h2>下一步</h2>
+  <p>四条顶层棱都对齐后，顶层只剩<strong>四个角块</strong>了。下一步是<strong>角块归位</strong>——把四个黄角块放到正确的位置上。</p>
+
+  <div class="lesson-nav">
+    <a href="0005-yellow-cross.html">第 5 课 · 黄色十字</a>
+    <a href="0007-position-yellow-corners.html">第 7 课 · 角块归位</a>
+    <a href="../reference/algorithms.html">公式速查</a>
+  </div>
+
+  <div class="source-note">
+    <strong>主要资料来源（建议观看）</strong>：
+    <a href="https://jperm.net/3x3">J Perm《How to Solve a 3x3 Rubik's Cube》</a>——「Line Up Yellow Edges」一节，示范了「两条相邻放后右 + Sune」。
+    <br><br>
+    <strong>有问题？</strong>随时问我——「数不清几条对齐」「做完 Sune 更乱了」这类卡点，我帮你拆。
+  </div>
+
+</article>
+
+<script src="../assets/cube.js"></script>
+<script src="../assets/quiz.js"></script>
+<script>
+  (function () {
+    document.getElementById("edge-ok").appendChild(Cube.face([
+      ["X","R","X"],
+      ["R","R","R"],
+      ["R","R","R"]
+    ]));
+    document.getElementById("edge-bad").appendChild(Cube.face([
+      ["X","G","X"],
+      ["R","R","R"],
+      ["R","R","R"]
+    ]));
+
+    CubeQuiz.mount(document.getElementById("quiz"), [
+      {
+        prompt: "对齐顶层棱，是要让棱的哪部分对齐？",
+        options: ["侧面颜色", "顶面颜色", "底面颜色", "所有颜色"],
+        answer: 0,
+        explain: "让棱的侧面贴纸颜色与下面的中心块一致。"
+      },
+      {
+        prompt: "两条相邻棱已对齐时，该把它们放在哪？",
+        options: ["后和右", "前和左", "后和左", "前和右"],
+        answer: 0,
+        explain: "放在「后面 + 右面」，再做一次 Sune，四条就全对齐。"
+      },
+      {
+        prompt: "若没有相邻对齐（0 条或两条相对），先做什么？",
+        options: ["先做一次", "直接跳过", "全部拆掉", "重新打乱"],
+        answer: 0,
+        explain: "随便做一次 Sune，再转 U 找两条相邻对齐。"
+      },
+      {
+        prompt: "对齐顶层棱这一步，一共要记几个新公式？",
+        options: ["一个", "两个", "三个", "四个"],
+        answer: 0,
+        explain: "只有 Sune（R U R' U R U2 R'）这一个。"
+      }
+    ]);
+  })();
+</script>
+</body>
+</html>

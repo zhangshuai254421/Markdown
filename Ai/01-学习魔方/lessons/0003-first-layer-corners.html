@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 3 课 · 第一层角块</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<article class="lesson">
+
+  <div class="kicker">第 3 课 · 层先法第二步</div>
+  <h1>第一层角块：补全白色那一面</h1>
+  <p class="lede">十字已经做好。这一课把 4 个白色<strong>角块</strong>放进四个角，让白色那一整面完整。这是你第一次真正「记公式」——但别怕，三个公式其实是<strong>同一个动作的三种变形</strong>。</p>
+
+  <h2>起点与目标</h2>
+  <p>白十字已经在<strong>底面</strong>。保持<strong>白色朝下</strong>拿着魔方。目标是让白面全部变白，且每一面的底下一排都对齐中心。</p>
+  <div class="figure-row">
+    <figure class="figure">
+      <div id="face-done"></div>
+      <figcaption>白色面：全部变白。</figcaption>
+    </figure>
+    <figure class="figure">
+      <div id="side-done"></div>
+      <figcaption>侧面（红）：底下一排（第一层）对齐红色中心。</figcaption>
+    </figure>
+  </div>
+
+  <h2>关键：先把角块放在「家的正上方」</h2>
+  <p>找一个<strong>白色角块</strong>（带白贴纸的角块）。它的三种颜色决定了它唯一的「家」——就是那三个对应中心块围成的角落。用 <code>U</code> 把角块转到<strong>家的正上方</strong>：让它的两个侧面颜色，分别对齐那两侧的中心。<span class="sidenote"><span class="sidenote-num">①</span> 这正是「中心 = 面的颜色」的又一次应用：角块的家由三个中心块唯一确定。</span></p>
+
+  <div class="insight">
+    <span class="insight-label">一个动作，三种变形</span>
+    <p>核心动作是 <code>R U R'</code>：<strong>R</strong> 把角块「卷」下去，<strong>U</strong> 把顶层的角块挪到位，<strong>R'</strong> 再把右面转回来。一进一出，角块就被送进了底层的窝。白贴纸朝向不同，就在这之前或之后补一两个 <code>U</code> 把位置摆对。</p>
+  </div>
+
+  <h2>三种情况（家在右前时）</h2>
+  <p>让角块的家在<strong>右前</strong>（角块在右上角）。看白贴纸朝哪，选对应公式：</p>
+  <table>
+    <thead><tr><th>白贴纸朝</th><th>公式</th><th>怎么记</th></tr></thead>
+    <tbody>
+      <tr><td>右</td><td><code>R U R'</code></td><td>直接卷下去</td></tr>
+      <tr><td>前</td><td><code>U R U' R'</code></td><td>先 <code>U</code> 转到右边再卷</td></tr>
+      <tr><td>上</td><td><code>R U2 R' U' R U R'</code></td><td>先 <code>R U2 R'</code> 把白翻到侧面，再卷</td></tr>
+    </tbody>
+  </table>
+
+  <h2>两个常见「卡住」的情况</h2>
+  <ul>
+    <li><strong>角块的家在左前</strong>：整个魔方转 90°（白色朝下别动），让那个家转到右前，再用上表公式。</li>
+    <li><strong>白角块卡在底层</strong>（位置或朝向不对）：用 <code>R U R'</code> 把它从底层转到顶层，再按上面三步处理。</li>
+  </ul>
+
+  <h2>测验：检验你能否独立插入一个角块</h2>
+  <div id="quiz"></div>
+
+  <h2>下一步</h2>
+  <p>四个角块都归位后，白色那一整层（底面 + 底面一排的侧面）就完成了。下一步是<strong>第二层棱块</strong>——把中层的 4 条棱放进去，离还原又近一大步。</p>
+
+  <div class="lesson-nav">
+    <a href="0002-white-cross.html">第 2 课 · 白色十字</a>
+    <a href="0004-second-layer.html">第 4 课 · 第二层棱块</a>
+    <a href="../reference/algorithms.html">公式速查</a>
+    <a href="../reference/notation.html">记法速查</a>
+  </div>
+
+  <div class="source-note">
+    <strong>主要资料来源（建议观看）</strong>：
+    <a href="https://jperm.net/3x3">J Perm《How to Solve a 3x3 Rubik's Cube》</a>——「First Layer Corners」一节，示范了这三种朝向的处理。
+    <br><br>
+    <strong>有问题？</strong>随时问我——「角块怎么都放不进窝里」「公式做完更乱了」这类卡点，我会帮你一步步排查（多半是角块没先放到家的正上方）。
+  </div>
+
+</article>
+
+<script src="../assets/cube.js"></script>
+<script src="../assets/quiz.js"></script>
+<script>
+  (function () {
+    // 完成的白色面
+    document.getElementById("face-done").appendChild(Cube.face([
+      ["W","W","W"],
+      ["W","W","W"],
+      ["W","W","W"]
+    ]));
+
+    // 完成的侧面（红）：底下一排对齐
+    document.getElementById("side-done").appendChild(Cube.face([
+      ["X","X","X"],
+      ["X","R","X"],
+      ["R","R","R"]
+    ]));
+
+    CubeQuiz.mount(document.getElementById("quiz"), [
+      {
+        prompt: "做第一层角块时，白色面应该朝哪？",
+        options: ["朝上", "朝下", "朝前", "朝右"],
+        answer: 1,
+        explain: "白十字已在底面，保持白色朝下，往四个角填白角块。"
+      },
+      {
+        prompt: "插角块前，白角块应先转到哪儿？",
+        options: ["家正上方", "底面中央", "顶面中央", "对面位置"],
+        answer: 0,
+        explain: "先让角块的两个侧面颜色对齐两侧中心，即「家的正上方」，再插。"
+      },
+      {
+        prompt: "白贴纸朝上时，第一步先把它变成什么样？",
+        options: ["朝侧面", "朝底面", "朝顶面", "朝对面"],
+        answer: 0,
+        explain: "先做 R U2 R' 把白贴纸翻到侧面，再用普通的「卷」动作插入。"
+      },
+      {
+        prompt: "白角块卡在底层、方向不对时怎么办？",
+        options: ["忽略不管", "先转上来", "直接硬塞", "重新打乱"],
+        answer: 1,
+        explain: "用 R U R' 把它转到顶层，再按正常流程放到家的正上方插入。"
+      }
+    ]);
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 8 课 · 翻正角块（完成）</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<article class="lesson">
+
+  <div class="kicker">第 8 课 · 顶层第 4 步 · 最后一课</div>
+  <h1>翻正角块：还原完成</h1>
+  <p class="lede">就剩最后一步了：把还朝侧面的黄色贴纸翻到朝上。这一步用 <code>R' D' R D</code> 一个动作重复做——但它有<strong>三个最容易翻车的坑</strong>，先记住。</p>
+
+  <h2>一个动作：<code>R' D' R D</code></h2>
+  <p>黄色朝上拿着魔方。把一个<strong>还没翻正</strong>的角块转到<strong>右前上</strong>（FRU）位置。</p>
+  <div class="figure">
+    <div id="fru-corner"></div>
+    <figcaption>顶面俯视：标记「右前上」就是每次处理的那个角。</figcaption>
+  </div>
+
+  <p>对这一个角，重复做 <code>R' D' R D</code>，直到它的<strong>黄色贴纸朝上</strong>。每次都会是 <strong>2 次或 4 次</strong>：</p>
+  <ul>
+    <li>黄色朝右 → 做 2 次</li>
+    <li>黄色朝前 → 做 4 次</li>
+  </ul>
+
+  <div class="insight">
+    <span class="insight-label">三个最容易翻车的坑</span>
+    <p><strong>① 别转整个魔方。</strong>换下一个角时，只转顶层 <code>U</code>，把下一个未翻正的角转到右前上。</p>
+    <p><strong>② 每次都要做完整个 4 步</strong> <code>R' D' R D</code>。尤其最后那个 <code>D</code>：做完 <code>R' D' R</code> 时黄色已经朝上，但必须补上 <code>D</code>，否则下面两层会歪。</p>
+    <p><strong>③ 过程中魔方会显得全乱。</strong>这是正常的——坚持把 4 个角都处理完，最后一个角做完，魔方会<strong>自动复原</strong>。</p>
+  </div>
+
+  <h2>流程</h2>
+  <ol>
+    <li>黄上，未翻正的角放右前上。</li>
+    <li>重复 <code>R' D' R D</code>（2 或 4 次）直到该角黄朝上。</li>
+    <li>转 <code>U</code>，把下一个未翻正的角转到右前上，重复。</li>
+    <li>4 个角都翻正后，转 <code>U</code> 对齐 → <strong>整块魔方还原完成！</strong></li>
+  </ol>
+
+  <h2>完整还原总览（7 步）</h2>
+  <ol>
+    <li><a href="0002-white-cross.html">白色十字</a>（雏菊法，无公式）</li>
+    <li><a href="0003-first-layer-corners.html">第一层角块</a>（<code>R U R'</code> 及其变形）</li>
+    <li><a href="0004-second-layer.html">第二层棱块</a>（去左/去右两公式）</li>
+    <li><a href="0005-yellow-cross.html">黄色十字</a>（<code>F R U R' U' F'</code>）</li>
+    <li><a href="0006-line-up-yellow-edges.html">对齐顶层棱块</a>（Sune）</li>
+    <li><a href="0007-position-yellow-corners.html">角块归位</a>（<code>U R U' L' U R' U' L</code>）</li>
+    <li>翻正角块（<code>R' D' R D</code>）</li>
+  </ol>
+
+  <h2>测验：检验你能否独立完成最后一步</h2>
+  <div id="quiz"></div>
+
+  <h2>恭喜——方法学完了</h2>
+  <p>你已经掌握了层先法的<strong>全部</strong>步骤。但「知道方法」和「能还原」之间，还差一样东西：<strong>一个真魔方</strong>。下一阶段建议：买一个入门魔方，按<a href="../reference/algorithms.html">公式速查</a>实际转几遍，卡住了随时回来问我。</p>
+
+  <div class="lesson-nav">
+    <a href="0007-position-yellow-corners.html">第 7 课 · 角块归位</a>
+    <a href="../reference/algorithms.html">公式速查（全部公式）</a>
+    <a href="0001-cube-anatomy.html">回第 1 课</a>
+  </div>
+
+  <div class="source-note">
+    <strong>主要资料来源（建议观看）</strong>：
+    <a href="https://jperm.net/3x3">J Perm《How to Solve a 3x3 Rubik's Cube》</a>——「Orient Yellow Corners」一节，示范了 <code>R' D' R D</code> 重复与「只转 U 换角」。
+    <br><br>
+    <strong>有问题？</strong>随时问我——「转着转着全乱了」「数不清要做几次」这类卡点，我都能帮你定位。真到上手时，也可以去 <a href="https://www.reddit.com/r/Cubers/">r/Cubers</a> 求助或晒出你的第一次还原。
+  </div>
+
+</article>
+
+<script src="../assets/cube.js"></script>
+<script src="../assets/quiz.js"></script>
+<script>
+  (function () {
+    document.getElementById("fru-corner").appendChild(
+      Cube.face([
+        ["X","X","X"],
+        ["X","Y","X"],
+        ["X","X","X"]
+      ], { mark: [[2,2]], labels: { "2,2": "右前上" } })
+    );
+
+    CubeQuiz.mount(document.getElementById("quiz"), [
+      {
+        prompt: "翻正角块时，未翻正的角要放在哪？",
+        options: ["右前上", "左前上", "右后上", "左后上"],
+        answer: 0,
+        explain: "放在「右前上」（FRU），再对它做 R' D' R D。"
+      },
+      {
+        prompt: "换下一个角时，只能转哪里？",
+        options: ["只转顶面", "整个魔方", "只转底面", "转中间层"],
+        answer: 0,
+        explain: "只转顶层 U 把下一个角转到右前上；千万别转整个魔方。"
+      },
+      {
+        prompt: "做 R' D' R D 让黄朝上，通常要做几次？",
+        options: ["两次或四次", "一次或两次", "三次或五次", "五次或六次"],
+        answer: 0,
+        explain: "黄色朝右做 2 次，朝前做 4 次。"
+      },
+      {
+        prompt: "翻正过程中魔方看起来乱了，怎么办？",
+        options: ["继续做完", "立刻停下", "拆了重来", "从头开始"],
+        answer: 0,
+        explain: "正常现象，坚持把 4 个角都处理完，最后一个角做完会自动复原。"
+      }
+    ]);
+  })();
+</script>
+</body>
+</html>

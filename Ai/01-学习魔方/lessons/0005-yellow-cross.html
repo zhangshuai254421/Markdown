@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 5 课 · 黄色十字</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<article class="lesson">
+
+  <div class="kicker">第 5 课 · 顶层第 1 步</div>
+  <h1>黄色十字：收尾阶段开始</h1>
+  <p class="lede">下面两层已经完成，只剩<strong>顶层</strong>（黄色）。顶层要分 4 小步，这是第 1 步：在顶面做出<strong>黄色十字</strong>。好消息——整步只要<strong>一个</strong>公式。</p>
+
+  <h2>先学会「只看中心和四条棱」</h2>
+  <p>这一步<strong>忽略角块</strong>，只盯住顶面的<strong>中心 + 4 条棱</strong>的黄色贴纸朝上还是朝下。它们会组成四种形状之一：</p>
+  <div class="figure-row">
+    <figure class="figure">
+      <div id="case-dot"></div>
+      <figcaption>点：只有中心黄</figcaption>
+    </figure>
+    <figure class="figure">
+      <div id="case-l"></div>
+      <figcaption>L：两条相邻黄边</figcaption>
+    </figure>
+    <figure class="figure">
+      <div id="case-line"></div>
+      <figcaption>横线：两条相对黄边</figcaption>
+    </figure>
+    <figure class="figure">
+      <div id="case-cross"></div>
+      <figcaption>十字：四条黄边（完成）</figcaption>
+    </figure>
+  </div>
+
+  <h2>一个公式：<code>F R U R' U' F'</code></h2>
+  <p>读作「F、R、U、R 一撇、U 一撇、F 一撇」。可以这样记：前半 <code>F R U</code>（fru），后半反过来 <code>R' U' F'</code>（ruf），合起来像在念「fru-ruf」。</p>
+
+  <div class="insight">
+    <span class="insight-label">核心思路：按形状拿好，重复做</span>
+    <p>同一个公式，不同形状<strong>拿法不同</strong>，做一次就「升级」到下一个形状：点 → L → 横线 → 十字。每次做完都要<strong>重新看顶面、重新调整拿法</strong>，再做下一次。</p>
+  </div>
+
+  <h2>三种情况的拿法</h2>
+  <table>
+    <thead><tr><th>顶面形状</th><th>怎么拿</th><th>做完变成</th></tr></thead>
+    <tbody>
+      <tr><td>点</td><td>随便拿</td><td>L</td></tr>
+      <tr><td>L</td><td>两条黄边分别<strong>朝后、朝左</strong>（L 的角在左后）</td><td>横线</td></tr>
+      <tr><td>横线</td><td><strong>横着放</strong>（左右方向，别竖着）</td><td>十字</td></tr>
+    </tbody>
+  </table>
+  <p>每做一次 <code>F R U R' U' F'</code>，就对照上表看现在变成了什么、该怎么拿，直到十字出现。<span class="sidenote"><span class="sidenote-num">①</span> 常见错误：横线竖着放会「退回」到点。务必横着放。</span></p>
+
+  <h2>测验：检验你能否判断形状与拿法</h2>
+  <div id="quiz"></div>
+
+  <h2>下一步</h2>
+  <p>黄色十字做好后（顶面四条棱都黄朝上），侧面颜色还可能是乱的——别担心。下一步是<strong>对齐顶层棱块</strong>，让十字的每条棱也对着正确的中心。</p>
+
+  <div class="lesson-nav">
+    <a href="0004-second-layer.html">第 4 课 · 第二层棱块</a>
+    <a href="0006-line-up-yellow-edges.html">第 6 课 · 对齐顶层棱块</a>
+    <a href="../reference/algorithms.html">公式速查</a>
+  </div>
+
+  <div class="source-note">
+    <strong>主要资料来源（建议观看）</strong>：
+    <a href="https://jperm.net/3x3">J Perm《How to Solve a 3x3 Rubik's Cube》</a>——「Yellow Cross」一节，示范了三种形状的判断与拿法。
+    <br><br>
+    <strong>有问题？</strong>随时问我——「L 到底该怎么拿」「做完为什么没变」这类卡点，我都能帮你定位。
+  </div>
+
+</article>
+
+<script src="../assets/cube.js"></script>
+<script src="../assets/quiz.js"></script>
+<script>
+  (function () {
+    var cases = {
+      "case-dot":   [["X","X","X"],["X","Y","X"],["X","X","X"]],
+      "case-l":     [["X","Y","X"],["Y","Y","X"],["X","X","X"]],
+      "case-line":  [["X","X","X"],["Y","Y","Y"],["X","X","X"]],
+      "case-cross": [["X","Y","X"],["Y","Y","Y"],["X","Y","X"]]
+    };
+    Object.keys(cases).forEach(function (id) {
+      document.getElementById(id).appendChild(Cube.face(cases[id]));
+    });
+
+    CubeQuiz.mount(document.getElementById("quiz"), [
+      {
+        prompt: "判断黄色十字，只看顶面的哪些？",
+        options: ["中心和棱", "中心和角", "全部九块", "只要中心"],
+        answer: 0,
+        explain: "只看中心 + 4 条棱，忽略角块，否则会被角块干扰。"
+      },
+      {
+        prompt: "顶面是「点」（只有中心黄）时，做一次公式会变成？",
+        options: ["变成横线", "变成L形", "变成十字", "没有变化"],
+        answer: 1,
+        explain: "点 → L → 横线 → 十字，做一次升级一格。"
+      },
+      {
+        prompt: "顶面是「横线」时，应该怎样放？",
+        options: ["横着放", "竖着放", "斜着放", "随便放"],
+        answer: 0,
+        explain: "必须横着（左右方向）放；竖着放会退回成点。"
+      },
+      {
+        prompt: "整个黄色十字这一步，要记几个公式？",
+        options: ["一个", "两个", "三个", "四个"],
+        answer: 0,
+        explain: "只有一个 F R U R' U' F'，靠不同拿法处理所有情况。"
+      }
+    ]);
+  })();
+</script>
+</body>
+</html>

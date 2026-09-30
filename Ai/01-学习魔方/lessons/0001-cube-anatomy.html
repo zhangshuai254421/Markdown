@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 1 课 · 认识魔方</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<article class="lesson">
+
+  <div class="kicker">第 1 课 · 层先法基础</div>
+  <h1>认识魔方：你在还原的是「块」，不是「贴纸」</h1>
+  <p class="lede">在学会任何公式之前，先弄清魔方到底是什么。这一步理解透了，后面的每一步都会变得「理所当然」，而不是魔法。</p>
+
+  <h2>一个被误解的物体</h2>
+  <p>新手看魔方，看到的是 54 张彩色贴纸。但贴纸是<strong>粘在块上</strong>的，它们不能单独移动。真正在转动、需要你去归位的，是藏在贴纸下面的<strong>块</strong>。</p>
+  <p>一个 3×3 魔方只有 <strong>26 个块</strong>（外加里面看不见的轴）。这 26 个块分为<strong>三种</strong>，按它们各带几张贴纸来区分。<span class="sidenote"><span class="sidenote-num">①</span> 按「块」而非「面」思考，是新手最重要的心智转变。参见 <a href="https://speedcubeshop.com/a/blog/the-lbl-method-for-beginners-speed-cubing-made-simple">SpeedCubeShop · LBL 方法</a>。</span></p>
+
+  <h2>三种块</h2>
+  <div class="figure">
+    <div id="pieces"></div>
+    <figcaption>三种块：中心块、棱块、角块。数字是它们各自带几张贴纸。</figcaption>
+  </div>
+
+  <ul>
+    <li><strong>中心块（center）</strong>——1 张贴纸，6 个，每个面的正中央。</li>
+    <li><strong>棱块（edge）</strong>——2 张贴纸，12 个，夹在两个面之间的边上。</li>
+    <li><strong>角块（corner）</strong>——3 张贴纸，8 个，在立方体的角上。</li>
+  </ul>
+
+  <div class="figure">
+    <figure>
+      <div id="solved-face"></div>
+      <figcaption>一个还原好的面：中心块决定了这整面该是什么颜色。</figcaption>
+    </figure>
+  </div>
+
+  <div class="insight">
+    <span class="insight-label">洞察一 · 贴纸永远粘在一起</span>
+    <p>棱块上那 2 张贴纸、角块上那 3 张贴纸，是<strong>永久粘死的</strong>。一个「白—红」棱块，永远都是白—红，你不可能把它变成「白—绿」。所谓还原，就是把这些<strong>带着固定颜色组合的块</strong>送回它们唯一正确的位置。</p>
+  </div>
+
+  <h2>中心块从不离开自己的位置</h2>
+  <p>这是整个魔方里最重要的事实：<strong>中心块只会原地旋转，永远不会移动到别的位置。</strong>六个中心块的相对位置永远不变——白永远对着黄，红永远对着橙，绿永远对着蓝。</p>
+  <p>所以「哪一面是什么颜色」不是随便定的，而是由那一面的<strong>中心块</strong>说了算。还原魔方的本质，就是把每个棱块、每个角块，放到与它贴纸颜色相符的那些中心块旁边。</p>
+
+  <div class="insight">
+    <span class="insight-label">洞察二 · 中心 = 面的颜色</span>
+    <p>判断一块该去哪儿，看它贴纸的颜色，再看哪几个<strong>中心块</strong>是这些颜色——那个位置就是它的家。中心块是「锚点」，其余块围绕它们归位。</p>
+  </div>
+
+  <h2>测验：你记住了吗？</h2>
+  <p>不看上面，凭记忆回答。这正是让知识「存进长期记忆」的关键一步。</p>
+  <div id="quiz"></div>
+
+  <h2>下一步</h2>
+  <p>弄清了「块」和「中心不动」这两件事，你就准备好学习魔方的<strong>语言</strong>了——也就是怎么描述一次转动。接着去读记法速查，然后进入第 2 课：拼出白色十字（第一个能看见的胜利）。</p>
+
+  <div class="lesson-nav">
+    <a href="../reference/notation.html">记法速查</a>
+    <a href="0002-white-cross.html">第 2 课 · 白色十字</a>
+  </div>
+
+  <div class="source-note">
+    <strong>主要资料来源（建议观看）</strong>：
+    <a href="https://jperm.net/3x3">J Perm《How to Solve a 3x3 Rubik's Cube》</a>——从开头看前两分钟，他讲的就是「块」的概念（bilibili 有中文配音版）。
+    <br><br>
+    <strong>有问题？</strong>直接问我——我是你的老师，任何一步看不懂、任何概念卡住，都可以让我再讲一遍或用别的比喻解释。
+  </div>
+
+</article>
+
+<script src="../assets/cube.js"></script>
+<script src="../assets/quiz.js"></script>
+<script>
+  (function () {
+    document.getElementById("pieces").appendChild(Cube.pieces());
+
+    var solved = [
+      ["G","G","G"],
+      ["G","G","G"],
+      ["G","G","G"]
+    ];
+    document.getElementById("solved-face").appendChild(
+      Cube.face(solved, { mark: [[1,1]], labels: { "1,1": "中心" } })
+    );
+
+    CubeQuiz.mount(document.getElementById("quiz"), [
+      {
+        prompt: "棱块上有几张贴纸？",
+        options: ["一张", "两张", "三张", "四张"],
+        answer: 1,
+        explain: "棱块夹在两个面之间，带 2 张贴纸，共 12 个。"
+      },
+      {
+        prompt: "角块上有几张贴纸？",
+        options: ["一张", "两张", "三张", "四张"],
+        answer: 2,
+        explain: "角块在立方体的角上，带 3 张贴纸，共 8 个。"
+      },
+      {
+        prompt: "转动时，中心块会怎样？",
+        options: ["颜色会变", "位置固定", "数量最多", "最难还原"],
+        answer: 1,
+        explain: "中心块只原地旋转，永远不换位置——所以它决定了那一面的颜色。"
+      },
+      {
+        prompt: "一个 3×3 魔方共有几个角块？",
+        options: ["六个", "八个", "十个", "九个"],
+        answer: 1,
+        explain: "8 个角，每个角 1 个角块。"
+      }
+    ]);
+  })();
+</script>
+</body>
+</html>

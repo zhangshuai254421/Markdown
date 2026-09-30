@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3×3 魔方记法速查</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<article class="lesson">
+
+  <div class="kicker">参考文档 · Reference</div>
+  <h1>3×3 魔方记法速查</h1>
+  <p class="lede">所有公式都由这 6 个字母和 3 个修饰符组成。掌握它，你就能读懂任何教程里的算法。</p>
+
+  <h2>六个面</h2>
+  <p>字母代表<strong>一面</strong>，不是某个颜色。拿法固定后（例如白上、绿前），字母就固定了。</p>
+  <table>
+    <thead><tr><th>字母</th><th>面</th><th>英文</th><th>位置</th></tr></thead>
+    <tbody>
+      <tr><td><code>U</code></td><td>顶面</td><td>Up</td><td>朝上</td></tr>
+      <tr><td><code>D</code></td><td>底面</td><td>Down</td><td>朝下</td></tr>
+      <tr><td><code>L</code></td><td>左面</td><td>Left</td><td>朝左</td></tr>
+      <tr><td><code>R</code></td><td>右面</td><td>Right</td><td>朝右</td></tr>
+      <tr><td><code>F</code></td><td>前面</td><td>Front</td><td>朝你</td></tr>
+      <tr><td><code>B</code></td><td>后面</td><td>Back</td><td>背对你</td></tr>
+    </tbody>
+  </table>
+
+  <h2>三个修饰符</h2>
+  <table>
+    <thead><tr><th>写法</th><th>含义</th><th>例</th></tr></thead>
+    <tbody>
+      <tr><td><code>R</code>（无后缀）</td><td>顺时针转 90°</td><td><code>R</code> = 右面顺时针 90°</td></tr>
+      <tr><td><code>R'</code>（一撇）</td><td>逆时针转 90°</td><td><code>R'</code> = 右面逆时针 90°</td></tr>
+      <tr><td><code>R2</code>（数字 2）</td><td>转 180°（方向无所谓）</td><td><code>R2</code> = 右面转半圈</td></tr>
+    </tbody>
+  </table>
+
+  <div class="insight">
+    <span class="insight-label">顺时针怎么判断</span>
+    <p><strong>正对着那个面看</strong>时的顺时针，就是该面的顺时针。这就是为什么 <code>R</code> 和 <code>L</code> 转的方向看起来相反——因为你分别从右、左两侧去看它们。同理 <code>U</code> 和 <code>D</code> 也相反。</p>
+  </div>
+
+  <h2>块与面的命名</h2>
+  <p>用字母也能给<strong>块</strong>命名：把块上贴纸所在的面连起来写。</p>
+  <ul>
+    <li><code>UF</code> 棱块 = 在「顶面 + 前面」之间的那条棱</li>
+    <li><code>URF</code> 角块 = 在「顶面 + 右面 + 前面」交界处的那个角</li>
+  </ul>
+
+  <h2>什么是「算法」</h2>
+  <p>算法（algorithm）就是<strong>一串按顺序执行的转动</strong>，例如 <code>R U R' U'</code>。层先法只需要记住少数几个短算法，就能还原整个魔方。</p>
+
+  <div class="lesson-nav">
+    <a href="../lessons/0001-cube-anatomy.html">第 1 课 · 认识魔方</a>
+  </div>
+
+  <div class="source-note">
+    <strong>来源</strong>：<a href="https://ruwix.com/the-rubiks-cube/notation/">ruwix · Rubik's Cube Notation</a> ·
+    <a href="https://jperm.net/3x3">J Perm · Beginner Method</a> ·
+    <a href="https://howtosolvecube.com/en/learn/notation/">HowToSolveCube · Notation Guide</a>
+  </div>
+
+</article>
+</body>
+</html>

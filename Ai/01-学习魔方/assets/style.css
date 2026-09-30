@@ -1,0 +1,301 @@
+/* ==========================================================================
+   魔方课程共享样式表 · Rubik's Course shared stylesheet
+   设计取向：Tufte 式 — 窄阅读栏、留白、侧注、可打印
+   ========================================================================== */
+
+:root {
+  --ink: #1a1a1a;
+  --ink-soft: #4a4a4a;
+  --muted: #6b6b6b;
+  --paper: #fffdf8;
+  --paper-2: #fbf6ec;
+  --accent: #c41e3a;
+  --accent-soft: #f7e2e6;
+  --rule: #ddd6c8;
+  --good: #0c7a4a;
+  --bad: #b3261e;
+  --link: #9a1a2f;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Source Serif 4", "Noto Serif SC", Georgia, "Songti SC", "STSong", "SimSun", serif;
+  font-size: 18px;
+  line-height: 1.72;
+}
+
+/* —— 阅读栏 —— */
+.lesson {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 6rem;
+}
+
+h1, h2, h3, h4 {
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+h1 {
+  font-size: 2.4rem;
+  margin: 0 0 0.35rem;
+}
+
+h2 {
+  font-size: 1.5rem;
+  margin: 2.6rem 0 0.9rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+h3 { font-size: 1.15rem; margin: 1.8rem 0 0.6rem; }
+
+p { margin: 0 0 1.05rem; }
+
+a { color: var(--link); text-decoration: none; border-bottom: 1px solid var(--rule); }
+a:hover { border-bottom-color: var(--accent); }
+
+strong { font-weight: 600; }
+em { font-style: italic; }
+
+.lede {
+  font-size: 1.22rem;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  margin: 1rem 0 2rem;
+}
+
+.kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+/* —— 核心洞察框 —— */
+.insight {
+  background: var(--accent-soft);
+  border-left: 4px solid var(--accent);
+  padding: 1.1rem 1.3rem;
+  margin: 1.6rem 0;
+  border-radius: 0 4px 4px 0;
+}
+.insight .insight-label {
+  display: block;
+  font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 0.35rem;
+}
+
+/* —— 侧注（sidenote）—— */
+.sidenote {
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: var(--muted);
+  font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+.sidenote .sidenote-num { color: var(--accent); }
+
+@media (min-width: 1100px) {
+  .sidenote {
+    float: right;
+    clear: right;
+    width: 240px;
+    margin-right: -300px;
+    margin-top: 0;
+    margin-bottom: 1rem;
+  }
+}
+
+/* —— 引用 / 来源 —— */
+blockquote {
+  margin: 1.4rem 0;
+  padding: 0.2rem 0 0.2rem 1.2rem;
+  border-left: 3px solid var(--rule);
+  color: var(--ink-soft);
+}
+
+.source-note {
+  margin-top: 2.6rem;
+  padding: 1rem 1.2rem;
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  font-size: 0.95rem;
+}
+
+/* —— 列表 —— */
+ul, ol { padding-left: 1.4rem; margin: 0 0 1.1rem; }
+li { margin-bottom: 0.4rem; }
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1.2rem 0;
+  font-size: 0.95rem;
+}
+th, td {
+  text-align: left;
+  padding: 0.5rem 0.7rem;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+}
+th { font-weight: 600; border-bottom: 2px solid var(--ink); }
+
+code {
+  font-family: "JetBrains Mono", "SF Mono", Consolas, monospace;
+  font-size: 0.88em;
+  background: var(--paper-2);
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+}
+
+/* —— 导航（链接到其他课/参考）—— */
+.lesson-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 2.5rem 0 0;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--rule);
+}
+.lesson-nav a {
+  font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--ink-soft);
+}
+.lesson-nav a:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ==========================================================================
+   魔方贴纸 / 面（配合 assets/cube.js）
+   ========================================================================== */
+.cube-face {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  width: 168px;
+  height: 168px;
+  background: #222;
+  padding: 4px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+}
+.cube-cell {
+  border-radius: 4px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 0.72rem;
+  color: rgba(0,0,0,0.55);
+}
+.cube-cell.is-label { color: rgba(0,0,0,0.75); font-weight: 700; }
+.cube-cell.is-mark { outline: 3px solid var(--accent); outline-offset: -2px; z-index: 1; }
+
+.figure {
+  margin: 1.6rem 0;
+}
+.figure figcaption {
+  font-size: 0.86rem;
+  color: var(--muted);
+  margin-top: 0.5rem;
+  font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+.figure-row { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-start; }
+
+/* 三种块 */
+.piece-row { display: flex; flex-wrap: wrap; gap: 1.8rem; margin: 1.2rem 0 0.4rem; }
+.piece { text-align: center; }
+.piece .piece-name {
+  font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  margin: 0.6rem 0 0.15rem;
+}
+.piece .piece-meta { font-size: 0.82rem; color: var(--muted); margin: 0; }
+
+/* ==========================================================================
+   测验组件（配合 assets/quiz.js）
+   ========================================================================== */
+.quiz { margin: 2rem 0; }
+.quiz .q-progress {
+  font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.6rem;
+}
+.quiz .q-prompt { font-weight: 600; font-size: 1.1rem; margin-bottom: 1rem; }
+.quiz .q-options { display: flex; flex-direction: column; gap: 0.6rem; }
+.quiz .q-opt {
+  font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 1rem;
+  text-align: left;
+  padding: 0.7rem 1rem;
+  border: 1.5px solid var(--rule);
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.quiz .q-opt:hover:not(:disabled) { border-color: var(--ink-soft); }
+.quiz .q-opt:disabled { cursor: default; }
+.quiz .q-opt.is-correct { border-color: var(--good); background: #eaf6ef; }
+.quiz .q-opt.is-wrong { border-color: var(--bad); background: #fbeae8; }
+.quiz .q-feedback {
+  margin-top: 0.9rem;
+  padding: 0.7rem 1rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  display: none;
+}
+.quiz .q-feedback.show { display: block; }
+.quiz .q-feedback.ok { background: #eaf6ef; color: #0a5a38; }
+.quiz .q-feedback.no { background: #fbeae8; color: #8a1f16; }
+.quiz .q-next {
+  margin-top: 0.9rem;
+  font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 0.95rem;
+  padding: 0.55rem 1.2rem;
+  border: none;
+  border-radius: 6px;
+  background: var(--ink);
+  color: #fff;
+  cursor: pointer;
+}
+.quiz .q-next:hover { background: var(--accent); }
+.quiz .q-score {
+  font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 1rem;
+  padding: 1.2rem 1.3rem;
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+}
+
+/* ==========================================================================
+   打印
+   ========================================================================== */
+@media print {
+  body { font-size: 12pt; background: #fff; color: #000; }
+  .lesson { max-width: 100%; padding: 0; }
+  .quiz, .lesson-nav { display: none; }
+  a { color: #000; border-bottom: none; }
+  .insight, .source-note { border: 1px solid #999; background: #f5f5f5; }
+}

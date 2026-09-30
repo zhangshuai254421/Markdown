@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>层先法公式速查</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<article class="lesson">
+
+  <div class="kicker">参考文档 · Reference</div>
+  <h1>层先法公式速查</h1>
+  <p class="lede">所有公式的汇总。随课程推进逐步补充，方便随时回来查。</p>
+
+  <h2>第 1 步 · 白色十字</h2>
+  <p>无固定公式，靠「<strong>对齐中心 + 转半圈落位</strong>」：先做雏菊（黄上白下，把 4 个白棱转到顶层白朝上），再逐条「对齐侧面中心 → F2 翻到底面」。见<a href="../lessons/0002-white-cross.html">第 2 课</a>。</p>
+
+  <h2>第 2 步 · 第一层角块</h2>
+  <p>前提：白色朝下。把白角块转到它<strong>家的正上方</strong>（两个侧面颜色分别对齐两侧中心），让家在右前，再看白贴纸朝向选公式。</p>
+  <table>
+    <thead><tr><th>白贴纸朝向</th><th>公式</th></tr></thead>
+    <tbody>
+      <tr><td>朝右</td><td><code>R U R'</code></td></tr>
+      <tr><td>朝前</td><td><code>U R U' R'</code></td></tr>
+      <tr><td>朝上</td><td><code>R U2 R' U' R U R'</code></td></tr>
+    </tbody>
+  </table>
+  <ul>
+    <li>角块的家在<strong>左前</strong>：整个魔方转 90°（白色朝下保持），让家转到右前，再用上表公式。</li>
+    <li>白角块<strong>卡在底层</strong>（位置/朝向不对）：用 <code>R U R'</code> 把它转到顶层，再按上表处理。</li>
+  </ul>
+
+  <h2>第 3 步 · 第二层棱块</h2>
+  <p>前提：第一层完成，把魔方翻过来（白下黄上）。在顶层找<strong>不含黄色</strong>的棱块，转 <code>U</code> 让它正面颜色对齐中心（形成「T」），再决定去左还是去右。</p>
+  <table>
+    <thead><tr><th>棱块要去</th><th>公式</th></tr></thead>
+    <tbody>
+      <tr><td>右前</td><td><code>U R U' R' U' F' U F</code></td></tr>
+      <tr><td>左前</td><td><code>U' L' U L U F U' F'</code></td></tr>
+    </tbody>
+  </table>
+  <ul>
+    <li>中层棱块已卡在中层、但位置或朝向错：先用「去右」公式 <code>U R U' R' U' F' U F</code> 把它踢到顶层，再重新插入。</li>
+  </ul>
+
+  <h2>第 4 步 · 黄色十字</h2>
+  <p>前提：下面两层完成。只看顶面的中心 + 4 条棱（忽略角块），按形状选拿法，重复同一个公式 <code>F R U R' U' F'</code>。</p>
+  <table>
+    <thead><tr><th>顶面形状</th><th>怎么拿</th><th>做几次</th></tr></thead>
+    <tbody>
+      <tr><td>点（只有中心黄）</td><td>随便</td><td>1 次 → 变 L</td></tr>
+      <tr><td>L（两条相邻黄边）</td><td>黄边朝后、朝左</td><td>1 次 → 变横线</td></tr>
+      <tr><td>横线（两条相对黄边）</td><td>横着放</td><td>1 次 → 十字</td></tr>
+      <tr><td>十字</td><td>—</td><td>完成</td></tr>
+    </tbody>
+  </table>
+
+  <h2>第 5 步 · 对齐顶层棱块</h2>
+  <p>前提：黄色十字完成。转 <code>U</code>，看几条棱的侧面颜色对齐中心。</p>
+  <ul>
+    <li>全部对齐 → 完成。</li>
+    <li>两条相邻对齐 → 放在「后 + 右」，做 <code>R U R' U R U2 R'</code>（Sune）一次 → 全部对齐。</li>
+    <li>0 条或两条相对 → 随便做一次 Sune，再转 <code>U</code> 找两条相邻 → 回到上一条。</li>
+  </ul>
+
+  <h2>第 6 步 · 角块归位</h2>
+  <p>前提：顶层棱已对齐。找一个「位置对」的角块（三种颜色 = 周围三个中心，朝向先不管）。</p>
+  <ul>
+    <li>4 个全对 → 完成。</li>
+    <li>1 个对 → 放在「右前上」，做 <code>U R U' L' U R' U' L</code>，必要时重复 → 全对。</li>
+    <li>0 个对 → 随便做一次，就会有一个对 → 回到上一条。</li>
+  </ul>
+  <p class="sidenote">正确位置角块数只可能是 0、1、4。</p>
+
+  <h2>第 7 步 · 翻正角块（最后一步）</h2>
+  <p>前提：角块已归位。黄色朝上，把一个未翻正的角块放到<strong>右前上</strong>（FRU），重复 <code>R' D' R D</code> 直到它的黄色朝上（2 次或 4 次）。</p>
+  <ul>
+    <li>换下一个角：<strong>只转 U</strong>（别转整个魔方）把下一个未翻正的角转到 FRU，再重复。</li>
+    <li>过程中魔方会显得很乱，属正常，做完最后一个角会自动复原。</li>
+    <li>最后转 <code>U</code> 对齐 → 完成。</li>
+  </ul>
+
+  <div class="lesson-nav">
+    <a href="notation.html">记法速查</a>
+    <a href="../lessons/0003-first-layer-corners.html">第 3 课 · 第一层角块</a>
+  </div>
+
+  <div class="source-note">
+    <strong>来源</strong>：<a href="https://github.com/Michaelangel007/rubiks_cheat_sheet">Michaelangel007 · Rubik's Cheat Sheet</a> ·
+    <a href="https://rubiks-cube.fandom.com/wiki/Beginner%27s_method">Rubik's Cube Wiki · Beginner's method</a> ·
+    <a href="https://solvingrubikscube.com/tutorials/how-to-solve-3x3-rubiks-cube-beginners.php">SolvingRubiksCube · Beginner Tutorial</a>
+  </div>
+
+</article>
+</body>
+</html>

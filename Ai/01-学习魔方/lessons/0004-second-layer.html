@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 4 课 · 第二层棱块</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<article class="lesson">
+
+  <div class="kicker">第 4 课 · 层先法第三步</div>
+  <h1>第二层棱块：把中层填满</h1>
+  <p class="lede">第一层已经完整。现在把魔方<strong>翻过来</strong>（白色朝下、黄色朝上），把中间那层的 4 条棱块放进去。这一步要记<strong>两个</strong>长一点的公式——但它们是一对「左右镜像」。</p>
+
+  <h2>起点与目标</h2>
+  <p>翻面后，你要做的是把下面<strong>两层</strong>都完成。这时只剩顶层（黄色那层）没解决。</p>
+  <div class="figure">
+    <div id="two-layers"></div>
+    <figcaption>侧面（红）：中、下两排都对齐了中心——这就是本课的目标。</figcaption>
+  </div>
+
+  <h2>第一步：找一条「无黄」的棱块</h2>
+  <p>在<strong>顶层</strong>找一条<strong>不含黄色</strong>的棱块（例如红—绿棱）。中层棱块没有黄、也没有白，所以看到带黄色的棱块先<strong>跳过</strong>，它属于顶层。<span class="sidenote"><span class="sidenote-num">①</span> 顶层最终是黄色十字 + 黄角，所以带黄的棱现在留在顶层是对的。</span></p>
+
+  <h2>第二步：对齐出「T」</h2>
+  <p>转 <code>U</code>，让这条棱<strong>朝你的那个颜色</strong>和它对应的<strong>中心块</strong>上下对齐。对齐后，正面会形成一个倒「T」字形。</p>
+  <div class="figure">
+    <div id="tee-shape"></div>
+    <figcaption>对齐出的「T」：红棱在红中心正上方。</figcaption>
+  </div>
+
+  <h2>第三步：判断去左还是去右，套公式</h2>
+  <p>看这条棱<strong>另一侧</strong>的颜色（朝向顶面的那个颜色），它决定了这条棱该去右前还是左前。然后：</p>
+  <table>
+    <thead><tr><th>棱块要去</th><th>公式</th></tr></thead>
+    <tbody>
+      <tr><td>右前</td><td><code>U R U' R' U' F' U F</code></td></tr>
+      <tr><td>左前</td><td><code>U' L' U L U F U' F'</code></td></tr>
+    </tbody>
+  </table>
+
+  <div class="insight">
+    <span class="insight-label">怎么记：一对镜像</span>
+    <p>两个公式结构相同，只是左右互换：<code>U R U' R'</code> ↔ <code>U' L' U L</code>，后面跟 <code>U' F' U F</code> ↔ <code>U F U' F'</code>。先记住「去右」那个，去左就是把每个 R 换成 L、方向反过来。</p>
+  </div>
+
+  <h2>卡住的情况：棱块已经在中层、但错了</h2>
+  <p>如果你要的中层棱块<strong>已经在中层、但位置或朝向不对</strong>，先随便用一次「去右」公式 <code>U R U' R' U' F' U F</code> 把它<strong>踢到顶层</strong>，再按上面三步重新插回去。</p>
+
+  <h2>测验：检验你能否独立插入一条中层棱</h2>
+  <div id="quiz"></div>
+
+  <h2>下一步</h2>
+  <p>中层四条棱都归位后，下面两层就完成了，只剩<strong>顶层</strong>（黄色层）。下一步是<strong>黄色十字</strong>——最激动人心的收尾阶段开始了。</p>
+
+  <div class="lesson-nav">
+    <a href="0003-first-layer-corners.html">第 3 课 · 第一层角块</a>
+    <a href="0005-yellow-cross.html">第 5 课 · 黄色十字</a>
+    <a href="../reference/algorithms.html">公式速查</a>
+    <a href="../reference/notation.html">记法速查</a>
+  </div>
+
+  <div class="source-note">
+    <strong>主要资料来源（建议观看）</strong>：
+    <a href="https://jperm.net/3x3">J Perm《How to Solve a 3x3 Rubik's Cube》</a>——「Second Layer」一节，示范了「对齐出 T → 判断左右 → 套公式」。
+    <br><br>
+    <strong>有问题？</strong>随时问我——「分不清该去左还是去右」「踢出来之后更乱了」这类卡点，我都能帮你拆解。
+  </div>
+
+</article>
+
+<script src="../assets/cube.js"></script>
+<script src="../assets/quiz.js"></script>
+<script>
+  (function () {
+    // 两层完成（侧面红）
+    document.getElementById("two-layers").appendChild(Cube.face([
+      ["X","X","X"],
+      ["R","R","R"],
+      ["R","R","R"]
+    ]));
+
+    // 对齐出「T」
+    document.getElementById("tee-shape").appendChild(Cube.face([
+      ["X","R","X"],
+      ["X","R","X"],
+      ["R","R","R"]
+    ]));
+
+    CubeQuiz.mount(document.getElementById("quiz"), [
+      {
+        prompt: "做第二层时，白色面应该朝哪？",
+        options: ["朝上", "朝下", "朝前", "朝右"],
+        answer: 1,
+        explain: "第一层完成后，把魔方翻过来：白色朝下、黄色朝上。"
+      },
+      {
+        prompt: "要在顶层找什么样的棱块？",
+        options: ["不含黄色", "含黄色", "含白色", "不含白色"],
+        answer: 0,
+        explain: "中层棱块没有黄也没有白；带黄的棱留在顶层，先跳过。"
+      },
+      {
+        prompt: "插入中层棱块前，要先做什么？",
+        options: ["对齐出T", "直接插入", "打乱重来", "翻到底面"],
+        answer: 0,
+        explain: "转 U，让棱的正面颜色对齐中心，形成「T」，再判断去左还是去右。"
+      },
+      {
+        prompt: "中层棱块已卡在中层、位置错了怎么办？",
+        options: ["忽略不管", "先踢出来", "直接硬塞", "重新打乱"],
+        answer: 1,
+        explain: "用一次「去右」公式把它踢到顶层，再重新对齐、插入。"
+      }
+    ]);
+  })();
+</script>
+</body>
+</html>

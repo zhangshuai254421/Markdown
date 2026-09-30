@@ -1,0 +1,31 @@
+用户调用
+ask-matt: 询问哪种技能或流程适合你的情况。它是本仓库中用户调用技能的路由器。
+grill-with-docs: 一场拷问式会话，同时构建你项目的领域模型、打磨术语，并就地更新 CONTEXT.md 和 ADR。
+triage: 让 issue 在一个由分诊角色构成的状态机中流转。
+improve-codebase-architecture: 扫描代码库寻找深化机会，以可视化 HTML 报告呈现，然后就你选中的那一项进行拷问。
+setup-matt-pocock-skills: 为工程类技能配置本仓库（issue 跟踪器、分诊标签、领域文档布局）。每个仓库在使用其他工程技能前运行一次。
+to-spec: 把当前对话转化为一份规格说明并发布到 issue 跟踪器。不做访谈，只综合你已经讨论过的内容。
+to-tickets: 把任何计划、规格或对话拆解成一组「曳光弹」ticket，每个都声明其阻塞依赖；可写成本地文本文件，也可作为真实跟踪器上的原生阻塞链接。
+implement: 实现由规格或一组 ticket 描述的工作，在预先约定的接缝处驱动 /tdd，并在提交前用 /code-review 收尾。
+wayfinder: 将一大块工作（超出一个 agent 会话的容量）规划为 issue 跟踪器上的一张共享决策 ticket 地图，一次解决一个，直到通往目的地的路变得清晰。
+模型调用
+prototype: 构建一个一次性原型来回答设计问题：状态/逻辑问题用单个可分享的 HTML 文件，或者几个截然不同的 UI 变体、从一个路由即可切换。
+diagnosing-bugs: 针对疑难 bug 和性能回退的规范化诊断循环：构建一个反馈回路，让它先在此 bug 上变红 → 最小化 → 提出假设 → 插桩 → 修复 → 回归测试。
+research: 对照高可信度一手来源调查一个问题，并把发现以带引用的 Markdown 文件记录在仓库中，作为后台 agent 运行。
+tdd: 采用「红-绿-重构」循环的测试驱动开发。一次一个纵向切片地构建功能或修复 bug。
+domain-modeling: 主动构建并打磨项目的领域模型：用术语表挑战术语、用边界场景做压力测试，并就地更新 CONTEXT.md 和 ADR。
+codebase-design: 设计深层模块的共享纪律与词汇：把大量行为藏在小的接口后面，放在干净的接缝处，并通过该接口测试。
+code-review: 对自某固定点以来的 diff 做双轴审查：规范（是否遵循仓库编码规范，外加 Fowler 坏味道基线？）与规格（是否忠实实现了来源 issue/规格？），以并行的子 agent 运行，互不污染。
+resolving-merge-conflicts: 逐块处理进行中的 git merge 或 rebase 冲突，按追溯到各方一手来源的意图来解决，然后完成操作（绝不 --abort）。
+wizard: 生成一个交互式 bash 向导，引导人完成只有他们能做的步骤：配置基础设施、设置凭据或 CI 密钥、操作不熟悉的第三方仪表盘，或执行一次性的迁移/切换。
+生产力
+通用工作流工具，不限于代码。
+用户调用
+grill-me: 就一份计划或设计接受不间断的拷问，直到设计树的每个分支都被厘清。
+handoff: 把当前对话压缩成一份交接文档，以便另一个 agent 能继续这项工作。
+teach: 用多个会话教用户一项新技能或概念，把当前目录作为有状态的教学工作区。
+to-questionnaire: 把一个你无法独自回答的决策，转成一份 Markdown 问卷，交给那个能回答的人异步填写，或在会议上一起完成。它拷问的是「发送」这件事（给谁、你需要回什么），而不是主题。
+wait-what: 在一条消息没讲清楚的那一刻就触发它。agent 用你缺失的上下文、以平实的语言、结合你 CONTEXT.md 中的词汇重新表述它。
+模型调用
+grilling: 就一份计划、决策或想法持续拷问用户，直到设计树的每个分支都被厘清。它是 grill-me、grill-with-docs、triage、wayfinder 和 improve-codebase-architecture 背后的可复用访谈原语。
+writing-for-agents: 为 agent 写文档：skill、AGENTS.md/CLAUDE.md，以及任何 agent 通过指针触达的文档。
