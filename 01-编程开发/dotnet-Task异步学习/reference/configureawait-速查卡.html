@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ConfigureAwait 与死锁速查卡</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">REFERENCE · 速查卡 · 可打印</p>
+  <h1>ConfigureAwait 与死锁速查卡</h1>
+  <div class="meta">
+    <span class="chip">来源:第 0007 课</span>
+    <span class="chip">主推阅读:<a href="https://devblogs.microsoft.com/dotnet/configureawait-faq/" target="_blank">Toub · ConfigureAwait FAQ</a></span>
+  </div>
+
+  <p class="lede">一句话:<strong>死锁 = 循环等待</strong>;破环断一环即可——
+  <strong>不阻塞</strong>(一路 async)或<strong>不回环</strong>(ConfigureAwait(false))。</p>
+
+  <h2>一、上下文一览:你在哪个环境,await 恢复去哪</h2>
+  <table>
+    <thead><tr><th>环境</th><th>SyncContext</th><th>await 默认恢复</th><th>ConfigureAwait(false) 后</th></tr></thead>
+    <tbody>
+      <tr><td>控制台 / Windows 服务 / ASP.NET Core</td><td><code>null</code></td><td>内联在完成者/线程池线程</td><td>行为相同(无快递员可省)</td></tr>
+      <tr><td>WinForms</td><td>WindowsForms…Context</td><td><code>BeginInvoke</code> 回 UI 消息循环</td><td>在线程池恢复;<strong>更新控件需自行调度回 UI</strong></td></tr>
+      <tr><td>WPF</td><td>Dispatcher…Context</td><td><code>Dispatcher.BeginInvoke</code> 回 UI 线程</td><td>同上</td></tr>
+      <tr><td>ASP.NET classic(Framework)</td><td>AspNet…Context</td><td>请求上下文内串行推进</td><td>在线程池恢复,但<strong><code>HttpContext.Current</code> 等请求上下文丢失</strong>——库要留逃生口</td></tr>
+    </tbody>
+  </table>
+
+  <h2>二、死锁环(默画用)</h2>
+  <table>
+    <thead><tr><th>节点</th><th>在等谁</th></tr></thead>
+    <tbody>
+      <tr><td>① UI 线程(卡在 <code>.Result</code>)</td><td>② 外壳欠条完成</td></tr>
+      <tr><td>② 外壳欠条</td><td>③ 续延(段 2)跑完才能 SetResult</td></tr>
+      <tr><td>③ 续延</td><td>④ 被 Post 进 UI 消息队列,要求回 UI</td></tr>
+      <tr><td>④ UI 消息队列</td><td>① UI 线程泵消息——但它正阻塞</td></tr>
+    </tbody>
+  </table>
+  <div class="callout">
+    <p class="callout-title">成立条件与破环点</p>
+    <p>同时要有:<strong>同步上下文</strong>(UI / classic ASP.NET)+ <strong>同步阻塞</strong>(.Result/.Wait)
+    + <strong>被阻塞线程正是上下文要求的恢复处</strong>。三者缺一不死锁。
+    破环:①改 async(不阻塞)或 ③改 ConfigureAwait(false)(不回环)。</p>
+  </div>
+
+  <h2>三、三条纪律</h2>
+  <table>
+    <tbody>
+      <tr><td>①</td><td><strong>类库代码一律 <code>ConfigureAwait(false)</code></strong>——不依赖调用方上下文,根除死锁,省一次 Post</td></tr>
+      <tr><td>②</td><td><strong>应用代码一路 async 到底</strong>——事件处理器用 async void(框架设计如此),绝不 <code>.Result</code>/<code>.Wait()</code>/<code>GetAwaiter().GetResult()</code></td></tr>
+      <tr><td>③</td><td><strong>遗留同步边界用"隔离"</strong>——换同步 API,或放到无上下文的专门线程/进程;不要在 UI/请求线程上裸阻塞</td></tr>
+    </tbody>
+  </table>
+
+  <h2>四、ConfigureAwait 三个事实(面试精确度)</h2>
+  <table>
+    <tbody>
+      <tr><td>作用范围</td><td>只作用于写它的<strong>那一次</strong> await;不传染方法、不传染程序集</td></tr>
+      <tr><td>改变什么</td><td><strong>仅续延的恢复位置</strong>;结果/异常/取消语义原样(0005/0006 机制不变)</td></tr>
+      <tr><td>用在哪</td><td>库代码写 <code>false</code>;UI 事件处理器<strong>不写</strong>(要回 UI);无上下文环境写不写等价,库仍惯例写</td></tr>
+    </tbody>
+  </table>
+
+  <h2>五、偏方与危险写法鉴别</h2>
+  <table>
+    <thead><tr><th>写法</th><th>后果</th><th>判断</th></tr></thead>
+    <tbody>
+      <tr><td><code>task.Result</code> / <code>task.Wait()</code></td><td>UI/classic 上下文:死锁;无上下文:阻塞线程池工人</td><td class="muted">禁止(应用层)</td></tr>
+      <tr><td><code>task.GetAwaiter().GetResult()</code></td><td>与 .Result 同样阻塞/死锁;区别只是异常不包 AggregateException</td><td class="muted">禁止(应用层)</td></tr>
+      <tr><td><code>Task.Run(() =&gt; FooAsync().Result).Result</code></td><td>不死锁(内层无上下文)但 sync-over-async,烧两个线程</td><td class="muted">迁移期过渡,留 TODO</td></tr>
+      <tr><td><code>async void</code>(事件处理器以外)</td><td>异常逃出欠条体系,崩溃进程或静默吞掉(0001 的 async void 坑)</td><td class="muted">仅限事件处理器</td></tr>
+      <tr><td><code>ConfigureAwait(false)</code> 后更新 UI 控件</td><td>不在 UI 线程,跨线程异常</td><td class="muted">需自行调度回 UI</td></tr>
+    </tbody>
+  </table>
+
+  <h2>六、术语表增量</h2>
+  <table>
+    <tbody>
+      <tr><td><strong>SynchronizationContext</strong></td><td>"回调送到哪个环境执行"的调度约定;核心方法 Post(排队)/ Send(立即)</td></tr>
+      <tr><td><strong>上下文捕获 capture</strong></td><td>await 挂起时记下 <code>SynchronizationContext.Current</code>;恢复时非空则 Post</td></tr>
+      <tr><td><strong>消息泵 / 消息循环</strong></td><td>UI 线程取出并执行队列回调的循环;.Result 阻塞 = 泵停摆</td></tr>
+      <tr><td><strong>sync-over-async</strong></td><td>同步代码里阻塞等待异步欠条——死锁温床 + 线程浪费</td></tr>
+      <tr><td><strong>async-over-sync</strong></td><td>异步方法里混入同步长活(占着欠条不还);0008 展开</td></tr>
+    </tbody>
+  </table>
+
+  <h2>七、面试自测五问</h2>
+  <details class="qa">
+    <summary>① 为什么 .Result 在控制台不死锁,在 WinForms 死锁?</summary>
+    控制台 SyncContext 为 null:续延内联在完成者线程,欠条照常完成。WinForms 捕获 UI 上下文:续延排队等 UI 线程,而 UI 线程正被 .Result 阻塞——环闭合。
+  </details>
+  <details class="qa">
+    <summary>② ConfigureAwait(false) 写一处管整个方法吗?</summary>
+    不。只管写它的那一次 await;每个 await 独立捕获/不捕获。
+  </details>
+  <details class="qa">
+    <summary>③ 库代码为什么一律 false?会丢什么?</summary>
+    不依赖调用方上下文,根除死锁并省调度。代价:失去环境上下文——classic ASP.NET 的 HttpContext.Current、UI 线程亲和,都需要调用方自己处理。
+  </details>
+  <details class="qa">
+    <summary>④ Task.Run(() => Async().Result) 为什么"能跑"?</summary>
+    内层运行在无上下文的线程池线程:捕获不到 UI 上下文,环缺一环。但仍是 sync-over-async——烧两个线程,治标不治本。
+  </details>
+  <details class="qa">
+    <summary>⑤ UI 事件处理器能用 ConfigureAwait(false) 吗?</summary>
+    await 之后要更新控件的不要用(需回 UI);纯计算/纯请求且不再碰 UI 的写 false 也没错——但应用层惯例是从简不写。
+  </details>
+
+  <hr class="footrule">
+  <footer class="course-foot">
+    <span>dotnet-Task异步学习 · 速查卡 · 配套课程:<a href="../lessons/0007-synccontext-and-deadlock.html">第 0007 课</a></span>
+    <span><a href="../lessons/index.html">课程目录</a> · <a href="await-state-machine-速查卡.html">状态机卡</a> · <a href="task-status-速查卡.html">状态卡</a> · <a href="tcs-速查卡.html">TCS 卡</a></span>
+  </footer>
+
+</div>
+</body>
+</html>

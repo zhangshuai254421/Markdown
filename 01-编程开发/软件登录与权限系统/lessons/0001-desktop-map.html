@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 1 课 · 桌面登录权限全景：一张地图</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="lesson-head">
+  <div class="kicker">软件登录与权限系统 · 第 1 课（纯桌面版）</div>
+  <h1>桌面登录权限全景<span class="subtitle">认证、授权、审计——三个词、五个环节、一套诚实边界</span></h1>
+</header>
+
+<p>本课程已按你的实际形态重构：<strong>纯桌面 WPF 程序，没有服务端</strong>。所有 Web 形态的内容（HTTP 令牌、接口限速、服务端强制授权）都已移除，留下的每一课都能直接用在你家软件上。第一课照例不做代码，先把地图画出来——只是这张地图是桌面版的。</p>
+
+<h2>三个词，切出三块地</h2>
+
+<p>登录权限里被混用最多的三个词，各管一段——这个切分在任何平台上都成立：</p>
+
+<div class="def-quote">
+  <strong>认证（Authentication，AuthN）</strong>：核对「<strong>你是不是你声称的那个人</strong>」。输密码、刷工卡、Windows 域登录，都是在对这个声明做验证。
+  <span class="def-src">术语依 NIST SP 800-63B-4《<a href="https://pages.nist.gov/800-63-4/sp800-63b.html">Digital Identity Guidelines</a>》。</span>
+</div>
+
+<div class="def-quote">
+  <strong>授权（Authorization，AuthZ）</strong>：判断「<strong>你能对什么资源做什么操作</strong>」。认证通过后每一次点按钮、开界面，程序都要重新回答这个问题。
+  <span class="def-src">设计原则参见 OWASP <a href="https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html">Authorization Cheat Sheet</a>。</span>
+</div>
+
+<div class="def-quote">
+  <strong>审计（Audit）</strong>：记录「<strong>谁在什么时候对什么做了什么</strong>」。它不拦任何事，但出了事它能回答「是谁干的」——工业软件里这是追责的底气。
+  <span class="def-src">等保 2.0（GB/T 22239-2019）将安全审计列为安全功能要求项，<a href="https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=BAFB47E8874764186BDB7865E8344DAF">官方全文 →</a></span>
+</div>
+
+<div class="key">
+  <span class="callout-label">本课核心</span>
+  <strong>认证回答「你是谁」，授权回答「你能干什么」，审计回答「你干了什么」。</strong>顺序不可乱：没认证的授权无从谈起；只有认证没有授权，等于只设了一把大门锁。
+</div>
+
+<h2>桌面版五环节</h2>
+
+<p>一次登录在纯桌面程序里仍然经过五个环节——只是全部发生在你的进程和本地库里：</p>
+
+<table>
+  <thead>
+    <tr><th>环节</th><th>桌面形态</th><th>出事的典型姿势</th><th>对应课程</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>① 凭据提交</strong></td><td>登录窗口，进程内调用</td><td>配置文件里的明文密码、无「切换账号」入口</td><td>第 3 课</td></tr>
+    <tr><td><strong>② 校验与存储</strong></td><td>本地库账号表 + <strong>盐慢哈希</strong>比对</td><td>密码列存明文/加密，库文件被拷走全员裸奔</td><td>第 2 课</td></tr>
+    <tr><td><strong>③ 会话建立</strong></td><td>进程内 <code>CurrentUser</code> 对象</td><td>把密码哈希当票据存进配置文件</td><td>第 3 课</td></tr>
+    <tr><td><strong>④ 权限检查</strong></td><td>权限点 + 命令 CanExecute + 菜单显隐</td><td>权限硬编码人名、界面和逻辑两套判断互相打架</td><td>第 4、5 课</td></tr>
+    <tr><td><strong>⑤ 审计记录</strong></td><td>本地（或集中）操作日志表</td><td>多人共用账号、日志里没有「谁」，出事查不到人</td><td>第 5 课</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <span class="callout-label">桌面权限的诚实边界（先立规矩）</span>
+  没有服务端，就没有「用户改不了的地方」——库在本地、代码在本地、检查也在本地。桌面权限的真实价值 = <strong>防呆 + 留痕 + 责任追溯</strong>：防止张三用李四的账号顺手操作、让「谁改的参数」有据可查、不同岗位看到不同界面。它<strong>不对抗拥有这台机器的人</strong>。当需求升级为「防懂技术的人绕过」，答案是引入中心点：账号收进中央数据库，或加应用服务端——每课会在这个边界内给你最务实的做法。
+</div>
+
+<h2>标准哪些还适用</h2>
+
+<p>标准不挑平台，但条款分层：<strong>等保 2.0（GB/T 22239-2019）</strong>的身份鉴别、访问控制、安全审计条款对桌面软件照样是验收语言；<strong>OWASP 密码存储与认证建议</strong>、<strong>NIST 800-63B-4 密码策略</strong>直接管到你本地库怎么存密码、登录窗口怎么设计。Web 联邦登录协议（OAuth/OIDC）与桌面无关，已从课程移除。每份标准管什么、去哪看原文，都在 <a href="../reference/standards.html">标准速查卡</a> 里。</p>
+
+<div class="quiz" data-quiz='{
+  "questions": [
+    {
+      "type": "single",
+      "prompt": "登录窗口里把输入的密码做哈希后与本地库比对，这一步属于？",
+      "options": ["认证", "授权", "审计"],
+      "answer": 0,
+      "explanation": "核对「你是不是你声称的人」＝认证。判断「你能做什么」＝授权；记录「你做了什么」＝审计。"
+    },
+    {
+      "type": "single",
+      "prompt": "判断「操作员角色能不能修改工艺参数」，这一步属于？",
+      "options": ["认证", "授权", "审计"],
+      "answer": 1,
+      "explanation": "身份已确认，现在判断的是「这个身份能不能做这件事」＝授权。每个带权限的按钮背后都是它。"
+    },
+    {
+      "type": "single",
+      "prompt": "把「张三 14:32 导出了报警记录」写进操作日志，这一步属于？",
+      "options": ["认证", "授权", "审计"],
+      "answer": 2,
+      "explanation": "不拦任何事、事后可追溯＝审计。等保把安全审计列为安全功能要求，日志必须能定位到「人」。"
+    },
+    {
+      "type": "single",
+      "prompt": "纯桌面软件里，存在「用户改不了的地方」吗？",
+      "options": ["不存在——都在本机", "存在，装在系统目录", "混淆后用户就改不了"],
+      "answer": 0,
+      "explanation": "本地库、程序文件、检查逻辑都在用户机器上。所以桌面权限的定位是防呆、留痕、责任追溯；要「改不了的地方」就得引入中心点（集中数据库/服务端）。"
+    }
+  ]
+}'></div>
+
+<h2>课后作业：给你的软件定一个部署模式</h2>
+
+<ol>
+  <li><strong>定模式</strong>：你家软件属于哪种——<strong>单机独立</strong>（数据全在本机），还是<strong>多机连库</strong>（多台电脑直连同一中央数据库）？写一句理由。</li>
+  <li><strong>摸现状</strong>：现在有没有登录功能？账号和密码存在哪？没做过的，想想客户最常问的是「能分权限吗」还是「能查到谁干的吗」。</li>
+</ol>
+
+<footer class="lesson-foot">
+  <p><span class="primary-source">本课首选原文：NIST SP 800-63B-4《<a href="https://pages.nist.gov/800-63-4/sp800-63b.html">Digital Identity Guidelines: Authentication and Authenticator Management</a>》</span>——认证术语与密码策略的权威出处；合规视角对照 <a href="https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=BAFB47E8874764186BDB7865E8344DAF">GB/T 22239-2019 官方全文</a>。</p>
+  <p>三个词分不清、部署模式拿不定——随时回到对话里问你的老师。下一课预告：<strong>密码怎么存</strong>——本地库被拷走之后，你的密码列还守得住吗。</p>
+  <p class="next-link"><a href="0002-password-storage.html">下一课：密码怎么存 →</a> · <a href="../reference/standards.html">标准速查卡</a></p>
+</footer>
+
+</main>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

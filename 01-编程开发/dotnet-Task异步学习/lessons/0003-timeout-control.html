@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>0003 · 超时控制:超时 ≠ 取消</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">DOTNET · TASK SYSTEM · 第 0003 课</p>
+  <h1>超时控制:别让 await 等到天荒地老</h1>
+  <div class="meta">
+    <span class="chip">⏱ 预计 20–25 分钟</span>
+    <span class="chip">前置:第 0001–0002 课</span>
+    <span class="chip">交付:WaitAsync 熟练运用 + "超时≠取消"关键认知</span>
+  </div>
+
+  <p class="lede">0001 课埋过一颗雷:如果硬件永远不回调,欠条<strong>永久悬挂</strong>,await 到天荒地老,
+  闭包引用都释放不掉。解药就是<strong>超时</strong>。但这一课真正想让你带走的,是一个绝大多数 .NET
+  老手都会答错的认知:<em>超时只是"我不再等了",它不会叫停底层操作。</em></p>
+
+  <!-- ═══════════ 0. 隔日检索 ═══════════ -->
+  <h2>〇、隔日检索<span class="muted" style="font-size:.85rem">(先测后学:0002 还剩多少?)</span></h2>
+  <div id="warmup"></div>
+
+  <!-- ═══════════ 1. 演化三式 ═══════════ -->
+  <h2>一、给 await 加超时:三式演化</h2>
+
+  <h3>第一式:WhenAny + Task.Delay(最常见的老写法)</h3>
+
+  <div class="code-label">WhenAny 版 · 到处可见,但有暗病</div>
+<pre><code>var work = bridge.ReadTemperatureAsync();
+var winner = await Task.WhenAny(work, Task.Delay(TimeSpan.FromSeconds(5)));
+
+if (winner != work)
+    throw new TimeoutException("设备读取超时");
+
+double temp = await work;   <span class="cmt">// 已完成,立刻返回</span></code></pre>
+
+  <p>能用,但三个暗病:①成功路径上,那个 <code>Task.Delay</code> 和它的计时器<strong>仍存活到 5 秒触发为止</strong>(轻微资源滞留);②样板冗长,每个调用点都要复制这套判断;③它同样不取消底层操作——只是看起来像取消了。</p>
+
+  <h3>第二式:手写 TCS + Timer(0002 预告的生产版)</h3>
+
+  <p>把 0002 竞态安全模板里的超时兜底抽成可复用方法——这是 .NET 6 之前的标准答案(简化自 Stephen Cleary 的经典 <code>WithTimeout</code>):</p>
+
+  <div class="code-label">手写 WithTimeout · 理解它,胜过背诵它</div>
+<pre><code>public static async Task&lt;T&gt; WithTimeout&lt;T&gt;(Task&lt;T&gt; task, TimeSpan timeout)
+{
+    var tcs = new TaskCompletionSource&lt;bool&gt;(
+        TaskCreationOptions.RunContinuationsAsynchronously);   <span class="cmt">// ① 续延隔离(0002)</span>
+
+    using var cts = new CancellationTokenSource(timeout);      <span class="cmt">// ② 到点自动触发</span>
+    using var reg = cts.Token.Register(
+        () =&gt; tcs.TrySetResult(true));                          <span class="cmt">// ③ 超时 → Try* 销账(0002 竞速语义)</span>
+
+    if (task != await Task.WhenAny(task, tcs.Task))
+        throw new TimeoutException();
+
+    return await task;                                          <span class="cmt">// ④ 已完成:返回值或原异常</span>
+}</code></pre>
+
+  <p>四行注释正好是前三课的全部知识点——你现在已经能逐行读懂这段"框架级"代码了。
+  但手写终究要自己管生命周期,于是有了官方版:</p>
+
+  <h3>第三式:.NET 6+ 一行搞定(<code>WaitAsync</code>)</h3>
+
+  <div class="code-label">官方捷径 · 日常首选</div>
+<pre><code>double temp = await bridge.ReadTemperatureAsync()
+                             .WaitAsync(TimeSpan.FromSeconds(5));
+
+<span class="cmt">// 重载:可再叠加外部取消令牌</span>
+await work.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);</code></pre>
+
+  <p class="muted">API 依据:<a href="https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.task.waitasync" target="_blank">Task.WaitAsync(Microsoft Learn)</a>——.NET 6 加入,三个重载(仅超时 / 仅令牌 / 两者)。</p>
+
+  <table>
+    <thead><tr><th>方案</th><th>样板量</th><th>泄漏风险</th><th>超时抛出</th><th>能中止底层?</th></tr></thead>
+    <tbody>
+      <tr><td>WhenAny + Delay</td><td>每处 5 行</td><td>成功路径延迟任务滞留</td><td>自己 throw</td><td>❌</td></tr>
+      <tr><td>手写 WithTimeout</td><td>封装一次</td><td>低(Dispose 干净)</td><td>TimeoutException</td><td>❌</td></tr>
+      <tr><td><code>WaitAsync</code></td><td>一行</td><td>无</td><td>TimeoutException</td><td>❌ ←注意!</td></tr>
+    </tbody>
+  </table>
+
+  <p>看清最后一列了吗?<strong>三种方案全都只是"弃等"(abandon the wait),没有一个能叫停底层。</strong>
+  这就引出本课的主菜。</p>
+
+  <!-- ═══════════ 2. 主菜:超时≠取消 ═══════════ -->
+  <h2>二、主菜:超时 ≠ 取消</h2>
+
+  <p><span class="tag tag-interview">面试高频</span><code>WaitAsync</code> 超时那一刻,底层任务发生了什么?
+  <strong>什么都没发生。它继续跑,直到自己完成。</strong>变的只有消费者:await 抛出
+  <code>TimeoutException</code>,调用方离开,不再有人等那张欠条。底层的迟到结果将来会被
+  Try\* 竞速语义安全丢弃——0002 的伏笔在这里回收。</p>
+
+  <h2>三、动手玩:超时时间线</h2>
+
+  <p>播放下面的时间线,分别用"3 秒"和"8 秒"两档,观察消费者与底层工作各自的时间线:</p>
+  <p><strong>实验 1</strong>:工作耗时 3 秒 → 赶在超时前完成,注意计时器释放。<br>
+  <strong>实验 2</strong>:切到 8 秒再播放 → 注意 5 秒处消费者离开、8 秒处结果被丢弃。</p>
+
+  <div id="timeline"></div>
+  <script src="../assets/timeline-simulator.js"></script>
+  <script>
+    TimelineSimulator.render(document.getElementById('timeline'), {
+      timeoutAt: 5,
+      durations: [3, 8],
+      axisMax: 10
+    });
+  </script>
+
+  <div class="callout trap">
+    <p class="callout-title">这意味着什么(生产事故级)</p>
+    <p>如果你的"底层操作"持有连接、文件句柄、或会写数据库——<strong>超时之后它还在跑</strong>。
+    高并发下大量超时请求各自留着一个仍在执行的操作,资源占用不降反升,这就是"明明加了超时,
+    服务器还是被打挂"的经典原因。弃等救的是调用方,救不了服务器。</p>
+  </div>
+
+  <!-- ═══════════ 3. 真取消 ═══════════ -->
+  <h2>四、想要"真叫停"?令牌必须贯穿底层</h2>
+
+  <p>取消是一条独立的机制(<code>CancellationToken</code>),必须<strong>显式传给底层操作</strong>才能生效。
+  超时只是给取消的一种"定时触发器":</p>
+
+  <div class="code-label">真取消 · 令牌贯穿到 HttpClient 内部</div>
+<pre><code>using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));  <span class="cmt">// 5 秒后令牌自动触发</span>
+
+try
+{
+    <span class="cmt">// 令牌一路传进底层 → 超时那一刻,HTTP 请求被真正中止,连接被释放</span>
+    var resp = await httpClient.GetAsync(url, cts.Token);
+}
+catch (OperationCanceledException) when (cts.IsCancellationRequested)
+{
+    <span class="cmt">// 惯用法:只把"这次超时"翻译成 TimeoutException,别的取消照常上抛</span>
+    throw new TimeoutException("请求超过 5 秒,已中止");
+}</code></pre>
+
+  <table>
+    <thead><tr><th>触发方式</th><th>await 抛出</th><th>识别要点</th></tr></thead>
+    <tbody>
+      <tr><td><code>task.WaitAsync(TimeSpan)</code> 超时</td><td><code>TimeoutException</code></td><td>明确表达"是超时"</td></tr>
+      <tr><td><code>CancellationTokenSource</code> 到点 / 手动 <code>Cancel()</code></td><td><code>TaskCanceledException</code>(<code>OperationCanceledException</code> 子类)</td><td>"是取消"——超时取消和其他取消在此<strong>混在一起</strong>,需 <code>catch-when</code> 辨别</td></tr>
+    </tbody>
+  </table>
+
+  <p class="muted">取消机制官方指南:<a href="https://learn.microsoft.com/en-us/dotnet/standard/threading/cancellation-in-managed-threads" target="_blank">Managed Threading · Cancellation(Microsoft Learn)</a>。</p>
+
+  <div class="callout">
+    <p class="callout-title"><span class="tag tag-interview">面试高频</span>"如何给异步 API 加超时"的三层满分答案</p>
+    <p>① 调用方弃等:<code>await task.WaitAsync(TimeSpan)</code>;<br>
+    ② 真中止:令牌贯穿底层(<code>CTS(TimeSpan)</code> + 把 token 传下去),超时才真正释放资源;<br>
+    ③ 收尾:超时后底层的迟到结果如何处置(丢弃要幂等;可取消的清理动作)。<br>
+    能答出①的很多,能答全②③的,就是面试官眼里"真懂异步"的人。</p>
+  </div>
+
+  <!-- ═══════════ 4. 实战终版 ═══════════ -->
+  <h2>五、实战:0001 那颗雷,终于排掉了</h2>
+
+  <p>硬件 SDK 没有取消接口(老设备常如此),所以只能"弃等 + 竞速丢弃"——但这已经完整正确:</p>
+
+  <div class="code-label">生产级桥接 · 三课知识合体</div>
+<pre><code><span class="cmt">// 库内(0002 的竞态安全版,不变)</span>
+public Task&lt;double&gt; ReadTemperatureAsync()
+{
+    var tcs = new TaskCompletionSource&lt;double&gt;(
+        TaskCreationOptions.RunContinuationsAsynchronously);
+
+    _sensor.ReadTemperature(
+        onSuccess: v  =&gt; tcs.TrySetResult(v),
+        onError:   ex =&gt; tcs.TrySetException(ex));
+
+    return tcs.Task;
+}
+
+<span class="cmt">// 调用端(本课):5 秒内必有答案 —— 结果,或 TimeoutException</span>
+double temp = await bridge.ReadTemperatureAsync()
+                             .WaitAsync(TimeSpan.FromSeconds(5));
+<span class="cmt">// 若硬件 8 秒后才回,迟到结果被 TrySet* 语义安全丢弃,无泄漏、无异常噪音。</span></code></pre>
+
+  <p>回顾一下你走过的路:0001 学会开欠条,0002 学会安全销账,0003 学会给等待划下期限。
+  TCS 三件套已经齐了——下一课我们把 TCS 用到另一类高频场景:<strong>事件流与异步初始化</strong>。</p>
+
+  <!-- ═══════════ 5. 检索练习 ═══════════ -->
+  <h2>六、检索练习<span class="muted" style="font-size:.85rem">(不看上文,凭记忆答)</span></h2>
+  <div id="quiz"></div>
+
+  <!-- ═══════════ 6. 复习钩子 ═══════════ -->
+  <h2>七、明天的回忆任务<span class="muted" style="font-size:.85rem">(30 秒,不翻书)</span></h2>
+  <details class="qa">
+    <summary>① WaitAsync 超时后,底层操作死了吗?</summary>
+    没死。它继续跑到自然完成,迟到的结果被竞速语义丢弃。超时只是弃等。
+  </details>
+  <details class="qa">
+    <summary>② 想真正中止底层操作,怎么做?</summary>
+    CTS(TimeSpan) 产生令牌并传进底层调用(如 GetAsync(url, token));令牌触发才会真中止、真释放。
+  </details>
+  <details class="qa">
+    <summary>③ WaitAsync 超时与令牌超时,抛的异常有何不同?</summary>
+    前者 TimeoutException;后者 TaskCanceledException / OperationCanceledException——需要 catch-when 区分。
+  </details>
+
+  <!-- ═══════════ 尾部 ═══════════ -->
+  <div class="callout ask no-print">
+    <p class="callout-title">卡住了?随时问你的老师</p>
+    <p>"Register 那行为什么能自动反注册?""CTS.Dispose 之后令牌还能用吗?"
+    ——回 Claude Code 直接问,追问不留过夜。</p>
+  </div>
+
+  <div class="next-up">
+    <p class="next-title">▸ 下一课:<a href="0004-event-to-task-and-async-init.html">0004 · 事件流→Task 与异步初始化 →</a></p>
+    <p>经典模式第二战:<strong>事件流 → Task</strong>(一次性的"等它发生")与<strong>异步初始化</strong>(等连接就绪)。
+    SignalR"等待连接建立"的原理就在这一课。速查工具:<a href="../reference/timeout-速查卡.html">超时控制模式速查卡</a>(新增)。</p>
+  </div>
+
+  <hr class="footrule">
+  <footer class="course-foot">
+    <span>dotnet-Task异步学习 · 第 0003 课 · 主推阅读:<a href="https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.task.waitasync" target="_blank">Task.WaitAsync — Microsoft Learn</a></span>
+    <span><a href="0002-tcs-set-vs-try-and-continuations.html">上一课</a> · <a href="index.html">目录</a> · <a href="../reference/tcs-速查卡.html">TCS 速查卡</a> · <a href="../reference/timeout-速查卡.html">超时速查卡</a></span>
+  </footer>
+
+</div>
+<script src="../assets/quiz.js"></script>
+<script>
+  // ── 隔日检索热身(复习 0002)──
+  TeachQuiz.render(document.getElementById('warmup'), [
+    {
+      q: '【复习】TrySetResult 返回 false 意味着?',
+      options: ['欠条已被别的路径抢先销账', '参数不合法导致调用失败', '内部发生了严重的异常了', '欠条正在等待更多次销账'],
+      answer: 0,
+      explain: 'false = 已有赢家(如超时兜底先到)。竞态中的正常分支,静默放弃即可。'
+    },
+    {
+      q: '【复习】续延默认在哪个线程上继续执行?',
+      options: ['直接内联在完成者线程上', '总是排队到线程池里执行', '固定回到主线程上面执行', '重新创建一条专用的线程'],
+      answer: 0,
+      explain: 'Set* 调用线程"顺路"跑续延;要改用 RunContinuationsAsynchronously 排队到线程池。'
+    },
+    {
+      q: '【复习】持锁调用 SetResult 的最大风险?',
+      options: ['续延内联进锁区引发重入', '锁会被自动释放导致错乱', '销账操作必然以失败告终', '垃圾回收器无法回收欠条'],
+      answer: 0,
+      explain: '续延在锁内执行,若其调用链再取同一把锁即死锁——所以库代码构造 TCS 几乎总带 RunContinuationsAsynchronously。'
+    },
+    {
+      q: '【复习】结果与超时兜底竞速时,销账用?',
+      options: ['TrySet*,后到者安静放弃', 'Set*,让逻辑意外显形', '先判断 Task 的状态属性', '外加一把锁来保护销账权'],
+      answer: 0,
+      explain: '存在合法竞争者 → TrySet* 容错;无竞态场景才用 Set* 当断言。Task 状态切换本身原子,无需加锁。'
+    }
+  ]);
+
+  // ── 本课检索练习 ──
+  TeachQuiz.render(document.getElementById('quiz'), [
+    {
+      q: 'WaitAsync 超时那一刻,底层任务会?',
+      options: ['继续运行,不会被打断', '立刻取消,资源即释放', '暂停下来,等待恢复指令', '自动重试,直至最终成功'],
+      answer: 0,
+      explain: 'WaitAsync 只让调用方"弃等"。底层照跑,迟到结果被竞速语义丢弃——超时 ≠ 取消。'
+    },
+    {
+      q: 'WaitAsync 超时后抛出的异常是?',
+      options: ['抛出的是超时专用异常', '抛出的是取消包装异常', '抛出的是聚合异常类型', '抛出的是无效操作异常'],
+      answer: 0,
+      explain: 'TimeoutException——语义明确;而令牌触发的取消抛 TaskCanceledException,两者要区分。'
+    },
+    {
+      q: '想超时的同时真正中止底层操作?',
+      options: ['把取消令牌传给底层调用', '再包一层 WaitAsync 即可', '把超时时间设置得更短些', '捕获超时异常后重试一次'],
+      answer: 0,
+      explain: 'CTS(TimeSpan) 产生令牌并贯穿到底层(GetAsync(url, token)),触发时才真中止、真释放。'
+    },
+    {
+      q: '令牌超时(cts 到点)抛出的异常是?',
+      options: ['抛出的是取消类家族异常', '抛出的是超时专用异常', '抛出的是聚合异常类型', '抛出的是无效操作异常'],
+      answer: 0,
+      explain: 'TaskCanceledException(OperationCanceledException 子类)。所以惯用法 catch (OCE) when (cts.IsCancellationRequested) 再转译为 TimeoutException。'
+    }
+  ]);
+</script>
+</body>
+</html>

@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>第3课 · 双均线与你的第一次作弊</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <p class="eyebrow">量化交易入门 · 第 3 课 / 12</p>
+  <h1>双均线与你的第一次作弊</h1>
+  <p class="lead">上一课你造了基准（买入持有），今天给它装上大脑：一个真正的<strong>信号策略</strong>。然后——做一件平时绝对禁止的事：<strong>亲手作弊一次</strong>，让未来函数把收益虚增给你看。见过假货，才认得出真货。</p>
+
+  <h2>双均线：最简单的趋势规则</h2>
+  <p>规则一句话：<strong>短期均线上穿长期均线（金叉）买入，下穿（死叉）卖出</strong>。</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>信号</th><th>条件（每日收盘后计算）</th><th>动作</th></tr></thead>
+    <tbody>
+      <tr><td>金叉</td><td>SMA50 从下方穿越到 SMA200 上方</td><td>买入（95% 仓位）</td></tr>
+      <tr><td>死叉</td><td>SMA50 从上方穿越到 SMA200 下方</td><td>清仓，空仓等待</td></tr>
+    </tbody>
+  </table></div>
+  <p>对照《炒股的智慧》：陈江挺说"看势、等临界点"。均线交叉是对"势"最粗糙的机械代理——<span class="src opinion">作者观点</span>它看不见临界点，但不会情绪化，代价是滞后。这正是量化与 discretionary 交易的分野：<strong>放弃聪明，换取可验证</strong>。</p>
+
+  <h2>在掘金里写出来</h2>
+  <p>相对第 2 课，只有两处新东西：① 自己维护一个滚动收盘价窗口来算均线（掘金 C# SDK 不强制你用内置指标，先用最笨的办法把逻辑看清）；② 仓位状态机加上了<strong>出边</strong>——<code>_prevSign</code> 记住上一刻的方向，翻转才动作。</p>
+  <p class="code-title">SmaCross.cs — 在第 2 课工程里新增一个策略类</p>
+  <pre><code>using System.Collections.Generic;
+using System.Linq;
+using GMSDK;
+
+public class SmaCross : Strategy
+{
+    private const string Symbol = "SHSE.510300"; // 沪深300ETF
+    private readonly List&lt;double&gt; _closes = new List&lt;double&gt;();
+    private int _prevSign = -1;                  // -1 空仓/均线下方，+1 持仓/均线上方
+
+    public SmaCross(string token, string strategyId, StrategyMode mode)
+        : base(token, strategyId, mode) { }
+
+    public override void OnInit()
+    {
+        Subscribe(Symbol, "1d");
+    }
+
+    public override void OnBar(Bar bar)
+    {
+        _closes.Add(bar.close);
+        if (_closes.Count &lt; 200) return;         // 200 日均线还没攒够数据
+
+        double fast = _closes.Skip(_closes.Count - 50).Take(50).Average();
+        double slow = _closes.Skip(_closes.Count - 200).Take(200).Average();
+        int sign = fast &gt; slow ? 1 : -1;
+
+        if (sign != _prevSign)                   // 状态翻转：金叉或死叉
+        {
+            OrderTargetPercent(Symbol, sign == 1 ? 0.95 : 0.0,
+                PositionSide.PositionSide_Long,
+                OrderType.OrderType_Market);
+            _prevSign = sign;
+        }
+    }
+}</code></pre>
+  <p class="note"><code>Program.cs</code> 不用重写：把 <code>new BuyAndHold(...)</code> 换成 <code>new SmaCross(...)</code>，回测参数沿用第 2 课。十年下来交易次数应该在个位数到十几次——这就是趋势策略的样子：<strong>大部分时间空仓或持有不动</strong>。</p>
+  <p class="note">掘金的回测撮合模式决定了信号与成交的时序：用"下一根 K 线开盘"档，平台替你守住诚实线；改成"当前 K 线收盘"档，你就自己打开了作弊开关。参数在终端<em>回测参数</em>里查看，官方说明见 <a href="https://www.myquant.cn/docs2/operatingInstruction/study/%E7%AD%96%E7%95%A5%E5%9B%9E%E6%B5%8B%E4%B8%8E%E7%BB%A9%E6%95%88.html">策略回测与绩效</a>。</p>
+
+  <div class="exercise">
+    <p><strong>动手（20 分钟）：</strong></p>
+    <ol>
+      <li>跑通上面的回测，记下：<em>累计收益率</em>、<em>年化收益率</em>、<em>最大回撤</em>、<em>开仓/平仓次数</em>、<em>夏普比率</em>。</li>
+      <li>与第 2 课的 510300 买入持有并排对比：<strong>你的双均线打赢基准了吗？</strong>提示：趋势策略在单边行情里容易跑赢，在震荡行情里会被反复打脸——你这段时间属于哪种？把结果记下来，第 6 课要用。</li>
+      <li>把 50/200 改成 20/60 重跑一次，观察结果变化——注意你此刻的冲动："哪个参数好就留哪个"。这个冲动就是第 4 课要捕杀的猎物。</li>
+    </ol>
+  </div>
+
+  <h2>作弊现场：未来函数虚增收益</h2>
+  <p><strong>未来函数</strong>：决策用了决策时点不可能知道的信息。经典形态是"用今日收盘算出的信号，在今日成交"——你用了今天收盘才知道的信息，却假定今天就能按这个价格买到，等于时空套利。</p>
+  <p>下面的模拟器（<strong>合成数据</strong>，特征贴近宽基指数）加了一个"信号执行"开关：<strong>诚实</strong>=信号次日成交；<strong>作弊</strong>=当日成交。先跑诚实版记下年化，再切作弊版对比：</p>
+  <div class="sim" id="sim3"></div>
+  <div class="insight"><p><strong>看清楚了吗？</strong>作弊版的年化会显著高于诚实版，而规则、数据、成本一字未改——改的只是<strong>信号与成交的时序关系</strong>。这就是为什么自查清单要求逐笔核对"信号时间戳严格早于成交时间戳"（<a href="../reference/backtest-checklist.html">R2 第一关</a>）。在掘金这类成熟引擎里，平台替你守着这条线——前提是你没有把撮合模式改成"当前 K 线收盘"；平台给你诚实档，也给你作弊档，选择权在你。<strong>第 7 课起你开始自建引擎，守门人换成你自己。</strong></p></div>
+
+  <div class="warning"><p><strong>别把双均线拿去实盘。</strong>它是教学载体和基准挑战者。第 4 课你会系统学到：双均线参数是"自由度"，自由度越多，越容易把历史噪声拟合出花来。</p></div>
+
+  <h2>检验一下</h2>
+  <div class="quiz" data-answer="b"
+       data-explain-good="对。'用未来才有的信息做现在的决策'——模拟器里作弊版的超额年化，就是这个时序错位的价码。"
+       data-explain-bad="不对。未来函数与数据多少、指标多少都无关，只关乎一件事：决策时点与信息时点的时间顺序。">
+    <p class="quiz-question">未来函数的本质是什么？</p>
+    <button class="opt" data-key="a">用了太短的历史数据</button>
+    <button class="opt" data-key="b">用了未来才有的信息</button>
+    <button class="opt" data-key="c">用了太多技术指标项</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <div class="quiz" data-answer="a"
+       data-explain-good="对。今日收盘产生信号，最早只能成交在下一根 K 线——模拟器的诚实档就是这么算的。"
+       data-explain-bad="再想想模拟器的两个档位：'当日成交'就是作弊档。诚实档的成交时点必然晚于信号时点。">
+    <p class="quiz-question">诚实回测里，今日收盘产生的信号应何时成交？</p>
+    <button class="opt" data-key="a">下一根K线的时点</button>
+    <button class="opt" data-key="b">当日收盘价那一刻</button>
+    <button class="opt" data-key="c">当日开盘价那一刻</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <h3>自由回忆（隔天再做一遍效果更好）</h3>
+  <p>不看上文：① 用一句话定义未来函数；② 你的模拟器里，作弊档与诚实档的年化差是多少？（没记就回去重跑一次并记下来——这个数字值得记住。）</p>
+  <button class="reveal-btn" data-reveal="recall">回忆后对照</button>
+  <div class="answer" id="recall" hidden>
+    <p>① 未来函数 = 决策用了决策时点不可能知道的信息（典型：当日收盘信号当日成交）。② 年化差因随机市场而异，通常作弊档显著更高；若你看到作弊档反而更低，换几个市场——并想想为什么滞后一天在部分行情里也可能"歪打正着"。</p>
+  </div>
+
+  <h2>下一步</h2>
+  <p><strong>本课主源推荐</strong>：<a href="https://www.myquant.cn/docs2/sdk/cSharp/%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B.html">掘金量化 C# SDK 快速开始</a>——把 <code>Subscribe</code>、<code>OnBar</code>、下单三部分通读；<code>OrderTargetPercent</code> 的完整签名在 <a href="https://www.myquant.cn/docs2/sdk/cSharp/%E7%AD%96%E7%95%A5%E5%9F%BA%E7%B1%BB.html">策略基类</a> 里查；想做更复杂的指标时，再看 <a href="https://www.myquant.cn/docs2/sdk/cSharp/%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84.html">C# SDK 数据结构</a>。</p>
+  <p><strong>下一课预告</strong>：第 4 课《回测作弊图鉴》——把未来函数放回五宗罪的行列，系统学习<strong>过拟合、幸存者偏差、样本内外混淆</strong>，并领走你的第二份参考文档：<strong>回测报告自查清单</strong>。这是使命里"指出 5 种作弊"标准的正课。</p>
+
+  <div class="note"><p><strong>卡住了？随时问老师。</strong>编译报错、为什么不用内置指标、双均线为何跑输或跑赢——都可以问。做完任务把对比数字带给老师。</p></div>
+
+  <nav class="lesson-nav">
+    <a href="0002-first-csharp-backtest.html">第 2 课：第一个 C# 回测</a>
+    <a href="../reference/glossary.html">术语表（R1）</a>
+    <a href="../reference/sma-crossover-explained.html">双均线详解（R5）</a>
+    <a href="../reference/myquant-csharp-cheatsheet.html">掘金 C# 速查（R4）</a>
+    <a href="../reference/backtest-checklist.html">自查清单（R2）</a>
+    <a href="0004-backtest-cheating-catalog.html">下一课：回测作弊图鉴</a>
+  </nav>
+</main>
+<script src="../assets/backtest-sim.js"></script>
+<script src="../assets/quiz.js"></script>
+<script>
+  QuantSim.mount(document.getElementById("sim3"), { cheatable: true });
+</script>
+<script src="../assets/course-nav.js"></script>
+</body>
+</html>

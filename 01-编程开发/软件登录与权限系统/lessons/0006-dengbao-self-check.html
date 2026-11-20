@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 6 课 · 等保自查：六课验收，交出差距清单</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="lesson-head">
+  <div class="kicker">软件登录与权限系统 · 第 6 课（结课）</div>
+  <h1>等保自查<span class="subtitle">把六课所学对照 GB/T 22239-2019 条款走一遍，交出你自家软件的差距清单</span></h1>
+</header>
+
+<p>回看走完的路——第 1 课的桌面版五环节已全部覆盖：凭据提交与登录窗口（第 3 课）、校验与存储（第 2 课）、进程内会话（第 3 课）、权限检查（第 4、5 课）、审计（第 5 课）。知识阶段结束，<strong>现在轮到验收</strong>：你的使命是「能对照国标说清做到什么程度才算合格」——这一课做这件事。</p>
+
+<h2>等保三级「身份鉴别」四条，逐条对号</h2>
+
+<p>GB/T 22239-2019 三级系统「安全计算环境 → 身份鉴别」（8.1.4.1）四条要求，每条都通向课程里的一课（<a href="https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=BAFB47E8874764186BDB7865E8344DAF">官方全文</a>，以下为要点转述，测评以原文与测评机构口径为准）：</p>
+
+<table>
+  <thead>
+    <tr><th style="width:44%">条款（转述）</th><th>课程对应</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>a)</strong> 登录用户身份标识唯一，鉴别信息有复杂度要求并<strong>定期更换</strong></td><td>第 2 课。复杂度按 NIST 落地为「长度 + 黑名单」；「定期更换」见下方专题</td></tr>
+    <tr><td><strong>b)</strong> 登录失败处理：结束会话、限制非法登录次数、超时自动退出</td><td>第 3 课：失败锁定 + 无操作锁屏——一字不差的对应</td></tr>
+    <tr><td><strong>c)</strong> 远程管理时防止鉴别信息在网络传输中被窃听</td><td>多机连库形态对应「应用与数据库间的传输」；单机形态无此环节（诚实清单见下）</td></tr>
+    <tr><td><strong>d)</strong> 两种或以上鉴别技术组合，且至少一种使用密码技术</td><td>桌面形态多数达不到双因素——自查时如实标注差距；确有硬要求的岗位再配 USB Key/动态口令等第二因素</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <span class="callout-label">「定期更换密码」：国标与 NIST 打架怎么办</span>
+  这是整门课标准冲突最尖锐的一处：等保条款仍写着「定期更换」，而 NIST 800-63B-4 明确不再推荐强制定期换密（只增加用户痛苦）。务实做法：<strong>测评按条款执行</strong>（设较长周期作为测评项），<strong>同时留一份沟通记录</strong>说明依据 NIST 的理由与补偿措施（黑名单 + 高熵要求）。测评机构对这一条口径不一，白纸黑字的记录在任何一方都占理。
+</div>
+
+<h2>访问控制与安全审计控制点（要点）</h2>
+
+<ul>
+  <li><strong>访问控制</strong>：由授权主体配置访问控制策略、默认账户重命名或删除、多余/过期账户及时清除、授予所需权限最小化——第 4 课的矩阵评审和默认拒绝就是它的应用层答案。</li>
+  <li><strong>安全审计</strong>：审计覆盖<strong>每个用户</strong>；记录包含日期时间、用户、事件类型及结果；审计记录受保护、免受未预期的删除修改覆盖；《网络安全法》第 21 条要求日志<strong>留存不少于六个月</strong>。桌面形态的对应做法：审计表只增不删（不给任何角色「清空」入口）、多机连库时放中央库离开本机、定期导出归档。</li>
+</ul>
+
+<h2>诚实清单：本课程没有覆盖的</h2>
+
+<p>等保测评评的是<strong>整个系统</strong>，不止应用层。以下几块不在本课程范围内，自查时如实标注「待补」：</p>
+
+<ul>
+  <li><strong>传输加密</strong>：多机连库形态下应用与数据库之间、远程接入链路的 TLS——单机形态无此环节。</li>
+  <li><strong>主机与数据库层加固</strong>：操作系统账号、补丁、数据库自带审计——等保有整章要求，属运维域。</li>
+  <li><strong>备份与恢复</strong>：备份文件的访问控制与加密。</li>
+</ul>
+
+<h2>验收工具：桌面版自查单</h2>
+
+<p>六课内容已压缩成可打印的<strong><a href="../reference/security-self-check.html">桌面安全自查单</a></strong>：A 凭据存储、B 登录窗口、C 密码策略、D 会话与凭据保护、E 授权控制、F 审计留存，每项标注依据与自查方法。自查规则只有一条：<strong>每个「不符合」当场写成差距清单</strong>（编号 + 现状 + 依据 + 整改方向）——清单写完，你的改造 backlog 就有了，使命里「做一次自查并输出差距清单」同步达成。</p>
+
+<div class="quiz" data-quiz='{
+  "questions": [
+    {
+      "type": "single",
+      "prompt": "等保「身份鉴别」条款在桌面软件上最直接的对应是？",
+      "options": ["登录校验与失败处理", "数据库备份策略", "网络设备准入控制"],
+      "answer": 0,
+      "explanation": "身份鉴别四条（唯一标识、复杂度、登录失败处理、双因素）全部落在登录窗口与账号体系上——正是第 2、3 课的内容。备份和网络准入属于等保的其他控制点，不在本课程范围。"
+    },
+    {
+      "type": "single",
+      "prompt": "等保条款要求「定期更换密码」但 NIST 明确反对，课程的务实立场是？",
+      "options": ["照条款做并留存沟通记录", "公开抵触测评条款", "没人提就完全不管"],
+      "answer": 0,
+      "explanation": "测评按条款执行（可设较长周期），同时留书面沟通：依据 NIST 800-63B-4 的理由 + 补偿措施（黑名单、高熵）。两头都站得住。"
+    },
+    {
+      "type": "single",
+      "prompt": "《网络安全法》对日志（审计记录）留存的最低要求是？",
+      "options": ["不少于六个月", "不少于一年", "不少于两周"],
+      "answer": 0,
+      "explanation": "第 21 条：按规定留存网络日志不少于六个月。桌面形态的做法：审计表只增不删，多机连库时放中央库，定期导出归档。"
+    },
+    {
+      "type": "multiple",
+      "prompt": "关于自查单的正确用法（多选）",
+      "options": [
+        "逐项留存证据",
+        "按环节逐块检查",
+        "全部打勾就算通过",
+        "发现差距先记录"
+      ],
+      "answer": [0, 1, 3],
+      "explanation": "自查的价值在差距清单而不是通过率——每个「不符合」写成 编号+现状+依据+整改方向。「全勾交差」的自查只是给未来的自己埋雷。"
+    }
+  ]
+}'></div>
+
+<h2>结课作业：交出你家的差距清单</h2>
+
+<ol>
+  <li><strong>跑完自查单</strong>：打印 <a href="../reference/security-self-check.html">桌面安全自查单</a>，对照你家软件逐项核对并留证据（截图/代码位置/实验结果）。</li>
+  <li><strong>写差距清单</strong>：按「编号 + 现状 + 依据 + 整改方向 + 期限」格式，每个不符合项一行。第一次自查落在 5–8 个不符合项是正常起点。</li>
+  <li><strong>带回复盘</strong>：把差距清单带回来，一起排整改优先级（建议排序：密码明文/快哈希最先、审计缺失其次、界面权限再次、策略类最后）。</li>
+  <li><strong>更新使命</strong>：MISSION 里四条成功标准逐条自评「能做 / 勉强 / 还差」——还差的那些就是答疑或加课的方向。</li>
+</ol>
+
+<footer class="lesson-foot">
+  <p><span class="primary-source">结课寄语</span>——六课从「认证 ≠ 授权」走到「差距清单」，你的桌面登录权限体系已经有一套可辩护的标准依据。继续精进的三个去处：<a href="https://security.stackexchange.com/">Information Security Stack Exchange</a>（拿真实场景的第二意见）、<a href="https://owasp.org/projects/asvs">OWASP ASVS 5.0</a>（把自查单升级成完整验收表）、<a href="https://pages.nist.gov/800-63-4/sp800-63b.html">NIST SP 800-63B-4</a>（追踪认证技术演进）。标准会更新，地图不会变：<strong>认证、授权、审计，三块地，五环节，桌面版照走。</strong></p>
+  <p>全课程导航：<a href="0001-desktop-map.html">① 桌面全景</a> · <a href="0002-password-storage.html">② 密码怎么存</a> · <a href="0003-login-window-and-session.html">③ 登录窗口与会话</a> · <a href="0004-rbac-modeling.html">④ RBAC 建模</a> · <a href="0005-wpf-authorization-audit.html">⑤ WPF 授权与审计</a> · ⑥ 本课 ｜ <a href="../reference/standards.html">标准速查卡</a> · <a href="../reference/security-self-check.html">安全自查单</a></p>
+  <p class="next-link"><a href="../reference/security-self-check.html">去完成：桌面安全自查单 →</a> · <a href="../lessons/0001-desktop-map.html">从头复习</a></p>
+</footer>
+
+</main>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

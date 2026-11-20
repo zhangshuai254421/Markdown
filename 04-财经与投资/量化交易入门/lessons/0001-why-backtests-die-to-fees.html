@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>第1课 · 为什么多数策略活不过手续费</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <p class="eyebrow">量化交易入门 · 第 1 课 / 12</p>
+  <h1>为什么多数策略活不过手续费</h1>
+  <p class="lead">今天不写代码、不装环境。你要在 15 分钟内获得第一个可迁移的量化直觉：<strong>成本和交易频率，如何把一份漂亮的回测变成亏损</strong>。这个直觉将贯穿你后面所有的策略设计。</p>
+
+  <h2>从《炒股的智慧》到量化：只走了一步</h2>
+  <p>你在<a href="../炒股的智慧/20261031T142348--炒股的智慧__book.org">《炒股的智慧》拆书报告</a>里已经总结过陈江挺的核心主张：炒股赚的不是"预测对的钱"，而是"错时亏得小、对时赚得大"的赔率差，靠纪律执行正期望系统。注意这个主张的结构——<strong>它本身就是一套规则系统</strong>：</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>陈江挺的说法（人脑执行）</th><th>量化翻译（机器执行）</th></tr></thead>
+    <tbody>
+      <tr><td>看势、等临界点再出手</td><td>入场的<strong>信号规则</strong>（什么条件触发买入）</td></tr>
+      <tr><td>亏 8% 机械止损</td><td>出场规则 = 一个<strong>可计算的函数</strong></td></tr>
+      <tr><td>资金管理，单笔风险 ≤ 2%</td><td><strong>仓位算法</strong></td></tr>
+      <tr><td>"靠纪律而非聪明"</td><td>把规则交给代码执行，消除情绪</td></tr>
+    </tbody>
+  </table></div>
+  <div class="insight"><p><strong>量化交易 = 把这套规则写成无歧义的代码，然后用历史数据检验它。</strong>关键差别只有一处：人凭记忆执行规则会变形，代码不会；而"这套规则在过去是否成立"是一个可以计算的问题——这个计算就叫<strong>回测（backtest）</strong>。</p></div>
+  <p>这不是民间偏方。个人算法交易的标准教材，如 Ernest Chan《量化交易：自己动手做算法交易》，整本书的骨架就是"找想法 → 检验 → 回测 → 小资金实盘"（见<a href="https://waylandz.com/quant-book/%E9%87%8F%E5%8C%96%E6%8E%A8%E8%8D%90%E4%B9%A6%E5%8D%95">2026 量化入门书单</a>中对本书的定位）；专业量化基金内部也一样，《打开量化投资的黑箱》把基金拆解为 Alpha 模型、风险模型、执行系统、成本模型几个部件——今天你碰的就是其中两个：<strong>信号</strong>和<strong>成本</strong>。</p>
+
+  <h2>回测的五要素</h2>
+  <p>任何一份回测（包括你下面要玩的这个）都由五件事构成，缺一件结果就不可信：</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>要素</th><th>本课模拟器里的对应物</th><th>以后会升级为</th></tr></thead>
+    <tbody>
+      <tr><td><strong>1. 数据</strong></td><td>合成指数行情（9 年日线）</td><td>真实 A 股日线（AKShare/Tushare，第 4-5 课）</td></tr>
+      <tr><td><strong>2. 信号规则</strong></td><td>双均线交叉：50 日线上穿 200 日线买入，下穿卖出（<a href="../reference/sma-crossover-explained.html">R5 详解</a>）</td><td>你自己在 C# 里写的规则</td></tr>
+      <tr><td><strong>3. 执行假设</strong></td><td>信号日以当日收盘价成交（已含简化！真实盘更差）</td><td>滑点、涨跌停无法成交、T+1 约束</td></tr>
+      <tr><td><strong>4. 交易成本</strong></td><td>可调：0 / 0.1% / 0.3% 单边</td><td>佣金 + 印花税 0.05%（卖出）+ 滑点</td></tr>
+      <tr><td><strong>5. 绩效统计</strong></td><td>总收益、年化、最大回撤、交易次数</td><td>夏普、与沪深300基准对比、换手率</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">关于成本的真实数字：A股佣金约万 2.5~万 3（常有单笔最低 5 元），印花税自 2023 年 8 月起为卖出单边 0.05%，再加上滑点——<strong>一次买卖往返的真实成本约 0.15%~0.25%</strong>。模拟器的"高费率 0.3%"不是夸张，是给滑点留了余量。</p>
+  <p class="note">还没搞懂"双均线 50/200"在算什么？先看 <a href="../reference/sma-crossover-explained.html">R5 · 双均线算法详解</a>——一张 3 日/5 日均线的手算表，把金叉、死叉、滞后和假信号讲清楚。看完再回来玩模拟器，数字会更有意义。</p>
+
+  <h2>动手：亲手杀死一个策略</h2>
+  <p>先别碰模拟器。凭直觉回答（写下来，或至少想清楚再往下）：</p>
+  <button class="reveal-btn" data-reveal="guess">写下你的猜想后，点这里对照</button>
+  <div class="answer" id="guess" hidden>
+    <p>合理的猜想是这样的：<strong>手续费对"买入持有"几乎没有伤害</strong>（只买卖一次，成本只扣一次），而<strong>对频繁交易的策略是持续放血</strong>——每交易一次扣一次。所以问题不是"手续费要不要紧"，而是"<strong>你的策略赚的钱，够不够付它自己制造的摩擦</strong>"。</p>
+  </div>
+
+  <div class="sim" id="sim1"></div>
+
+  <div class="exercise">
+    <p><strong>三个任务，按顺序做（每个约 1 分钟）：</strong></p>
+    <ol>
+      <li><strong>零成本跑双均线</strong>：成本选"零成本"，看策略和基准的对比。多数随机市场里，双均线靠避开熊市那段，净值曲线更平滑——回撤更小。</li>
+      <li><strong>把成本调到 0.3%</strong>：观察两个数字怎么变——年化收益和交易次数。换一个市场（点"换一个市场"）再试两次。<strong>统计一下：几次里成本把双均线从"跑赢基准"打到"跑输基准"？</strong></li>
+      <li><strong>切换成"买入持有"</strong>再调成本：确认成本对它几乎没影响。</li>
+    </ol>
+  </div>
+
+  <div class="insight"><p><strong>这就是本课的全部结论：</strong>一个策略的利润边界 = 它的信号优势 − 它的换手成本。<span class="src third">经验值</span>业内常用一个粗暴的检验：<strong>把费率乘以 3 重跑回测，利润还在的才是真优势</strong>（成本敏感度测试）。你刚才亲手做过一遍了。</p></div>
+
+  <h2>三个必须会读的数字</h2>
+  <ul>
+    <li><strong>年化收益（CAGR）</strong>：把总收益折成"每年复利多少"。回测少于 3 年时它基本是噪声。</li>
+    <li><strong>最大回撤（MaxDD）</strong>：净值从最高点到最低点的最大跌幅。它决定你<strong>拿不拿得住</strong>——回撤 50% 的策略，规则再好你也会在最低点放弃它，这与纪律无关，是人性。</li>
+    <li><strong>交易次数</strong>：成本的总闸门。次数 × 单次成本 = 你的策略要背起的税。</li>
+  </ul>
+  <p>完整术语表（含夏普、胜率、盈亏比、期望值等）见 <a href="../reference/glossary.html">参考文档 R1 · 术语表</a>，以后课程用词以它为准。</p>
+
+  <h2>别高兴，也别丧气：本课的两个诚实声明</h2>
+  <div class="warning"><p><strong>声明一：模拟器里是合成数据</strong>（程序生成、种子随机、特征贴近 A 股宽基指数的长周期形态），它教机制，不预测任何真实指数。真实数据的坑——<strong>未来函数、幸存者偏差</strong>——是第 3-5 课的主题，那里会让你重新审视今天所有结论。</p></div>
+  <div class="warning"><p><strong>声明二：双均线本身不是"好策略"</strong>。它在学术和实务里长期作为基准/反例存在。本课用它是因为规则简单到一眼看懂——它的价值是让你看到<strong>成本与换手的账怎么算</strong>，而不是让你拿去实盘。</p></div>
+
+  <h2>检验一下</h2>
+  <div class="quiz" data-answer="b"
+       data-explain-good="对。成本每笔都扣，交易次数就是成本的总闸门——这正是模拟器里你亲眼看到的。"
+       data-explain-bad="再想想模拟器里的对照：切换策略和成本时，哪个数字直接决定了总摩擦？">
+    <p class="quiz-question">同一个双均线策略，把单边成本从 0 调到 0.3%，最先发生什么？</p>
+    <button class="opt" data-key="a">交易次数明显变多</button>
+    <button class="opt" data-key="b">净收益率明显下降</button>
+    <button class="opt" data-key="c">最大回撤明显变小</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <div class="quiz" data-answer="b"
+       data-explain-good="对。回测好得不像话时，第一怀疑对象永远是'规则贴合了历史噪声'，其次才是策略真的有效。"
+       data-explain-bad="方向反了：回测好得不像话时，先怀疑回测本身而不是怀疑指标太保守。想想本课的成本敏感度思路，它就是一种'逼供'回测的手段。">
+    <p class="quiz-question">一份回测显示年化 30%、最大回撤仅 5%，最该先怀疑什么？</p>
+    <button class="opt" data-key="a">夏普比率是不是太低</button>
+    <button class="opt" data-key="b">回测是不是过度拟合</button>
+    <button class="opt" data-key="c">样本区间是不是太短</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <h3>自由回忆（隔天再做一遍效果更好）</h3>
+  <p>不看上文，写出<strong>回测五要素</strong>，并说出你今天最惊讶的一个发现。</p>
+  <button class="reveal-btn" data-reveal="recall">回忆后对照</button>
+  <div class="answer" id="recall" hidden>
+    <p>五要素：<strong>数据、信号规则、执行假设、交易成本、绩效统计</strong>。如果只想起了三个以内，重读上文"回测的五要素"一节，明早再回忆一次——回忆失败再重读，恰恰是记得牢的开始（检索练习）。</p>
+  </div>
+
+  <h2>下一步</h2>
+  <p><strong>本课主源推荐</strong>：Ernest Chan《量化交易：自己动手做算法交易》第 1-2 章——个人算法交易者的路线图与"回测能回答什么、不能回答什么"。中文购书与阅读顺序见 <a href="https://waylandz.com/quant-book/%E9%87%8F%E5%8C%96%E6%8E%A8%E8%8D%90%E4%B9%A6%E5%8D%95">2026 量化入门书单</a>。</p>
+  <p><strong>下一课预告</strong>：轮到你的主场——用 <strong>C# + 掘金量化</strong>在真实 A 股数据上跑通第一个回测，建立"策略是一个类、回测是一个测试"的工程直觉（官方文档：<a href="https://www.myquant.cn/docs2/sdk/cSharp/%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B.html">C# SDK 快速开始</a>；终端下载：<a href="https://www.myquant.cn/terminal">myquant.cn</a>）。更细的 A 股数据与复权处理安排在第 5 课（AKShare 文档：<a href="https://akshare.akfamily.xyz/demo.html">策略回测示例</a>）。</p>
+
+  <div class="note"><p><strong>卡住了？随时问老师。</strong>模拟器里看到的任何反直觉现象、术语表里没收录的词、或者你怀疑"这个结论是不是只对模拟数据成立"——直接在对话里提，老师会针对你的进度解答并可能把它变成下一课的素材。</p></div>
+
+  <nav class="lesson-nav">
+    <a href="../reference/glossary.html">术语表（R1）</a>
+    <a href="../reference/sma-crossover-explained.html">双均线详解（R5）</a>
+    <a href="../MISSION.md">学习使命</a>
+    <a href="../RESOURCES.md">资源清单</a>
+    <a href="0002-first-csharp-backtest.html">下一课：第一次 C# 回测</a>
+  </nav>
+</main>
+
+<script src="../assets/backtest-sim.js"></script>
+<script src="../assets/quiz.js"></script>
+<script>
+  QuantSim.mount(document.getElementById("sim1"));
+</script>
+<script src="../assets/course-nav.js"></script>
+</body>
+</html>

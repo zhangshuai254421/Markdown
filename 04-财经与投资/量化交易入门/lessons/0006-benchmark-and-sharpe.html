@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>第6课 · 基准平反与夏普比率</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <p class="eyebrow">量化交易入门 · 第 6 课 / 12</p>
+  <h1>基准平反与夏普比率</h1>
+  <p class="lead">第 2 课你说买入持有"不是策略，是基准"。本课先给它平反：<strong>这个基准比大多数人想象的强得多</strong>——然后用一个数（夏普比率）把"收益"和"为了收益承受的颠簸"放进同一个天平。</p>
+
+  <h2>平反：买入持有是个强对手</h2>
+  <p>第 3 课你看到：在单边行情里，双均线可能跑输买入持有，只是回撤更小；在震荡行情里则可能反复挨打。这不是你的策略菜——<span class="src opinion">行业经验</span>这是普遍现象：趋势策略在单边市交"踏空费"，换来的好处只在暴跌段兑现。评价任何主动策略，正确问法从来不是"赚了多少"，而是：</p>
+  <ul>
+    <li>对比基准，<strong>超额收益</strong>是多少？</li>
+    <li>为此多承受了多少<strong>回撤与波动</strong>？</li>
+    <li>多付出多少<strong>成本与工作量</strong>？</li>
+  </ul>
+  <p>三个问题有一个答不利索，主动管理就是负价值。A 股个人版的基准：沪深300 指数（或 510300ETF）的买入持有。</p>
+
+  <h2>夏普比率：一个天平</h2>
+  <p>定义（简化版，略去无风险利率）：</p>
+  <p class="code-title">Sharpe = 平均每期收益 ÷ 每期收益的标准差</p>
+  <p>直觉：<strong>每承受一份颠簸，换来几份回报</strong>。手算一遍（月度收益：+1%, +3%, −1%, +2%, −2%, +3%）：</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>步骤</th><th>计算</th><th>结果</th></tr></thead>
+    <tbody>
+      <tr><td>均值</td><td>(1+3−1+2−2+3) / 6</td><td>1.0% / 月</td></tr>
+      <tr><td>标准差</td><td>六个月收益的波动幅度</td><td>≈ 2.0% / 月</td></tr>
+      <tr><td>月度夏普</td><td>1.0 ÷ 2.0</td><td>0.5</td></tr>
+      <tr><td>年化夏普</td><td>0.5 × √12</td><td>≈ 1.7</td></tr>
+    </tbody>
+  </table></div>
+  <p><span class="src opinion">经验标尺</span>长期年化夏普 &gt; 1 相当不错，&gt; 2 非常罕见，&gt; 3 先怀疑作弊。为何年化乘 √12：波动按时间的平方根累积，这是统计惯例，细节第 10 课后有兴趣再深挖。</p>
+
+  <h2>反向用法：夏普是证伪器</h2>
+  <p>第 4 课的"考了很多次挑最高分"有一个数学指纹：<strong>好得不像话的夏普</strong>。年化 30%、回撤仅 5% 的回测，隐含夏普高得离谱——它更可能是过拟合的证据，而不是天才的证据。这正是 Deflated Sharpe Ratio 存在的理由：<strong>试的次数越多，成绩越要打折</strong>（<a href="https://papers.ssrn.com/sol3/Delivery.cfm/SSRN_ID3637110_code434076.pdf?abstractid=3261943&amp;mirid=1">López de Prado 讲义第 6 讲</a>）。养成反射：<strong>先看夏普，超过 3 就去抓作弊</strong>（对照 <a href="../reference/backtest-checklist.html">R2 第一关</a>）。</p>
+  <div class="insight"><p><strong>夏普真正的实用价值</strong>：它让你可以比较"不同颠簸程度的策略"。策略 A 年化 20% 回撤 25%，策略 B 年化 12% 回撤 8%——B 更值得托付真金，因为它同样的收益颠得更少，而且你在它面前更拿得住。<strong>拿得住</strong>三个字，连接回《炒股的智慧》：纪律的前提是策略的颠簸在你承受范围内。</p></div>
+
+  <h2>动手：给第 2 课的成绩算夏普</h2>
+  <div class="exercise">
+    <ol>
+      <li>回到掘金终端，打开你第 2 课的 510300 回测报告，找到 <em>夏普比率</em>——引擎替你算好的年化夏普。</li>
+      <li>再用上面六个月手算题自测一遍（答案在下方回忆区），确认你真会算。</li>
+      <li>对比任务：510300 买入持有与第 3 课双均线，谁的夏普更高？谁的回撤更小？——用"超额收益 ÷ 颠簸"的逻辑写一句你的结论。</li>
+    </ol>
+  </div>
+  <p class="note">想在 C# 里直接拿这些指标，可以重写 <code>OnBacktestFinished(Indicator indicator)</code>，读 <code>indicator.sharpRatio</code>、<code>indicator.pnlRatioAnnual</code>、<code>indicator.maxDrawdown</code> 等字段；字段清单见 <a href="https://www.myquant.cn/docs2/sdk/cSharp/%E7%AD%96%E7%95%A5%E5%9F%BA%E7%B1%BB.html">策略基类</a>。</p>
+
+  <h2>检验一下</h2>
+  <div class="quiz" data-answer="b"
+       data-explain-good="对。夏普=收益÷波动，衡量每承受一份颠簸换来几份回报——它是天平，不是马力表。"
+       data-explain-bad="不对。夏普从不单独看收益绝对值；它是收益与波动的比值。想想'拿得住'三个字。">
+    <p class="quiz-question">夏普比率衡量的是？</p>
+    <button class="opt" data-key="a">收益绝对值的大小</button>
+    <button class="opt" data-key="b">每份波动换的回报</button>
+    <button class="opt" data-key="c">回撤深度的倒数值</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <div class="quiz" data-answer="a"
+       data-explain-good="对。年化30%回撤5%隐含夏普高得离谱——按本课反射，先抓作弊（R2 第一关），再谈别的。"
+       data-explain-bad="不对。怀疑的方向反了：夏普异常高不是'指标太保守'，而是'成绩太好'——好到要先怀疑作弊。">
+    <p class="quiz-question">年化8%回撤仅3%的回测，该先怀疑？</p>
+    <button class="opt" data-key="a">夏普高得不太真实</button>
+    <button class="opt" data-key="b">基准指数选得太弱</button>
+    <button class="opt" data-key="c">回测区间太长所致</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <h3>自由回忆（隔天再做一遍效果更好）</h3>
+  <p>不看上文：① 写出简化夏普公式；② 手算那道题的年化结果；③ 你的两条个人反射线（夏普超过多少先怀疑？评价策略先问什么？）。</p>
+  <button class="reveal-btn" data-reveal="recall">回忆后对照</button>
+  <div class="answer" id="recall" hidden>
+    <p>① Sharpe = 平均每期收益 ÷ 每期收益标准差。② 月度 0.5，年化 ≈ 0.5×√12 ≈ 1.7。③ 反射线一：年化夏普 &gt;3 先抓作弊；反射线二：先问超额收益、颠簸、成本三件事，再看绝对收益。</p>
+  </div>
+
+  <h2>下一步</h2>
+  <p><strong>本课主源推荐</strong>：<a href="https://papers.ssrn.com/sol3/Delivery.cfm/SSRN_ID3637110_code434076.pdf?abstractid=3261943&amp;mirid=1">López de Prado 讲义第 6 讲（Backtest Overfitting / DSR）</a>——本课"证伪器"思想的完整版；读前两页即可，数学留到第 10 课后。</p>
+  <p><strong>下一课预告</strong>：第 7 课《自建 C# 回测引擎（上）》——离开平台，亲手搭一个 60 行的最小回测引擎：数据读取 → 信号 → 撮合 → 持仓 → 统计。你会真正拥有第 3 课那句"守门人换成你自己"。</p>
+
+  <div class="note"><p><strong>卡住了？随时问老师。</strong>√12 是哪来的、标准差怎么手算、"我的回测夏普 2.8 是不是该抓作弊"——都欢迎来问。</p></div>
+
+  <nav class="lesson-nav">
+    <a href="0005-real-cndata-akshare.html">第 5 课：真实 A 股数据</a>
+    <a href="0003-sma-crossover-and-lookahead-bias.html">第 3 课：双均线</a>
+    <a href="../reference/glossary.html">术语表（R1）</a>
+    <a href="../reference/myquant-csharp-cheatsheet.html">掘金 C# 速查（R4）</a>
+    <a href="0007-own-engine-part1.html">下一课：自建 C# 回测引擎（上）</a>
+  </nav>
+</main>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/course-nav.js"></script>
+</body>
+</html>

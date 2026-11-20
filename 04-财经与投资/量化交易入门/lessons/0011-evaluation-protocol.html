@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>第11课 · 评估协议：一份无法自欺的报告</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <p class="eyebrow">量化交易入门 · 第 11 课 / 12</p>
+  <h1>评估协议：一份无法自欺的报告</h1>
+  <p class="lead">你有数据（第 5 课）、引擎（第 7-8 课）、仓位（第 9 课）、因子语言（第 10 课）。缺最后一环：<strong>把这一切组织成一份无法自欺的报告</strong>。本课把第 4 课的五宗罪翻译成可执行流程——这是你使命里"独立完成一份回测报告"标准的正课。</p>
+
+  <h2>报告的七个字段</h2>
+  <p>任何回测交出来（包括交给自己），必须包含七件事（对照 <a href="../reference/backtest-checklist.html">R2 第二关</a>）：</p>
+  <ol>
+    <li><strong>数据</strong>：来源、区间、复权方式、是否含退市标的。</li>
+    <li><strong>信号规则</strong>：完整参数，他人可凭文字复现。</li>
+    <li><strong>执行假设</strong>：信号与成交的时序、涨跌停处理、T+1。</li>
+    <li><strong>成本假设</strong>：佣金、印花税、滑点的每一个数字。</li>
+    <li><strong>绩效四件套</strong>：年化、夏普、最大回撤、交易次数——<em>禁止只报总收益率</em>（<a href="../reference/glossary.html">R1</a> 的元规则）。</li>
+    <li><strong>基准对比</strong>：同期买入持有的同一组数字（<a href="0006-benchmark-and-sharpe.html">第 6 课</a>）。</li>
+    <li><strong>已知缺陷</strong>：至少两条，写你自己最怀疑的地方。</li>
+  </ol>
+  <div class="insight"><p><strong>第七字段是协议的灵魂</strong>：主动写下"我最怀疑哪里"，等于把第 4 课"sanity check"的态度变成文档惯例。一份没有已知缺陷栏的报告，不是自信，是自欺。</p></div>
+
+  <h2>三道稳健性测试</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>测试</th><th>做法</th><th>它杀死的作弊</th></tr></thead>
+    <tbody>
+      <tr><td><strong>费率 ×3</strong></td><td>全部成本乘 3 重跑</td><td>成本缺失（<a href="0001-why-backtests-die-to-fees.html">第 1 课</a>的直觉，仪式化执行）</td></tr>
+      <tr><td><strong>参数 ±20%</strong></td><td>每个参数上下调 20%，看邻域是否塌方</td><td>过拟合噪声（<a href="0004-backtest-cheating-catalog.html">第 4 课</a>）</td></tr>
+      <tr><td><strong>换时段</strong></td><td>区间切成 2015-2019 / 2020-2024 分别跑；起止点前后挪半年</td><td>依赖特定行情的"巧合策略"</td></tr>
+    </tbody>
+  </table></div>
+  <p>三道测试的判据统一：<strong>邻域/分段成绩应当普遍成立</strong>。若只有原始配置漂亮、其余全面塌方，报告结论写"未通过稳健性检验，不进入下一阶段"——<strong>测试的意义是让坏策略死在回测里</strong>，这正是它们的全部价值。</p>
+
+  <h2>样本内外：TDD 式纪律</h2>
+  <p>你已经懂这个模式，只是换了战场：</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>软件工程</th><th>量化</th></tr></thead>
+    <tbody>
+      <tr><td>写测试</td><td>样本内调参</td></tr>
+      <tr><td>跑一次 CI，看结果</td><td>样本外验证，<strong>只碰一次</strong></td></tr>
+      <tr><td>改代码让测试变绿再假装没改</td><td>样本外不满意就回头调参再验——<strong>作弊</strong></td></tr>
+    </tbody>
+  </table></div>
+  <p>两条配套纪律：① <strong>touch-once</strong>：样本外数据一个项目只碰一次；② <strong>记录尝试次数</strong>：你试了几组参数，报告里就写几——这是 Deflated Sharpe Ratio 的精神：<span class="src third">研究共识</span>试得越多，成绩越要打折（<a href="https://papers.ssrn.com/sol3/Delivery.cfm/SSRN_ID3637110_code434076.pdf?abstractid=3261943&amp;mirid=1">López de Prado 讲义第 6 讲</a>）。</p>
+  <p class="note">更严格的滚动验证（walk-forward：5 年调参 → 验 1 年，窗口逐年前移）在 <a href="0004-backtest-cheating-catalog.html">第 4 课</a>表格里预告过，适合作为你报告完成后的进阶阅读（参考实现思路见 <a href="https://github.com/Neyt/How-To-Backtest-Correctly">How-To-Backtest-Correctly</a>）。</p>
+
+  <h2>检验一下</h2>
+  <div class="quiz" data-answer="a"
+       data-explain-good="对。±20% 邻域测试区分'规律'与'撞大运'：只有原参数一枝独秀，就是拟合了噪声。"
+       data-explain-bad="不对。成本有专门的费率×3测试，口径有第 5 课的检查——±20% 邻域测试专治过拟合。">
+    <p class="quiz-question">参数±20%邻域测试防什么？</p>
+    <button class="opt" data-key="a">防止拟合历史噪声</button>
+    <button class="opt" data-key="b">防止漏掉交易成本</button>
+    <button class="opt" data-key="c">防止数据口径漂移</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <div class="quiz" data-answer="a"
+       data-explain-good="对。样本外只碰一次；每多碰一次并据此调整，它就实质退化成样本内，验证沦为自欺。"
+       data-explain-bad="不对。反复碰样本外等于把验证集用成了训练集——这正是五宗罪第五宗的作案手法。">
+    <p class="quiz-question">样本外数据的正确用法？</p>
+    <button class="opt" data-key="a">整个项目只碰一次</button>
+    <button class="opt" data-key="b">每周复查一次调参</button>
+    <button class="opt" data-key="c">先验证再开始调参</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <div class="exercise">
+    <p><strong>本课作业 = 使命标准之一：写一页纸报告（预计 2-3 小时）</strong></p>
+    <ol>
+      <li>选一个策略：双均线 50/200，或 20 日动量（第 10 课作业改的）；数据：510300，2015-2024（第 5 课 CSV）。</li>
+      <li>按七字段写报告，三道稳健性测试全部跑完并把数字写进报告。</li>
+      <li>样本外 = 最后两年：前八年随便折腾，后两年只碰一次并如实记录。</li>
+      <li>"已知缺陷"至少两条（提示：交易次数太少、单一标的、参数自由度……）。</li>
+      <li>交卷：把报告贴给老师，按 <a href="../reference/backtest-checklist.html">R2</a> 逐条批改。</li>
+    </ol>
+  </div>
+
+  <h3>自由回忆（隔天再做一遍效果更好）</h3>
+  <p>不看上文：① 七字段默写；② 三道稳健性测试的名字与判据；③ touch-once 与"记录尝试次数"各防什么。</p>
+  <button class="reveal-btn" data-reveal="recall">回忆后对照</button>
+  <div class="answer" id="recall" hidden>
+    <p>① 数据/信号规则/执行假设/成本假设/绩效四件套/基准对比/已知缺陷。② 费率×3（成本缺失）、参数±20%（过拟合）、换时段（巧合策略）；判据=邻域普遍成立。③ touch-once 防验证集污染；记录次数是 DSR 精神——试得越多，成绩越要打折。</p>
+  </div>
+
+  <h2>下一步</h2>
+  <p><strong>本课主源推荐</strong>：López de Prado《Advances in Financial Machine Learning》<a href="https://www.oreilly.com/library/view/advances-in-financial/9781119482086/c11.xhtml">第 11 章 The Dangers of Backtesting</a>（免费可读）——评估协议的学术原典；配合 <a href="https://github.com/Neyt/How-To-Backtest-Correctly">How-To-Backtest-Correctly</a> 的代码化清单。</p>
+  <p><strong>下一课预告</strong>：第 12 课《毕业：模拟盘与实盘铁律》——最后一课不讲新知识，讲怎么走进真实世界：一个月纸面交易的完整协议、几条不可协商的铁律、以及全课程地图。</p>
+
+  <div class="note"><p><strong>卡住了？随时问老师。</strong>报告写到哪一栏卡住就贴哪一栏；稳健性测试跑完发现策略死了？恭喜——协议起效了，把数字发给老师一起看死因。</p></div>
+
+  <nav class="lesson-nav">
+    <a href="0010-factors-intro.html">第 10 课：因子入门</a>
+    <a href="../reference/backtest-checklist.html">自查清单（R2）</a>
+    <a href="../reference/glossary.html">术语表（R1）</a>
+    <a href="0012-graduation-paper-trading.html">下一课：毕业与实盘铁律</a>
+  </nav>
+</main>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/course-nav.js"></script>
+</body>
+</html>

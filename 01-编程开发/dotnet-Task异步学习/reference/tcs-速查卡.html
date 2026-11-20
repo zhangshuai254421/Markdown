@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TaskCompletionSource 速查卡</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">REFERENCE · 0001 · 可打印</p>
+  <h1>TaskCompletionSource 速查卡</h1>
+  <div class="meta">
+    <span class="chip">一句话:TCS = 你亲手控制一张 Task 欠条何时、以何种结果销账</span>
+  </div>
+
+  <!-- 模型 -->
+  <h2>心智模型:欠条的两半</h2>
+  <div class="iou">
+    <div class="iou-node">
+      <span class="n-title">生产者</span>
+      <span class="n-sub">持 TCS,调 Set* 销账</span>
+    </div>
+    <div class="iou-arrow">Set*()</div>
+    <div class="iou-node" style="border-style:dashed">
+      <span class="n-title">tcs.Task</span>
+      <span class="n-sub">同一张欠条,人人可 await</span>
+    </div>
+    <div class="iou-arrow">await</div>
+    <div class="iou-node">
+      <span class="n-title">消费者</span>
+      <span class="n-sub">完成后续延恢复</span>
+    </div>
+  </div>
+  <p class="muted">Task ≠ 线程。完成之前欠条里什么都没有;等待不占用任何线程。</p>
+
+  <!-- API -->
+  <h2>五件套 API</h2>
+  <table>
+    <thead><tr><th>成员</th><th>作用</th><th>关键细节</th></tr></thead>
+    <tbody>
+      <tr><td><code>.Task</code></td><td>取出欠条</td><td>每次读取同一实例;可交给任意多个 awaiter</td></tr>
+      <tr><td><code>SetResult(v)</code></td><td>成功销账</td><td>仅一次;重复抛 <code>InvalidOperationException</code></td></tr>
+      <tr><td><code>SetException(ex)</code></td><td>记坏账</td><td>await 处重新抛出;<code>Wait()</code>/<code>.Result</code> 则包成 <code>AggregateException</code></td></tr>
+      <tr><td><code>SetCanceled()</code></td><td>注销</td><td>await 处抛 <code>TaskCanceledException</code></td></tr>
+      <tr><td><code>TrySetResult / TrySetException / TrySetCanceled</code></td><td>安全版</td><td>返回 <code>bool</code>;竞态场景(超时兜底已抢先)必用</td></tr>
+    </tbody>
+  </table>
+
+  <!-- 构造 -->
+  <h2>构造选项</h2>
+<pre><code><span class="cmt">// 默认:续延"内联"在调用 Set* 的线程上继续执行</span>
+new TaskCompletionSource&lt;T&gt;()
+
+<span class="cmt">// 让续延改走线程池排队,不在完成者线程上跑(防重入/锁内完成时用它)</span>
+new TaskCompletionSource&lt;T&gt;(TaskCreationOptions.RunContinuationsAsynchronously)
+
+<span class="cmt">// .NET 6+:传入令牌,令牌取消时 Task 自动进入 Canceled(超时模式的官方捷径)</span>
+new TaskCompletionSource&lt;T&gt;(cancellationToken)
+
+<span class="cmt">// .NET 5+:非泛型版,产无值欠条 Task</span>
+var tcs = new TaskCompletionSource();</code></pre>
+
+  <!-- 模板 -->
+  <h2>黄金模板:回调 → Task</h2>
+<pre><code>public Task&lt;double&gt; ReadAsync()
+{
+    var tcs = new TaskCompletionSource&lt;double&gt;();
+
+    legacy.Read(
+        onSuccess: v  =&gt; tcs.SetResult(v),
+        onError:   ex =&gt; tcs.SetException(ex));
+
+    return tcs.Task;
+}
+<span class="cmt">// 调用端:var v = await bridge.ReadAsync();</span></code></pre>
+
+  <h2>何时用 / 何时不用</h2>
+  <table>
+    <tbody>
+      <tr><td>✅ 包装回调式 / 事件式老 API</td><td>❌ 方法体本身能用 async/await 写(那是更简洁的出票方式)</td></tr>
+      <tr><td>✅ 超时、竞态下"先到先完成"的控制</td><td>❌ 只是想要后台执行(那是 <code>Task.Run</code> 的事)</td></tr>
+      <tr><td>✅ 异步初始化、一次性广播完成信号</td><td>❌ 需要多次发值的生产-消费(那该看 <code>System.Threading.Channels</code>)</td></tr>
+    </tbody>
+  </table>
+
+  <!-- 坑 -->
+  <h2>四大坑</h2>
+  <table>
+    <thead><tr><th>坑</th><th>症状</th><th>解法</th></tr></thead>
+    <tbody>
+      <tr><td>① 二次完成</td><td><code>InvalidOperationException</code></td><td>无竞态:用 <code>Set*</code> 让 bug 显形(断言);有竞态(超时/取消兜底):用 <code>TrySet*</code> 容错,后到者得 <code>false</code> 静默放弃</td></tr>
+      <tr><td>② 忘记完成</td><td>await 永久悬挂;闭包引用无法释放(内存泄漏)</td><td>超时兜底:<code>WaitAsync</code> 或 TCS+Timer</td></tr>
+      <tr><td>③ 竞态抢销账</td><td>两个路径都想 Set,后到的抛异常</td><td><code>TrySet*</code> 按返回值分支</td></tr>
+      <tr><td>④ 续延内联在完成者线程</td><td>持锁调 Set* → 续延在锁内跑 → 重入/死锁</td><td>构造时加 <code>RunContinuationsAsynchronously</code></td></tr>
+    </tbody>
+  </table>
+
+  <!-- 术语 -->
+  <h2>术语表(本课程统一用语)</h2>
+  <table>
+    <tbody>
+      <tr><td><strong>欠条 / Task</strong></td><td>未来结果的凭据;官方称"promise / future"式占位符</td></tr>
+      <tr><td><strong>出票 / 生产者 Producer</strong></td><td>创建并负责完成 Task 的一方</td></tr>
+      <tr><td><strong>持票 / 消费者 Consumer</strong></td><td>await Task 的一方</td></tr>
+      <tr><td><strong>销账 / 完成</strong></td><td>Set* 使 Task 进入终态,只能发生一次</td></tr>
+      <tr><td><strong>续延 continuation</strong></td><td>await 之后的代码;Task 完成时被调度执行的那段</td></tr>
+      <tr><td><strong>WaitingForActivation</strong></td><td>欠条已开出、还没销账的状态(TCS 场景最常见)</td></tr>
+      <tr><td><strong>RanToCompletion / Faulted / Canceled</strong></td><td>三种终态:成功 / 异常 / 取消</td></tr>
+      <tr><td><strong>sync-over-async</strong></td><td>用 <code>.Result</code>/<code>.Wait()</code> 阻塞等待异步代码——死锁之源</td></tr>
+    </tbody>
+  </table>
+
+  <hr class="footrule">
+  <footer class="course-foot">
+    <span>权威依据:<a href="https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.taskcompletionsource-1" target="_blank">Microsoft Learn · TaskCompletionSource&lt;T&gt;</a> · <a href="https://learn.microsoft.com/en-us/dotnet/standard/asynchronous-programming-patterns/task-based-asynchronous-pattern-tap" target="_blank">TAP 规范</a></span>
+    <span>由<a href="../lessons/0001-task-iou-and-tcs.html">第 0001 课</a>与<a href="../lessons/0002-tcs-set-vs-try-and-continuations.html">第 0002 课</a>讲授</span>
+  </footer>
+
+</div>
+</body>
+</html>

@@ -8,6 +8,7 @@
 - **产出节奏**：每课一个 HTML（`lessons/`），共享样式 `assets/style.css` 与测验组件 `assets/quiz.js`；术语统一进 `reference/glossary.html`。
 - **课程主线索**：从 .NET Framework 的历史演进 → 现代 async/await，历史与底层交织推进。
 - 打开课程用：`cmd.exe //c start "" "<lesson 的绝对路径>"`（explorer.exe 在此环境不可靠）。
+- **课程导航约定**：每课页脚有 `lesson-nav` 三联导航（← 上一课 · 课程目录 · 下一课 →），样式在 `assets/style.css`；`lessons/index.html` 是课程总入口（含词汇表链接）。新增第 N 课时：① 新课页脚放 lesson-nav；② 回改第 N-1 课页脚，把「下一课」指到新课；③ 把新课加进 index.html。
 
 ## 用户领域背景
 

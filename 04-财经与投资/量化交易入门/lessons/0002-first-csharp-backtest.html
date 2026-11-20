@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>第2课 · 在掘金量化跑通第一个 C# 回测</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <p class="eyebrow">量化交易入门 · 第 2 课 / 12</p>
+  <h1>在掘金量化跑通第一个 C# 回测</h1>
+  <p class="lead">今天回到你的主场：写 C#。目标是一个 40 分钟内可完成的闭环（不含终端下载安装）——<strong>在掘金量化（MyQuant）的 C# SDK 上跑通一次真实 A 股历史数据的回测，并读懂它的成绩单</strong>。更深一层的目标是建立一个贯穿全课程的工程直觉：<strong>策略是一个类，回测是一个测试。</strong></p>
+
+  <h2>事件驱动：掘金怎么调用你的代码</h2>
+  <p>你平时写的程序大多是 <code>Main()</code> 起头、你控制流程。掘金的策略框架相反——<strong>引擎掌握控制权，你的代码被动响应</strong>。一个策略只需要实现两个回调方法：</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>方法</th><th>调用时机</th><th>你在里面做什么</th></tr></thead>
+    <tbody>
+      <tr><td><code>OnInit()</code></td><td>回测开始前，<strong>恰好一次</strong></td><td>声明订阅什么标的、什么频率；初始化状态</td></tr>
+      <tr><td><code>OnBar(Bar bar)</code></td><td>每来一根 K 线<strong>调用一次</strong>（日线上=每个交易日一次）</td><td>读当前行情，决定：买、卖、还是不动</td></tr>
+    </tbody>
+  </table></div>
+  <p><code>Bar</code> 是"当前这一根 K 线"——包含 <code>symbol</code>、<code>open</code>/<code>high</code>/<code>low</code>/<code>close</code>/<code>volume</code> 等字段。<span class="src official">官方文档</span>见 <a href="https://www.myquant.cn/docs2/sdk/cSharp/%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B.html">C# SDK 快速开始</a> 与 <a href="https://www.myquant.cn/docs2/sdk/cSharp/%E7%AD%96%E7%95%A5%E5%9F%BA%E7%B1%BB.html">策略基类</a>。</p>
+  <div class="insight"><p><strong>TDD 类比</strong>（你刚在 TddLab 里练过的东西）：<code>Strategy</code> 子类是<strong>被测对象</strong>；掘金引擎是<strong>测试运行器</strong>；历史数据是<strong>测试输入</strong>；最后那份回测报告是<strong>测试报告</strong>。区别只有一个：策略这个"测试"断言的不是代码正确性，而是"这套规则在历史上是否产生正期望"。</p></div>
+
+  <h2>回测五要素，映射到掘金</h2>
+  <p>上一课的五要素（<a href="0001-why-backtests-die-to-fees.html">第 1 课</a>），在掘金里各就各位：</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>要素</th><th>第 1 课模拟器</th><th>掘金量化</th></tr></thead>
+    <tbody>
+      <tr><td>1. 数据</td><td>合成行情</td><td>终端内置 A 股历史数据（基础版免费投研数据）</td></tr>
+      <tr><td>2. 信号规则</td><td>JS 里的双均线</td><td><strong>你写的 <code>OnBar</code></strong></td></tr>
+      <tr><td>3. 执行假设</td><td>收盘价成交</td><td>回测撮合（默认按下一根 K 线开盘价成交；<a href="https://www.myquant.cn/docs2/operatingInstruction/study/%E7%AD%96%E7%95%A5%E5%9B%9E%E6%B5%8B%E4%B8%8E%E7%BB%A9%E6%95%88.html">回测参数说明</a>）</td></tr>
+      <tr><td>4. 交易成本</td><td>手动选 0 / 0.1% / 0.3%</td><td>佣金/滑点要在 <code>SetBacktestConfig</code> 或终端"回测参数"里<strong>显式设置</strong>（<a href="https://www.myquant.cn/docs2/sdk/cSharp/%E7%AD%96%E7%95%A5%E5%9F%BA%E7%B1%BB.html">签名与默认值</a>）</td></tr>
+      <tr><td>5. 绩效统计</td><td>四个指标瓦片</td><td>回测报告：累计收益率、年化、夏普、最大回撤、胜率……</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">注意第 4 行，这是本课最重要的坑：掘金 C# 的 <code>SetBacktestConfig</code> 签名里，<strong>佣金和滑点的默认值是 0</strong>。不显式设置，引擎会给你一份"零成本"的漂亮报告——第 1 课你手动调滑块体会到的"成本放血"，在这里必须由你亲手写进参数。买入持有只交易一次，费用影响小；第 3 课双均线交易多次，成本才开始咬人。</p>
+
+  <h2>动手：三个 10 分钟（终端已装好）</h2>
+  <p><strong>准备：装终端</strong>：在 <a href="https://www.myquant.cn/terminal">myquant.cn</a> 下载并安装掘金量化终端（目前是 Windows 版，正好你的环境），登录。下载安装不计入下面的 10 分钟。</p>
+  <p><strong>第一个 10 分钟——建策略、拿两把钥匙</strong>：① <em>量化研究 → 新建策略 → 选 C#</em>，记住生成的<strong>策略 ID</strong>；② 右上角头像 → <em>系统设置 → 密钥管理</em>，复制 <strong>token</strong>。然后用 Visual Studio 打开终端生成的 <code>.sln</code> 工程——C# 策略用 VS 写，终端内置编辑器主要服务 Python。</p>
+  <p class="note">第一次编译若报 <code>BadImageFormatException</code>，多半是 SDK 位数（x86/x64）和项目平台目标不一致——把两者统一即可；如果还卡住，把报错贴给老师。</p>
+
+  <p><strong>第二个 10 分钟——跑通"买入持有"</strong>。策略类和入口分两个文件写。先替换策略类：</p>
+  <p class="code-title">BuyAndHold.cs — 2016-2025 持有沪深300ETF（95% 仓位）</p>
+  <pre><code>using GMSDK;
+
+public class BuyAndHold : Strategy
+{
+    private const string Symbol = "SHSE.510300"; // 沪深300ETF
+    private bool _bought;                        // 仓位状态标志：后面会变成真正的状态机
+
+    public BuyAndHold(string token, string strategyId, StrategyMode mode)
+        : base(token, strategyId, mode) { }
+
+    public override void OnInit()
+    {
+        Subscribe(Symbol, "1d");                 // 订阅日线
+    }
+
+    public override void OnBar(Bar bar)
+    {
+        if (!_bought)
+        {
+            OrderTargetPercent(Symbol, 0.95,      // 目标仓位：95%（留 5% 现金付手续费）
+                PositionSide.PositionSide_Long,
+                OrderType.OrderType_Market);
+            _bought = true;
+        }
+        // 之后再无动作：这就是"买入持有"
+    }
+}</code></pre>
+
+  <p>再写回测入口（如果你用的是终端生成的模板，<code>Program.cs</code> 里已经有 <code>Main</code>，把内容替换成下面这样）：</p>
+  <p class="code-title">Program.cs — 设置回测参数并启动</p>
+  <pre><code>using System;
+using GMSDK;
+
+class Program
+{
+    static void Main()
+    {
+        string token = "你的 token";        // 系统设置 → 密钥管理
+        string strategyId = "你的策略 ID";  // 新建 C# 策略时生成
+
+        var s = new BuyAndHold(token, strategyId, StrategyMode.MODE_BACKTEST);
+
+        // 起止时间、初始资金、成交比例、佣金、滑点、复权
+        s.SetBacktestConfig("2016-01-01 09:30:00", "2025-12-31 15:00:00",
+                            100000, 1, 0.0003, 0.001, Adjust.ADJUST_PREV);
+
+        Console.WriteLine("回测返回码: " + s.Run()); // 0 = 成功
+    }
+}</code></pre>
+  <p class="note">佣金 <code>0.0003</code> = 万 3；滑点 <code>0.001</code> = 0.1%；<code>Adjust.ADJUST_PREV</code> = 前复权（第 5 课细讲）。为什么目标仓位是 95% 而不是 100%？因为 100% 会把现金全押上，手续费一来就"资金不足"被拒单——留 5% 现金是实盘习惯。函数签名以你本地 SDK 的 IntelliSense 为准；如果你的版本只接受前三个参数，就用三参数版本，再在终端"回测参数"里设置佣金/滑点。按 F5 运行，掘金终端保持登录；回测结束后到 <em>策略研究 → 绩效</em> 看报告。</p>
+  <p class="note">这里为了聚焦状态机，下单后直接把 <code>_bought</code> 置为 true，默认委托会成交。真实策略应通过 <code>OnOrderStatus</code> 或 <code>GetOrder</code> 确认成交后再改状态——第 12 课模拟盘会再提醒你。</p>
+
+  <div class="exercise">
+    <p><strong>第三个 10 分钟——读成绩单，再做三次手术：</strong></p>
+    <ol>
+      <li><strong>读四个数</strong>：<em>累计收益率</em>、<em>年化收益率</em>、<em>最大回撤</em>、<em>夏普比率</em>。对照 <a href="../reference/glossary.html">术语表</a>确认每个数的含义。</li>
+      <li><strong>换标的</strong>：把 <code>SHSE.510300</code> 全部改成 <code>SHSE.600000</code>（浦发银行），重跑。记下两个数字：年化变了多少？回撤变了多少？</li>
+      <li><strong>减半仓位</strong>：把 <code>OrderTargetPercent(Symbol, 0.95, ...)</code> 的 <code>0.95</code> 改成 <code>0.5</code>，重跑。年化和回撤各怎么变？一半资金"睡大觉"的代价与好处，现在就在你眼前量化出来了。</li>
+    </ol>
+  </div>
+
+  <div class="insight"><p><strong>本课的工程直觉，现在该长出来了：</strong>策略 = 一个实现了两个回调方法的类；改策略 = 改类；验证策略 = 跑测试看报告。<span class="src opinion">作者观点</span>这个心智模型比"量化很高深"的说法重要一百倍——它把量化还原成你每天都在做的工程活动。</p></div>
+
+  <h2>三个诚实声明</h2>
+  <div class="warning"><p><strong>声明一：这是 A 股数据，但"平台能回测"不等于"策略符合 A 股物理"。</strong>掘金的 A 股回测通常替你处理了 T+1、涨跌停、停牌等规则（以平台当期文档为准）；第 7-8 课你会亲手实现这些规则，再回来对照掘金的报告——那时你才有能力问出"它到底怎么处理涨跌停和印花税"。</p></div>
+  <div class="warning"><p><strong>声明二：成本参数是你自己设的。</strong>掘金 C# 的 <code>SetBacktestConfig</code> 默认佣金/滑点为 0；不显式设置，报告就是"零成本乌托邦"。第 1 课的教训在这里第一次落地：<strong>先检查成本假设，再看收益曲线。</strong></p></div>
+  <div class="warning"><p><strong>声明三：买入持有不是策略，是基准。</strong>术语表里"基准"那条说过：跑不赢基准的复杂策略没有存在意义——今天你亲手制造的，就是那个"用来被打败的参照物"。它会被第 3 课的双均线正式挑战一次，然后在第 6 课被重新平反一次。</p></div>
+
+  <h2>检验一下</h2>
+  <div class="quiz" data-answer="b"
+       data-explain-good="对。Bar 是'当前这根 K 线'——引擎按时间逐根喂给你，这正是事件驱动的含义。"
+       data-explain-bad="不对。想想 OnInit 和 OnBar 的分工：每个时间点引擎喂给你的，是那一刻的 K 线，不是别的。">
+    <p class="quiz-question">OnBar(Bar bar) 的参数 bar 里面装的是什么？</p>
+    <button class="opt" data-key="a">上一根K线的收盘价</button>
+    <button class="opt" data-key="b">当前这一根K线数据</button>
+    <button class="opt" data-key="c">全部历史的行情数据</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <div class="quiz" data-answer="a"
+       data-explain-good="对。_bought 就是一个两状态状态机：空仓 --买入--> 满仓，且无出边。第 3 课你会给它加上'卖出'这条出边。"
+       data-explain-bad="再想想：它记的不是钱、不是标的，而是'程序现在处于什么状态'——这是你在报警状态机里见过的同款结构。">
+    <p class="quiz-question">买入持有策略里，布尔标志 _bought 起的作用是？</p>
+    <button class="opt" data-key="a">记录当前处于哪个状态</button>
+    <button class="opt" data-key="b">记录已经赚了多少钱</button>
+    <button class="opt" data-key="c">记录还剩多少可用钱</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <h3>自由回忆（隔天再做一遍效果更好）</h3>
+  <p>不看上文：① OnInit 和 OnBar 各在什么时机被调用？② 画出"买入持有"的仓位状态机（两个状态、一条转移边，标出触发动作）。</p>
+  <button class="reveal-btn" data-reveal="recall">回忆后对照</button>
+  <div class="answer" id="recall" hidden>
+    <p>① OnInit：回测开始前恰好一次；OnBar：每来一根 K 线调用一次（日线上即每个交易日）。② 状态机：<code>空仓 --(OnBar 首次触发, OrderTargetPercent(0.95))--> 满仓</code>，无出边。想给策略加"卖出"，就是加一条出边 + 一个触发条件——这正是第 3 课的开场。</p>
+  </div>
+
+  <h2>下一步</h2>
+  <p><strong>本课主源推荐</strong>：<a href="https://www.myquant.cn/docs2/sdk/cSharp/%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B.html">掘金量化 C# SDK 快速开始</a>——官方、全中文、带完整示例，比任何第三方教程都权威。想查交易函数与事件回调的精确签名，再读 <a href="https://www.myquant.cn/docs2/sdk/cSharp/%E7%AD%96%E7%95%A5%E5%9F%BA%E7%B1%BB.html">策略基类</a>。</p>
+  <p><strong>下一课预告</strong>：第 3 课给状态机加上第一条出边——在掘金里写一个<strong>真正的信号策略（双均线）</strong>，然后亲手制造一次"未来函数"作弊，看看虚增的收益长什么样。完成今天的三个手术并把数字记在笔记里，下一课要用。</p>
+
+  <div class="note"><p><strong>卡住了？随时问老师。</strong>编译错误贴过来、token/策略 ID 配置不上、报告指标看不懂——对话里直接问。完成作业后告诉老师你的 600000 对比数字，它可能进入下一课的素材。</p></div>
+
+  <nav class="lesson-nav">
+    <a href="0001-why-backtests-die-to-fees.html">第 1 课：成本如何杀死策略</a>
+    <a href="../reference/glossary.html">术语表（R1）</a>
+    <a href="../reference/myquant-csharp-cheatsheet.html">掘金 C# 速查（R4）</a>
+    <a href="../RESOURCES.md">资源清单</a>
+    <a href="0003-sma-crossover-and-lookahead-bias.html">下一课：双均线与作弊现场</a>
+  </nav>
+</main>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/course-nav.js"></script>
+</body>
+</html>

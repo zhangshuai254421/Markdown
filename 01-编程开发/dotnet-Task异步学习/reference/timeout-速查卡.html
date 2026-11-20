@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>超时控制模式速查卡</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">REFERENCE · 0002 · 可打印</p>
+  <h1>超时控制模式速查卡</h1>
+  <div class="meta">
+    <span class="chip">一句话:超时管"不再等",取消管"真叫停";两者都要时,令牌 + WaitAsync 组合</span>
+  </div>
+
+  <!-- 核心认知 -->
+  <h2>核心认知:超时 ≠ 取消</h2>
+  <table>
+    <tbody>
+      <tr><td><strong>超时(弃等)</strong></td><td>消费者不再等待,await 抛 <code>TimeoutException</code> 离开;<strong>底层操作照跑</strong>,迟到结果被竞速语义丢弃</td></tr>
+      <tr><td><strong>取消(叫停)</strong></td><td><code>CancellationToken</code> 显式传入底层,令牌触发时操作真正中止、资源真正释放</td></tr>
+      <tr><td><strong>组合拳</strong></td><td><code>CTS(TimeSpan)</code> 定时触发令牌 + 令牌贯穿底层 + catch-when 转译异常</td></tr>
+    </tbody>
+  </table>
+
+  <!-- 方案对比 -->
+  <h2>三式方案对比</h2>
+  <table>
+    <thead><tr><th>方案</th><th>样板量</th><th>泄漏风险</th><th>超时抛出</th><th>中止底层?</th></tr></thead>
+    <tbody>
+      <tr><td><code>WhenAny</code> + <code>Task.Delay</code></td><td>每处 5 行</td><td>成功路径上延迟任务滞留到计时器触发</td><td>自己 throw</td><td>❌</td></tr>
+      <tr><td>手写 <code>WithTimeout</code>(TCS+CTS)</td><td>封装一次</td><td>低</td><td>TimeoutException</td><td>❌</td></tr>
+      <tr><td><code>WaitAsync</code>(.NET 6+,日常首选)</td><td>一行</td><td>无</td><td>TimeoutException</td><td>❌</td></tr>
+      <tr><td>令牌贯穿(<code>CTS</code> + token 传底)</td><td>每处 3 行</td><td>无(using 清理)</td><td>OCE / TaskCanceled</td><td>✅ 唯一真中止</td></tr>
+    </tbody>
+  </table>
+
+  <!-- 模板 -->
+  <h2>模板一:弃等(消费者自救)</h2>
+<pre><code>double temp = await bridge.ReadTemperatureAsync()
+                             .WaitAsync(TimeSpan.FromSeconds(5));
+
+<span class="cmt">// 可再叠加外部取消令牌:</span>
+await work.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);</code></pre>
+
+  <h2>模板二:真取消(令牌贯穿底层)</h2>
+<pre><code>using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+try
+{
+    var resp = await httpClient.GetAsync(url, cts.Token);  <span class="cmt">// 令牌进底层</span>
+}
+catch (OperationCanceledException) when (cts.IsCancellationRequested)
+{
+    <span class="cmt">// 惯用法:只把"这次超时"转译,其他来源的取消照常上抛</span>
+    throw new TimeoutException("请求超过 5 秒,已中止");
+}</code></pre>
+
+  <h2>模板三:手写 WithTimeout(.NET 6 之前 / 理解原理用)</h2>
+<pre><code>public static async Task&lt;T&gt; WithTimeout&lt;T&gt;(Task&lt;T&gt; task, TimeSpan timeout)
+{
+    var tcs = new TaskCompletionSource&lt;bool&gt;(
+        TaskCreationOptions.RunContinuationsAsynchronously);
+    using var cts = new CancellationTokenSource(timeout);
+    using var reg = cts.Token.Register(() =&gt; tcs.TrySetResult(true));
+    if (task != await Task.WhenAny(task, tcs.Task))
+        throw new TimeoutException();
+    return await task;
+}</code></pre>
+
+  <!-- 异常辨析 -->
+  <h2>异常辨析</h2>
+  <table>
+    <thead><tr><th>触发</th><th>await 抛出</th><th>要点</th></tr></thead>
+    <tbody>
+      <tr><td><code>WaitAsync(TimeSpan)</code> 超时</td><td><code>TimeoutException</code></td><td>语义清晰,"就是超时"</td></tr>
+      <tr><td>令牌触发(CTS 到点 / <code>Cancel()</code>)</td><td><code>TaskCanceledException</code> ⊂ <code>OperationCanceledException</code></td><td>超时取消与其他取消混流,需 <code>catch-when</code> 辨别</td></tr>
+      <tr><td>欠条二次销账</td><td><code>InvalidOperationException</code></td><td>竞态路径一律 <code>TrySet*</code>(见 TCS 速查卡)</td></tr>
+    </tbody>
+  </table>
+
+  <!-- 决策 -->
+  <h2>选型决策</h2>
+  <table>
+    <tbody>
+      <tr><td>只是调用方不想等(读缓存、防卡 UI)</td><td><code>WaitAsync</code> 弃等即可</td></tr>
+      <tr><td>底层持有昂贵资源(连接/句柄/事务)</td><td>必须令牌贯穿,真中止</td></tr>
+      <tr><td>底层无取消接口(老硬件 SDK)</td><td>弃等 + 竞速丢弃迟到结果(需幂等);文档里写明</td></tr>
+      <tr><td>高频调用(每秒成百上千次)</td><td>复用 CTS(<code>TryReset</code>,.NET 6+)或手写 TCS+Timer,减少分配</td></tr>
+    </tbody>
+  </table>
+
+  <hr class="footrule">
+  <footer class="course-foot">
+    <span>权威依据:<a href="https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.task.waitasync" target="_blank">Task.WaitAsync</a> · <a href="https://learn.microsoft.com/en-us/dotnet/standard/threading/cancellation-in-managed-threads" target="_blank">Cancellation in Managed Threads</a></span>
+    <span>由<a href="../lessons/0003-timeout-control.html">第 0003 课</a>讲授</span>
+  </footer>
+
+</div>
+</body>
+</html>

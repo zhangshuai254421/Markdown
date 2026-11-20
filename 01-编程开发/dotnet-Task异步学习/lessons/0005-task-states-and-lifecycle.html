@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>0005 · Task 状态机与生命周期</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">DOTNET · TASK SYSTEM · 第 0005 课</p>
+  <h1>Task 状态机与生命周期</h1>
+  <div class="meta">
+    <span class="chip">⏱ 预计 20 分钟</span>
+    <span class="chip">前置:第 0001–0004 课</span>
+    <span class="chip">交付:读懂任何 Task 的状态,并用于生产诊断</span>
+  </div>
+
+  <p class="lede">前四课的模拟器徽章里,你反复见到 <code>WaitingForActivation</code>、
+  <code>RanToCompletion</code>、<code>Faulted</code>。它们不是随便起的——这是官方枚举
+  <code>TaskStatus</code> 的成员,是每张欠条的<strong>官方生命周期地图</strong>。
+  调试器悬停、生产日志、dump 分析里出现的那些值,就是今天要讲透的普通话。</p>
+
+  <!-- ═══════════ 0. 隔日检索 ═══════════ -->
+  <h2>〇、隔日检索<span class="muted" style="font-size:.85rem">(先测后学:0004 还剩多少?)</span></h2>
+  <div id="warmup"></div>
+
+  <!-- ═══════════ 1. 三区地图 ═══════════ -->
+  <h2>一、状态地图:三个区,八种状态</h2>
+
+  <p>别背枚举表,先分区——每张 Task 的状态一定落在以下三个区之一:</p>
+
+  <table>
+    <thead><tr><th>区</th><th>状态</th><th>一句话</th></tr></thead>
+    <tbody>
+      <tr><td><strong>出生区</strong>(静止)</td><td><code>Created</code></td><td>手动 <code>new Task&lt;T&gt;(...)</code> 后、<code>Start()</code> 前的静止态;await 得到的任务几乎从不在此</td></tr>
+      <tr><td rowspan="4"><strong>运行区</strong>(活着)</td><td><code>WaitingForActivation</code></td><td>欠条已开出,等一个完成信号——<em>TCS 任务的默认状态</em>(0001 徽章!)</td></tr>
+      <tr><td><code>WaitingToRun</code></td><td>已进入线程池队列,还没轮到工人</td></tr>
+      <tr><td><code>Running</code></td><td>正在某个线程上执行</td></tr>
+      <tr><td><code>WaitingForChildrenToComplete</code></td><td>父任务在等所有子任务完成(少见的中间态)</td></tr>
+      <tr><td rowspan="3"><strong>终态区</strong>(不可变)</td><td><code>RanToCompletion</code></td><td>成功完成;唯一令 <code>IsCompletedSuccessfully</code> 为 true 的状态</td></tr>
+      <tr><td><code>Faulted</code></td><td>故障;await 处重新抛出异常</td></tr>
+      <tr><td><code>Canceled</code></td><td>已取消;await 处抛 <code>TaskCanceledException</code></td></tr>
+    </tbody>
+  </table>
+
+  <p>两个贯穿前课的铁律:<strong>①终态三选一,进入即永久不可变</strong>(0002 讲过这正是广播安全的根基);
+  <strong>②出生区几乎只属于手动 new</strong>——async 方法、Task.Run、TCS 开出的欠条,出生即进入运行区。
+  下面亲手走一遍每条路径。</p>
+
+  <h2>二、动手玩:六条真实路径的状态流转</h2>
+
+  <p>先点状态胶囊随便逛逛,再依次播放六个场景:</p>
+
+  <div id="statemap"></div>
+  <script src="../assets/state-machine-explorer.js"></script>
+  <script>
+    StateExplorer.render(document.getElementById('statemap'), {
+      states: [
+        { id: 'created', zone: 'birth', label: 'Created', title: 'Created · 已创建,未启动',
+          desc: '手动 new Task&lt;T&gt;(...) 之后、调用 Start() 之前的静止状态。',
+          who: '手动 new 出来的任务(现代代码里很罕见)',
+          exit: '调用 Start() → WaitingToRun' },
+        { id: 'wfa', zone: 'run', label: 'WaitingForActivation', title: 'WaitingForActivation · 等待激活',
+          desc: '欠条已开出,等一个"完成信号"。任务已激活、正在等外部完成它。',
+          who: 'TCS 开出的欠条(0001 模拟器的初始徽章);await 挂起的 async 任务',
+          exit: '完成信号到达(Set*/回调)→ 三终态之一' },
+        { id: 'wtr', zone: 'run', label: 'WaitingToRun', title: 'WaitingToRun · 已排队,待运行',
+          desc: '任务已进入线程池的全局队列,还没被任何工人取走。',
+          who: '刚 Task.Run(...) 丢进线程池的任务',
+          exit: '工人空闲取走 → Running' },
+        { id: 'running', zone: 'run', label: 'Running', title: 'Running · 正在执行',
+          desc: '正在某个线程上执行委托代码。',
+          who: '正在干活的线程池任务;async 方法同步执行段',
+          exit: '执行结束 → RanToCompletion / Faulted / Canceled' },
+        { id: 'wfctc', zone: 'run', label: 'WaitingForChildrenToComplete', title: 'WaitingForChildrenToComplete · 等待子任务',
+          desc: '父任务把子任务附加(attached)进来后,等它们全部完成。',
+          who: '带 attached 子任务的父任务(日常少见)',
+          exit: '所有子任务完成 → 终态' },
+        { id: 'rtc', zone: 'final', label: 'RanToCompletion', title: 'RanToCompletion · 成功完成(终态)',
+          desc: '顺利跑完并产出结果。终态不可变。',
+          who: '一切正常结束的任务;唯一令 IsCompletedSuccessfully 为 true 的状态',
+          exit: '永不离开 —— 这是终点' },
+        { id: 'faulted', zone: 'final', label: 'Faulted', title: 'Faulted · 故障(终态)',
+          desc: '执行中抛出了异常。异常被存进欠条,await 处重新抛出。',
+          who: '抛了非取消异常的任务(0001 实验 2 的 TimeoutException 场景)',
+          exit: '永不离开 —— 这是终点' },
+        { id: 'canceled', zone: 'final', label: 'Canceled', title: 'Canceled · 已取消(终态)',
+          desc: '以"取消"而非"故障"收场。await 处抛 TaskCanceledException。',
+          who: 'TCS.SetCanceled() 销账的任务;抛出 OCE 的 async 方法',
+          exit: '永不离开 —— 这是终点' }
+      ],
+      scenarios: [
+        { name: 'TCS 欠条的一生', steps: [
+          { state: 'wfa', note: 'new TaskCompletionSource() → 欠条出生即等待激活(0001)' },
+          { state: 'rtc', note: 'SetResult 到达 → 销账,续延恢复(0001)' }
+        ]},
+        { name: 'Task.Run 的一生', steps: [
+          { state: 'wtr', note: 'Task.Run(...) → 丢进线程池队列,排队等工人' },
+          { state: 'running', note: '工人取走,开始执行委托' },
+          { state: 'rtc', note: '执行完毕,成功收场' }
+        ]},
+        { name: 'async 方法抛异常', steps: [
+          { state: 'running', note: '调用方同步段先跑,遇到 await 前抛出异常' },
+          { state: 'faulted', note: '异常存入欠条 → await 处重抛(0001 实验 2)' }
+        ]},
+        { name: 'async 方法被取消', steps: [
+          { state: 'running', note: '方法执行中,令牌触发 ThrowIfCancellationRequested' },
+          { state: 'canceled', note: '抛出 OCE → 任务进 Canceled(官方 TAP 规则),而非 Faulted' }
+        ]},
+        { name: 'TCS 被取消销账', steps: [
+          { state: 'wfa', note: '欠条开出,等待中(0004 的取消分支 TrySetCanceled)' },
+          { state: 'canceled', note: 'SetCanceled 到达 → await 处抛 TaskCanceledException' }
+        ]},
+        { name: '手动 new 不启动(反面教材)', steps: [
+          { state: 'created', note: 'new Task&lt;T&gt;(...) 出生在静止区' },
+          { state: 'created', note: '没人调用 Start() → 永远停在 Created;现代代码几乎不这样写' }
+        ]}
+      ]
+    });
+  </script>
+
+  <div class="callout">
+    <p class="callout-title">看完场景,两个值得咀嚼的观察</p>
+    <p>① <em>TCS 欠条跳过了整个"排队/运行"区</em>——它从不执行代码,所以出生即 WaitingForActivation,
+    直接等终态。这也是"Task ≠ 线程"最直观的证据:一个从 Running 里根本没出现过的东西,照样能完成。<br>
+    ② <em>WaitingToRun 与 Running 之间的那条线,就是线程池</em>——这个观察会在 0008 课(线程池饥饿)变成武器。</p>
+  </div>
+
+  <!-- ═══════════ 2. 属性映射 ═══════════ -->
+  <h2>三、常用属性与终态的对应</h2>
+
+  <table>
+    <thead><tr><th>属性</th><th>为 true 的条件</th><th>易错点</th></tr></thead>
+    <tbody>
+      <tr><td><code>IsCompleted</code></td><td>已到任一终态(成功/故障/取消)</td><td>≠ 成功!Faulted 也是"完成"</td></tr>
+      <tr><td><code>IsCompletedSuccessfully</code></td><td>仅 <code>RanToCompletion</code></td><td>.NET Core 2.0+ 才有;老项目用 <code>Status == RanToCompletion</code></td></tr>
+      <tr><td><code>IsFaulted</code></td><td>终态为 <code>Faulted</code></td><td>异常藏在 <code>task.Exception</code>(AggregateException)里</td></tr>
+      <tr><td><code>IsCanceled</code></td><td>终态为 <code>Canceled</code></td><td>async 方法抛 OCE 也会到这(见下)</td></tr>
+    </tbody>
+  </table>
+
+  <p class="muted">枚举与属性权威定义:<a href="https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.taskstatus" target="_blank">TaskStatus(Microsoft Learn)</a>。</p>
+
+  <!-- ═══════════ 3. Canceled vs Faulted ═══════════ -->
+  <h2>四、Canceled 与 Faulted 的分界线(高级考点)</h2>
+
+  <p><span class="tag tag-interview">面试高频</span>同样一个 <code>OperationCanceledException</code>(OCE),
+  官方 TAP 规则决定终态落在哪一侧:</p>
+
+  <div class="code-label">TAP 规则 · OCE 的去向他处</div>
+<pre><code><span class="cmt">// async 方法抛出 OCE → 任务进 Canceled(不是 Faulted!)</span>
+async Task WorkAsync()
+{
+    await Task.Delay(10);
+    throw new OperationCanceledException();
+}
+<span class="cmt">// workTask.Status == Canceled;await 抛 TaskCanceledException</span>
+
+<span class="cmt">// 对照:抛普通异常 → Faulted</span>
+async Task Work2Async()
+{
+    await Task.Delay(10);
+    throw new Exception("boom");
+}
+<span class="cmt">// work2Task.Status == Faulted;await 抛原异常</span></code></pre>
+
+  <div class="callout warn">
+    <p class="callout-title">由此推出的工程纪律</p>
+    <p>别拿 OCE 当普通业务异常抛——它会把任务送进 Canceled,让调用方和监控都误以为"这是取消"。
+    反过来,await 收到 <code>TaskCanceledException</code> 时也别 100% 断定"是别人取消了我"。
+    规则原文见 <a href="https://learn.microsoft.com/en-us/dotnet/standard/asynchronous-programming-patterns/task-based-asynchronous-pattern-tap" target="_blank">TAP 规范</a>;令牌匹配的细节边角值得动手验证(或直接问老师)。</p>
+  </div>
+
+  <!-- ═══════════ 4. 实战诊断 ═══════════ -->
+  <h2>五、实战:状态是生产环境的诊断语言</h2>
+
+  <p>现在把地图变成工具。异步系统"卡住了",第一步永远是问:欠条停在哪个状态?</p>
+
+  <div class="code-label">生产诊断 · 一行日志定位病灶</div>
+<pre><code>_logger.LogInformation("initTcs 状态 = {Status}", _initTcs?.Task.Status);</code></pre>
+
+  <table>
+    <thead><tr><th>滞留的状态</th><th>指向的病灶</th><th>对应课程</th></tr></thead>
+    <tbody>
+      <tr><td><code>WaitingForActivation</code> 太久</td><td><strong>没人销账</strong>——完成路径漏了/事件先于订阅溜走(0004)</td><td>0004</td></tr>
+      <tr><td><code>WaitingToRun</code> 大量堆积</td><td><strong>线程池排队爆满</strong>——工人不足或上游生产过快(饥饿)</td><td>0008 预告</td></tr>
+      <tr><td><code>Running</code> 卡住不动</td><td><strong>执行中卡死</strong>——死循环或同步阻塞占用工人</td><td>0007 / 0008</td></tr>
+    </tbody>
+  </table>
+
+  <p>同一张状态地图,又是调试器语言(VS 里悬停任何 Task 变量看 Status)和 dump 分析语言。
+  这就是"学机制"与"解决问题"的连接点。</p>
+
+  <!-- ═══════════ 5. 检索练习 ═══════════ -->
+  <h2>六、检索练习<span class="muted" style="font-size:.85rem">(不看上文,凭记忆答)</span></h2>
+  <div id="quiz"></div>
+
+  <!-- ═══════════ 6. 复习钩子 ═══════════ -->
+  <h2>七、明天的回忆任务<span class="muted" style="font-size:.85rem">(30 秒,不翻书)</span></h2>
+  <details class="qa">
+    <summary>① TCS 欠条的出生状态是?它为什么不经过 Running?</summary>
+    WaitingForActivation。欠条不执行任何代码,出生即等待完成信号——Task ≠ 线程的活证据。
+  </details>
+  <details class="qa">
+    <summary>② async 方法抛出 OCE,任务终态是 Canceled 还是 Faulted?</summary>
+    Canceled(官方 TAP 规则)。所以别拿 OCE 当普通业务异常抛。
+  </details>
+  <details class="qa">
+    <summary>③ WaitingToRun 堆积和 Running 卡死,分别指向什么病?</summary>
+    前者是线程池排队爆满(饥饿);后者是执行中死循环/同步阻塞。诊断先看状态。
+  </details>
+
+  <!-- ═══════════ 尾部 ═══════════ -->
+  <div class="callout ask no-print">
+    <p class="callout-title">卡住了?随时问你的老师</p>
+    <p>"OCE 的令牌匹配到底怎么判定?""WaitingForChildrenToComplete 什么场景会遇到?"
+    ——回 Claude Code 直接问,边角问题正是老师存在的意义。</p>
+  </div>
+
+  <div class="next-up">
+    <p class="next-title">▸ 下一课:<a href="0006-await-compiler-state-machine.html">0006 · await 编译期真相:手写还原状态机 →</a></p>
+    <p>"await 到底怎么做到暂停又恢复?"下一课把编译器的魔术拆给你看:手写还原它生成的
+    状态机骨架。那之后,SynchronizationContext 与异步死锁(0007)将不再是咒语。
+    复习工具:<a href="../reference/task-status-速查卡.html">Task 状态速查卡</a>(新增)。</p>
+  </div>
+
+  <hr class="footrule">
+  <footer class="course-foot">
+    <span>dotnet-Task异步学习 · 第 0005 课 · 主推阅读:<a href="https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.taskstatus" target="_blank">TaskStatus 枚举 — Microsoft Learn</a></span>
+    <span><a href="0004-event-to-task-and-async-init.html">上一课</a> · <a href="index.html">目录</a> · <a href="../reference/tcs-速查卡.html">TCS 速查卡</a> · <a href="../reference/task-status-速查卡.html">状态速查卡</a></span>
+  </footer>
+
+</div>
+<script src="../assets/quiz.js"></script>
+<script>
+  // ── 隔日检索热身(复习 0004)──
+  TeachQuiz.render(document.getElementById('warmup'), [
+    {
+      q: '【复习】事件等待"先订阅后检查"防的是?',
+      options: ['事件在两行之间溜走了', '处理器内部抛出了异常', '事件被连续触发了多次', '取消令牌没有传递进去'],
+      answer: 0,
+      explain: '检查与订阅之间事件触发,没人接住 → 永久悬挂。先站位置,检查只是兜底。'
+    },
+    {
+      q: '【复习】事件到达后退订,防的是什么?',
+      options: ['事件源会活得比欠条久', '退订才能让欠条完成', '事件处理器只能用一次', '退订是 TrySet 的前提'],
+      answer: 0,
+      explain: '长寿事件源 + lambda 捕获 tcs = 引用链泄漏。取消分支同样要退订。'
+    },
+    {
+      q: '【复习】单飞初始化中,后来的调用者拿到?',
+      options: ['同一张欠条,直接等待', '各自新建的独立欠条', '初始化完成前的 null', '一个等待用的专用锁'],
+      answer: 0,
+      explain: '所有人 await 同一个 tcs.Task;欠条终态不可变,广播安全。'
+    },
+    {
+      q: '【复习】单飞初始化失败后的惯例做法?',
+      options: ['置空状态,允许下次重试', '永久缓存那次失败的异常', '自动立刻重新开始初始化', '让等待者无限期地悬挂'],
+      answer: 0,
+      explain: 'SetException 广播异常 + 置空允许重试;失败不该被缓存成永久状态。'
+    }
+  ]);
+
+  // ── 本课检索练习 ──
+  TeachQuiz.render(document.getElementById('quiz'), [
+    {
+      q: 'TCS 新建欠条的初始状态是?',
+      options: ['等待激活等完成信号', '排队中等线程池工人', '正在某个线程上执行', '已创建但从未被启动'],
+      answer: 0,
+      explain: 'WaitingForActivation——欠条不执行代码,出生即等完成信号,跳过排队/运行区。'
+    },
+    {
+      q: 'async 方法抛出 OCE,任务终态是?',
+      options: ['进入取消的终态状态', '进入异常的终态状态', '永远悬停在运行状态', '回退到已创建的状态'],
+      answer: 0,
+      explain: '按 TAP 规则进 Canceled(而非 Faulted)。所以别拿 OCE 当普通业务异常抛。'
+    },
+    {
+      q: '以下哪个一旦进入就永不改变?',
+      options: ['运行完成成功的状态', '正在执行当中的状态', '排队等待工人的状态', '等待激活完成的状态'],
+      answer: 0,
+      explain: '终态三选一(RanToCompletion/Faulted/Canceled),进入即不可变——这是广播安全的根基。'
+    },
+    {
+      q: '日志里 WaitingToRun 大量堆积,说明?',
+      options: ['线程池排队的任务太多', '所有任务都已经跑完', '程序某处死循环卡死', '欠条永远等不到销账'],
+      answer: 0,
+      explain: 'WaitingToRun = 已入队未运行 → 工人不足或上游过快(饥饿,0008 详谈)。Running 卡死才是死循环;WaitingForActivation 太久是没人销账。'
+    }
+  ]);
+</script>
+</body>
+</html>

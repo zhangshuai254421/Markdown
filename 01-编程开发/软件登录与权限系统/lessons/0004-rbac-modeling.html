@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 4 课 · RBAC 建模：进了门的人怎么分权</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="lesson-head">
+  <div class="kicker">软件登录与权限系统 · 第 4 课（纯桌面版）</div>
+  <h1>RBAC 建模<span class="subtitle">角色怎么设计才不会爆炸，权限点怎么定义才不会失控</span></h1>
+</header>
+
+<p>第 2、3 课解决了「他是谁、怎么进来的」——认证侧完成。从这一课起进入授权侧（第 1 课地图第④环节）：<strong>进了门的人，各自能碰什么。</strong>C/S 和桌面软件共同的授权事实标准是 RBAC（Role-Based Access Control），但「用了 RBAC」和「RBAC 用对了」之间隔着无数个失控的权限表。这一课给建模方法，下一课在 WPF 里落地成代码。</p>
+
+<h2>基本模型：权限不直接发给人</h2>
+
+<p>NIST 的 RBAC 参考模型（<a href="https://csrc.nist.gov/projects/role-based-access-control">INCITS 359</a>）只有三个实体和两条授予关系：</p>
+
+<pre>用户(user) ──授予──▶ 角色(role) ──授予──▶ 权限(permission = 资源 × 动作)</pre>
+
+<p>关键是右边那个箭头：<strong>权限永远只发给角色</strong>。人在组织里的职责是稳定的（操作员、工程师、管理员），把权限绑在职责上，人员来来去去只需改一条用户-角色关系。这条纪律打破了，后面全乱：</p>
+
+<table>
+  <thead>
+    <tr><th>经典错误</th><th>看起来省事之处</th><th>半年后的下场</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>用户直连权限</strong></td><td>「就给小王开这一项，走个快捷方式」</td><td>没人说得清他为什么有这个权限；离职删号、调岗改角色都甩不掉它</td></tr>
+    <tr><td><strong>一人一个专属角色</strong></td><td>「每人需求不同，各配各的」</td><td>角色爆炸：300 人 300 个角色，任何权限变更都变成全员手术</td></tr>
+    <tr><td><strong>角色只增不减</strong></td><td>「先加上，以后再理」</td><td>没有「以后」。权限只进不出的系统，最后等于人人全权限</td></tr>
+  </tbody>
+</table>
+
+<h2>权限点：按「资源 × 动作」定义，别按菜单定义</h2>
+
+<p>最常见的失控是把权限点做成「用户管理页面」「报表页面」——界面一旦重构，权限跟着重做；而且「报表页面」拦得住界面，拦不住「导出」这个动作本身。正确的粒度是<strong>资源上加动作</strong>：</p>
+
+<table>
+  <thead>
+    <tr><th>资源</th><th>可定义的动作（权限点）</th><th>对应你家软件里的什么</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>设备</td><td>启停、调参</td><td>启动/停止按钮、参数写入命令</td></tr>
+    <tr><td>报警</td><td>查看、确认、配置规则</td><td>报警列表、确认按钮、规则编辑界面</td></tr>
+    <tr><td>数据/报表</td><td>查看、导出</td><td>查询界面、导出命令</td></tr>
+    <tr><td>账号体系</td><td>管理用户、分配权限</td><td>用户 CRUD 界面、角色授权界面</td></tr>
+    <tr><td>审计</td><td>查看审计日志</td><td>日志查询页（<strong>「删除/清空」永远不该成为权限点</strong>）</td></tr>
+  </tbody>
+</table>
+
+<p>菜单按权限点<strong>显示</strong>（体验），权限点在命令层被<strong>检查</strong>（控制）——方向别搞反。OWASP 的 <a href="https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html">Authorization Cheat Sheet</a> 把最小权限概括为「纵横双向」：竖向上别给高层级功能，横向上别看到别人的数据（下一课的报表数据过滤就是这个）。</p>
+
+<h2>职责分离（SoD）：配置的人不能审自己</h2>
+
+<p>RBAC 模型的第三层「约束 RBAC」给角色之间加互斥规则，最实用的一条：<strong>有权改配置/改权限的角色，不能同时拥有审计视角</strong>——管理员改了权限、又能翻审计日志抹痕迹，等于自己监考自己。落地为一条硬规则：<strong>「分配权限」与「查看审计日志」不得授予同一角色</strong>。审计角色单独设（哪怕就一个人兼职），这是等保审计条款的组织面要求。</p>
+
+<div id="rbac-lab"></div>
+
+<h2>建模五步法（照着做就能落地）</h2>
+
+<ol>
+  <li><strong>清点操作</strong>：把软件里所有「会改变什么」的动作列出来，写成 资源 × 动作 清单（查代码里所有写操作和按钮命令）。</li>
+  <li><strong>定义权限点</strong>：每个「需要控制的动作」一个权限点；只读的展示类不单独设。</li>
+  <li><strong>组角色</strong>：对着岗位说明书而不是对着人——岗位需要什么动作，角色就含什么权限点。</li>
+  <li><strong>发角色</strong>：用户只拿角色；确有特例时优先问「是不是该新增一个角色」，而不是开直连。</li>
+  <li><strong>留评审</strong>：权限矩阵进版本管理或至少留截图归档；人员调岗时对着矩阵减权限。</li>
+</ol>
+
+<pre>// 落到数据库就是两张关系表，第 5 课在 WPF 里强制执行——结构先定对
+UserRoles:       (UserId, RoleId)
+RolePermissions: (RoleId, PermissionId)      // 权限点表：Code, Name, Resource, Action
+// 反例对照：UserPermissions(UserId, PermissionId) —— 这张表不该存在</pre>
+
+<div class="quiz" data-quiz='{
+  "questions": [
+    {
+      "type": "single",
+      "prompt": "RBAC 里权限应该授给谁？",
+      "options": ["角色再授给用户", "每个用户单独授", "按人名硬编码"],
+      "answer": 0,
+      "explanation": "权限绑职责（角色）、角色授给人。人员流动只动用户-角色关系；直连权限和人名硬编码都是半年后没人敢动的死结。"
+    },
+    {
+      "type": "single",
+      "prompt": "同一个角色既能「分配权限」又能「查看审计日志」，违反的是？",
+      "options": ["职责分离", "最小权限", "默认拒绝"],
+      "answer": 0,
+      "explanation": "改权限的人不能看审计——否则他可以改完权限再抹痕迹，自己监考自己（SoD，RBAC 的约束层）。这两类权限点必须拆到不同角色。"
+    },
+    {
+      "type": "single",
+      "prompt": "权限点最合理的定义粒度是？",
+      "options": ["资源加动作", "按菜单页面", "按数据表分"],
+      "answer": 0,
+      "explanation": "资源×动作（如「报警-确认」「数据-导出」）既稳定又对得上命令层检查点。按菜单定义会跟着界面重构重做，按表定义则粒度错位——导出动作走的是查询逻辑。"
+    },
+    {
+      "type": "single",
+      "prompt": "新用户创建后还没分配任何角色，他应该？",
+      "options": ["默认无任何权限", "默认只读权限", "默认操作员权限"],
+      "answer": 0,
+      "explanation": "默认拒绝（deny by default）是 OWASP 授权第一原则：未明确授权一律拒绝，授权需要显式理由。「默认给个基础权限」是默认放行的温柔版本，一样危险。"
+    },
+    {
+      "type": "multiple",
+      "prompt": "下列哪些是角色设计的反模式？（多选）",
+      "options": [
+        "一人一个专属角色",
+        "用户直接绑定权限",
+        "角色只增从来不减",
+        "定期评审权限配置"
+      ],
+      "answer": [0, 1, 2],
+      "explanation": "专属角色导致角色爆炸；直连权限破坏审计能力；只增不减最终等于人人全权限。定期评审恰恰是唯一的正做法——权限矩阵要能被减下来。"
+    }
+  ]
+}'></div>
+
+<h2>课后作业：把你家的权限画成一张矩阵</h2>
+
+<ol>
+  <li><strong>修到全绿</strong>：在实验台点「加载典型现状」，逐项修到评审通过（全绿），记录你砍掉了哪些、为什么。</li>
+  <li><strong>清点自家</strong>：按五步法第 1 步，列出你们软件的「资源 × 动作」清单——先求全，再求粒度。30 个以内为健康，超过 50 个想想是不是把查询类也当权限点了。</li>
+  <li><strong>抓两个反模式</strong>：在自家代码/数据库里搜「用户-权限直连表」和「按人名/工号分支授权」的代码。各找一个实例记下来，下一课它就是你改造的靶子。</li>
+</ol>
+
+<footer class="lesson-foot">
+  <p><span class="primary-source">本课首选原文：OWASP <a href="https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html">Authorization Cheat Sheet</a></span>——最小权限、默认拒绝等十三条授权原则（本课用设计侧，落地侧留给下一课）。模型出处：<a href="https://csrc.nist.gov/projects/role-based-access-control">NIST RBAC（INCITS 359）</a>核心/层级/约束三层模型。</p>
+  <p>五步法卡在哪一步、权限点砍不干净、SoD 在你们组织里怎么落——随时回对话问你的老师。下一课预告：<strong>WPF 授权与审计落地</strong>——把矩阵接成 IPermissionService，命令 CanExecute、菜单显隐、审计日志四件套一次搭齐。</p>
+  <p class="next-link"><a href="0005-wpf-authorization-audit.html">下一课：WPF 授权与审计落地 →</a> · <a href="../lessons/0003-login-window-and-session.html">回看：第 3 课 · 登录窗口与会话</a> · <a href="../reference/standards.html">标准速查卡</a></p>
+</footer>
+
+</main>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/rbac-lab.js"></script>
+</body>
+</html>

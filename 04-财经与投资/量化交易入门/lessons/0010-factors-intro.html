@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>第10课 · 因子入门：收益从哪里来</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <p class="eyebrow">量化交易入门 · 第 10 课 / 12</p>
+  <h1>因子入门：收益从哪里来</h1>
+  <p class="lead">前九课你问的是"这组参数回测多少"。本课开始问更好的问题：<strong>"收益从哪个逻辑来？"</strong>答案是因子——一条能系统性解释收益差异的市场特征。你前九课写的双均线，将在这里领到它的学名。</p>
+
+  <h2>三大经典因子</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>因子</th><th>直觉</th><th>经典出处</th></tr></thead>
+    <tbody>
+      <tr><td><strong>价值</strong>（Value）</td><td>便宜的资产被系统性低估，长期回归</td><td>Graham &amp; Dodd《证券分析》传统；Fama-French 三因子模型（1992-93）</td></tr>
+      <tr><td><strong>动量</strong>（Momentum）</td><td>涨过的短期里继续涨、跌过的继续跌（3-12 月尺度）</td><td>Jegadeesh &amp; Titman（1993）</td></tr>
+      <tr><td><strong>低波动</strong>（Low Volatility）</td><td>安静股票长期跑赢它"应得"的水平（异象）</td><td>Baker、Haugen 等的系列实证</td></tr>
+    </tbody>
+  </table></div>
+  <p>因子的意义在于<strong>可组合、可检验、可归因</strong>：你不再说"我的策略很好"，而是说"我暴露在动量因子上，动量在过去样本内外表现如下"——暴露什么、赚的是什么钱，说得清楚。</p>
+
+  <h2>A 股的特殊脾气</h2>
+  <p>美股文献里，中期（3-12 个月）动量是最顽固的因子之一。但把它直接搬进 A 股会碰壁：<span class="src third">实证共识</span>A 股个股的<strong>短期反转效应强于短期动量</strong>——一个月尺度上，过去涨得越猛的股票后续平均表现反而越弱。成因与 A 股的散户交易占比高、换手率高以及第 8 课那套物理结构（T+1、涨跌停）都脱不开关系（系统论述见石川等《因子投资：方法与实践》，<a href="https://waylandz.com/quant-book/%E9%87%8F%E5%8C%96%E6%8E%A8%E8%8D%90%E4%B9%A1%E5%8D%95">书单定位</a>）。</p>
+  <div class="warning"><p><strong>由此立一条规矩</strong>：任何因子在 A 股使用前都必须在 A 股数据上重验——"美股论文说它有效"不构成证据，只构成<strong>待检验假设</strong>。这也是你第 11 课评估协议要养成的习惯。</p></div>
+  <p>但注意分寸：个股动量失效，不代表指数趋势跟随失效。你的 510300（宽基指数 ETF）双均线交易的是"指数整体的情绪惯性"，与个股层面的散户博弈不是同一件事——这是为什么它在前面的回测里仍有些许迹象可循（也仅是"些许"）。</p>
+
+  <h2>你的双均线，学名"动量代理"</h2>
+  <p>SMA50/200 金叉买入 = 对中期上涨趋势的跟随 = <strong>动量因子的粗糙代理</strong>。粗糙在哪？它把"过去涨了多少"压缩成了只有两个取值的信号（持有/空仓），而标准动量因子是连续值排序。</p>
+  <p>衡量一个因子粗略好坏的最小工具：<strong>IC（信息系数）</strong>= 因子值与下一期收益的相关系数。<span class="src opinion">业界粗标尺</span>|IC| 长期均值 &gt; 0.03 算能用，&gt; 0.05 相当强。你的均线信号本质上是 IC 的一个极端离散版本——以后你读到任何量化研报，先找 IC 这一栏。</p>
+  <div class="insight"><p><strong>因子视角真正的礼物</strong>：参数会过拟合（第 4 课），但逻辑有延续性。"动量为什么存在"（行为金融：投资者反应不足与追涨）是几十年的跨市场证据；"SMA50/200 为什么存在"则可能只是你数据的巧合。从今天起，评估策略先问<strong>它的因子暴露有没有存在的理由</strong>，再看回测数字。</p></div>
+  <div class="warning"><p><strong>边界声明</strong>：机器学习选股不在本课程使命内（<a href="../MISSION.md">MISSION</a> 约束）。不是它不重要，而是它需要你先徒手掌握本课的概念地基——因子、IC、样本内外——否则只是给过拟合装上加速器。</p></div>
+
+  <h2>检验一下</h2>
+  <div class="quiz" data-answer="a"
+       data-explain-good="对。A 股个股短期（约一个月尺度）反转效应强于动量——直接照搬美股动量因子是未验证的信仰。"
+       data-explain-bad="不对。A 股的脾气恰恰相反：短期涨得越猛，后续平均越弱——是反转占上风，不是动量。">
+    <p class="quiz-question">A 股个股短期谁占上风？</p>
+    <button class="opt" data-key="a">短期反转强于动量</button>
+    <button class="opt" data-key="b">价值因子年年失效</button>
+    <button class="opt" data-key="c">低波动策略最赚钱</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <div class="quiz" data-answer="a"
+       data-explain-good="对。金叉买入=跟随中期上涨趋势=动量代理。它是离散、粗糙的版本，但暴露的是同一个因子。"
+       data-explain-bad="不对。双均线不看估值（非价值）、不看波动（非低波）——它跟随的是价格趋势本身，即动量。">
+    <p class="quiz-question">你的双均线本质是？</p>
+    <button class="opt" data-key="a">动量类因子的代理</button>
+    <button class="opt" data-key="b">价值类因子的代理</button>
+    <button class="opt" data-key="c">低波类因子的代理</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <div class="exercise">
+    <p><strong>动手（约 40 分钟）：</strong></p>
+    <ol>
+      <li>把引擎里的 <code>Signal</code> 换成最粗动量：过去 20 日收益 &gt; 0 则持有，否则空仓。对比它与双均线的四件套（年化/夏普/回撤/交易次数）——这就是因子视角下的"同一因子、两种实现"。</li>
+      <li>再写一版反转信号（过去 5 日跌得越多越买），观察它在你的数据上表现如何——自己验证"A 股短期反转"这句话，而不是背下它。</li>
+      <li>思考题：为什么动量在 A 股个股上可能失效，在宽基指数（510300）上却可能残留？（提示：个股的对手是情绪化的散户群体；指数的对手盘结构不同。）</li>
+    </ol>
+  </div>
+
+  <h3>自由回忆（隔天再做一遍效果更好）</h3>
+  <p>不看上文：① 三大因子各一句话直觉；② A 股短期谁强谁弱、成因猜测；③ IC 是什么、粗标尺是多少；④ 你的双均线是什么因子的什么版本。</p>
+  <button class="reveal-btn" data-reveal="recall">回忆后对照</button>
+  <div class="answer" id="recall" hidden>
+    <p>① 价值=便宜回归，动量=趋势延续，低波=安静跑赢。② A 股个股短期反转强于动量；成因与散户占比、换手率、T+1/涨跌停物理有关。③ IC=因子值与下期收益的相关系数，|IC|&gt;0.03 能用、&gt;0.05 强。④ 动量因子的极端离散（两态）代理。</p>
+  </div>
+
+  <h2>下一步</h2>
+  <p><strong>本课主源推荐</strong>：石川、刘洋溢、连祥斌《因子投资：方法与实践》——中文世界最系统的因子教材，读第 1 章即可获得全景；进阶再读 Fama-French (1992) 与 Jegadeesh-Titman (1993) 原论文。</p>
+  <p><strong>下一课预告</strong>：第 11 课《评估协议》——把前十一课全部串成一份<strong>无法自欺的回测报告</strong>：七个字段、三道稳健性测试、样本外只碰一次。这是你使命里"独立完成回测报告"标准的正课。</p>
+
+  <div class="note"><p><strong>卡住了？随时问老师。</strong>"IC 怎么实际算"、"动量 20 日还是 60 日"这类问题都可以问；更欢迎带着你第 1、2 步的对比结果来，我们一起归因。</p></div>
+
+  <nav class="lesson-nav">
+    <a href="0009-stop-loss-and-sizing.html">第 9 课：止损与仓位</a>
+    <a href="../reference/glossary.html">术语表（R1）</a>
+    <a href="../reference/backtest-checklist.html">自查清单（R2）</a>
+    <a href="0011-evaluation-protocol.html">下一课：评估协议</a>
+  </nav>
+</main>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/course-nav.js"></script>
+</body>
+</html>

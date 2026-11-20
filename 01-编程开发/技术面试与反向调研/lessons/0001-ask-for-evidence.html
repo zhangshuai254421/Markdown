@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>别问“有没有测试”：用证据题问出团队真相</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <p class="eyebrow">技术面试与反向调研 · 说明</p>
+  <h1>别问“有没有测试”：用证据题问出团队真相</h1>
+  <p class="lead">你想通过“问测试”判断团队技术水平——方向是对的。测试、代码评审、部署方式，都是工程水平的硬信号。问题出在问法：<strong>“你们代码有没有测试？”是一个封闭题</strong>，对方一句“有”就能结束，你拿不到任何可判断的细节。今天只练一个动作：把封闭题改写成<strong>“过去具体事件 + 追问”的证据题</strong>。学会后，你问的每个问题都会变得难以敷衍。</p>
+  <div class="note"><p><strong>只想看清单？</strong>直接打开 <a href="../reference/interview-memo.html">R2 · 求职者面试反问备忘录</a>；这页只解释为什么要这样问。</p></div>
+
+  <h2>你的直觉对了一半</h2>
+  <p>先肯定信号：<a href="https://www.joelonsoftware.com/2000/08/09/the-joel-test-12-steps-to-better-code/">Joel Test</a> 的第 10 条就是“你们有测试人员吗”；<a href="https://jvns.ca/blog/2013/12/30/questions-im-asking-in-interviews/">Julia Evans 的面试问题清单</a>里，工程实践第一问也是 “Do you test your code?”。测试确实是判断团队工程水平的可靠入口。注意：Joel Test 问的是“有没有测试人员”，不是“有没有自动化测试”；现代团队更要看测试是否真的在拦问题。</p>
+  <p>但“有没有”这个问法有三个漏洞：</p>
+  <ol>
+    <li><strong>信息量太低。</strong>是 / 否只有 1 bit；对方说“有”，你仍然不知道测试是否真的在拦问题。</li>
+    <li><strong>太容易被包装。</strong>有测试 ≠ 测试有意义；有 CI/CD ≠ 流程有效。reverse-interview 也提醒：<a href="https://github.com/viraptor/reverse-interview">有 bug tracker 不代表 bug 处理高效，有 CI/CD 不代表交付快</a>。</li>
+    <li><strong>判断权在对方。</strong>你听到的是对方准备好的版本，而不是团队日常的真实样子。</li>
+  </ol>
+  <div class="insight">
+    <p><strong>核心原理：</strong>《The Mom Test》的做法是——<a href="https://www.momtestbook.com/">问过去的具体事件，不问未来的观点</a>。人很难可靠地预测未来或概括自己，但很擅长回忆具体发生过的事。问“上次那件事”，对方要么讲细节，要么暴露自己不在现场。SHRM 的行为面试也是同一原理：<a href="https://www.shrm.org/mena/topics-tools/news/hr-magazine/interviewing-basics">过去行为是未来行为的较好预测指标</a>。</p>
+  </div>
+  <p><strong>公式：时间锚点 + 具体事件 + 追问结果。</strong></p>
+  <div class="table-wrap"><table class="swap-table">
+    <thead><tr><th>封闭题（容易得到空话）</th><th>证据题（逼出具体事实）</th><th>你想验证什么</th></tr></thead>
+    <tbody>
+      <tr><td>你们有测试吗？</td><td>最近一次测试没拦住的问题是什么？</td><td>测试是否真的在拦问题</td></tr>
+      <tr><td>你们做代码评审吗？</td><td>上一次评审里，你提过的最重要的意见是什么？</td><td>评审是走流程还是真讨论</td></tr>
+      <tr><td>你们加班多吗？</td><td>上个季度最忙的一周，大家大概几点走？</td><td>加班是例外还是常态</td></tr>
+      <tr><td>你们技术债多吗？</td><td>最近一次专门还技术债是什么时候？做了什么？</td><td>技术债是否被看见、有偿还机制</td></tr>
+      <tr><td>你们部署频繁吗？</td><td>最近一次发布是周几？从合并到上线花了多久？</td><td>发布流程与压力</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">证据题不是“更委婉”，而是“更难被空话回答”。你仍然可以礼貌、好奇；只是把“有没有”换成“上一次……”。</p>
+
+  <h2>别只问技术：三张地图</h2>
+  <p>“了解这个公司”不只是了解技术。把问题分成三张地图，面试时按面试官角色挑：</p>
+  <div class="map-grid">
+    <div class="map-card">
+      <p class="map-kicker">Map 1 · 技术</p>
+      <h3>技术真相</h3>
+      <p>测试、评审、部署、故障处理、技术债。适合问未来的工程师同事。</p>
+      <p><strong>核心问：</strong>最近一次线上故障怎么发现的？后来改了什么？</p>
+    </div>
+    <div class="map-card">
+      <p class="map-kicker">Map 2 · 工作</p>
+      <h3>工作真相</h3>
+      <p>需求怎么排、赶进度怎么取舍、on-call、加班节奏。适合问直属主管。</p>
+      <p><strong>核心问：</strong>上一个赶进度的项目，你们妥协了什么？</p>
+    </div>
+    <div class="map-card">
+      <p class="map-kicker">Map 3 · 生存</p>
+      <h3>生存真相</h3>
+      <p>岗位为什么开放、团队最头疼什么、人为什么留下、业务怎么赚钱。适合问主管 / HR / 终面。</p>
+      <p><strong>核心问：</strong>这个岗位为什么开放？团队现在最头疼什么？</p>
+    </div>
+  </div>
+  <div class="warning">
+    <p><strong>每轮只问 2-3 个，不要一次问十个。</strong>Julia Evans 的策略是每次面试前花 20 分钟挑问题，第一轮不要全问；同一个问题可以问多个面试官，交叉验证。问太多会变成审问，也会浪费你听答案的注意力。</p>
+  </div>
+
+  <h2>听答案的三个检验</h2>
+  <ol>
+    <li><strong>具体性：</strong>有没有时间、人物、数字、后续？有细节的故事 &gt; 一串形容词。</li>
+    <li><strong>一致性：</strong>同一个问题问两个面试官，答案是否对得上？互相矛盾比“答得不好”更危险。</li>
+    <li><strong>反应：</strong>对方是坦然谈问题，还是防御、转移、背稿？愿意说“我们这块还没做好”的团队，通常比满口“我们很规范”的更可信——这是经验法则，不是定律。</li>
+  </ol>
+  <div class="flags">
+    <div class="flag good">
+      <h3>绿旗</h3>
+      <ul>
+        <li>能说出最近一次故障、怎么发现、后来改了什么</li>
+        <li>承认技术债和取舍，不假装完美</li>
+        <li>能说出团队当前最头疼的问题</li>
+        <li>面试官也认真问你问题，像双向选择</li>
+      </ul>
+    </div>
+    <div class="flag bad">
+      <h3>红旗</h3>
+      <ul>
+        <li>所有回答都是形容词，举不出一个最近的例子</li>
+        <li>不同面试官对同一问题说法互相矛盾</li>
+        <li>把长期加班说成“奋斗者文化”，没有补偿</li>
+        <li>岗位常年开放、前任频繁更换、离职原因含糊</li>
+      </ul>
+    </div>
+  </div>
+  <p class="note">单个信号不能定罪，看模式、做交叉验证。面试官也可能受保密约束，不能透露细节；要区分“不愿说”和“不能说”。</p>
+
+  <h2>练一练</h2>
+  <p>先做三个判断，再自己改写一句。答错没关系，反馈会告诉你差在哪。</p>
+
+  <div class="quiz" data-answer="b"
+       data-explain-good="对。它要求一个最近的具体事件，对方很难只用“有”或“没有”回答。"
+       data-explain-bad="不对。覆盖率、工具名、重视程度都能被包装；只有“最近一次具体事件”逼得出细节。">
+    <p class="quiz-question">下面哪一句最像“证据题”？</p>
+    <button class="opt" data-key="a">你们的测试覆盖率大概是多少呢？</button>
+    <button class="opt" data-key="b">最近一次线上问题是怎么发现的？</button>
+    <button class="opt" data-key="c">你们平时用的是什么测试框架呢？</button>
+    <button class="opt" data-key="d">团队对测试工作的重视程度如何？</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <div class="quiz" data-answer="b"
+       data-explain-good="对。对方刚给了概括，你把对方拉回具体事件；“漏掉了什么”比“有没有”更难包装。"
+       data-explain-bad="不对。覆盖率是数字指标，可以被优化；工具名说明不了实践；问看法只会得到客套话。">
+    <p class="quiz-question">面试官说：“我们测试挺全的，CI 也都配了。”最好的追问是？</p>
+    <button class="opt" data-key="a">那你们的测试覆盖率是多少？</button>
+    <button class="opt" data-key="b">最近一次测试漏掉了什么呢？</button>
+    <button class="opt" data-key="c">你们用的是哪种CI工具呢？</button>
+    <button class="opt" data-key="d">团队觉得测试效果怎么样呢？</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <div class="quiz" data-answer="a"
+       data-explain-good="对。要一个最近的具体例子，是最小阻力、最高信息量的追问。"
+       data-explain-bad="不对。问文档会转移话题；带对抗性会让对方防御；问“以后怎么改进”只会得到未来承诺。">
+    <p class="quiz-question">对方回答很笼统时，最有效的追问是？</p>
+    <button class="opt" data-key="a">能举一个最近的具体例子吗？</button>
+    <button class="opt" data-key="b">你们的流程文档放在哪里呢？</button>
+    <button class="opt" data-key="c">这个问题是不是不方便说呢？</button>
+    <button class="opt" data-key="d">那你们以后打算怎么改进呢？</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <p><strong>轮到你（3 分钟）：</strong>把“你们代码有没有测试？”改写成一句证据题。要求：有时间锚点、要求对方讲具体事件、最好再追一句结果。</p>
+  <div class="rewrite"
+       data-anchors="最近,上次,上一次,过去,这周,上个,上个月,半年,最近一次"
+       data-details="例子,具体,怎么,哪次,谁,多久,多长,多少,几点,几次,频率,后来,发现,事故,故障,问题,发布,评审,改,处理,解决,意见"
+       data-closed="有没有,是否">
+    <label class="rewrite-label" for="rewrite-1">你的改写：</label>
+    <textarea id="rewrite-1" class="rewrite-input" rows="3" placeholder="例如：最近一次……是怎么……的？后来……"></textarea>
+    <div class="rewrite-actions">
+      <button type="button" class="check-btn">检查我的问法</button>
+      <button type="button" class="rewrite-reveal" data-reveal="model-rewrite">看参考改写</button>
+    </div>
+    <p class="feedback" hidden></p>
+    <div class="answer" id="model-rewrite" hidden>
+      <p><strong>参考改写：</strong></p>
+      <ul>
+        <li>“最近一次线上问题是怎么发现的？后来你们改了什么？”</li>
+        <li>“一个改动从提交到上线，必须过哪些检查？上一次是哪一步拦住了问题？”</li>
+        <li>“最近半年，测试没拦住、最后靠用户发现的问题是什么？后来补了什么？”</li>
+      </ul>
+      <p><strong>自检：</strong>① 有时间锚点吗？② 要求对方讲具体事件吗？③ 有追问结果吗？④ 能用“有 / 没有”回答吗？如果第 ④ 条是“能”，就还不是证据题。</p>
+    </div>
+  </div>
+
+  <h2>面试现场怎么用</h2>
+  <p><strong>面试前：</strong>每轮挑 2-3 个问题写在纸上；同一个问题准备问两个面试官。</p>
+  <p><strong>面试中：</strong>先问一个大的证据题，再根据回答追问：“后来呢？”“能举个最近的例子吗？”“当时是谁做的决定？”</p>
+  <p><strong>面试后：</strong>10 分钟内记下对方的原话，不要只记印象；给具体性、一致性、反应各打一个分。拿到 offer 后，如果还有没问完的，约一次额外沟通。</p>
+  <div class="script">
+    <p><strong>30 秒开场白，避免像审问：</strong></p>
+    <p>“我想了解一下团队平时怎么工作，方便问两个具体的问题吗？比如最近一次线上问题是怎么发现的？”</p>
+    <p>先说明意图、给出数量、用具体例子开场，对方更容易进入“聊事实”的状态。</p>
+  </div>
+  <p><strong>别做：</strong>问官网能查到的信息；在技术面问薪资；一次抛五个问题；把单个回答当判决书。</p>
+
+  <h2>隔天再练（2 分钟）</h2>
+  <p>不看上文，先自己回答，再展开对照。隔一天做一次，比当天重复三遍更有用。</p>
+  <div class="exercise">
+    <p><strong>①</strong> 证据题的公式是什么？<strong>②</strong> 把“你们加班多吗？”改写成一句证据题。<strong>③</strong> 面试官说“我们流程很规范”，你追哪一句？</p>
+    <button class="reveal-btn" data-reveal="recall">回忆后对照</button>
+    <div class="answer" id="recall" hidden>
+      <p>① 时间锚点 + 具体事件 + 追问结果。② 示例：“上个季度最忙的一周，大家大概几点走？这种情况一年几次？”③ 示例：“最近一次流程没拦住问题是什么时候？后来改了什么？”</p>
+    </div>
+  </div>
+
+  <h2>主源</h2>
+  <p><strong>主源：</strong><a href="https://jvns.ca/blog/2013/12/30/questions-im-asking-in-interviews/">Julia Evans, “Questions I'm asking in interviews”</a>。先读 <em>Engineering practices</em> 和 <em>Management style</em> 两节，挑 5 个你真的会问的句子。Julia Evans 的策略比问题本身更值钱：每次面试前挑几个、不要第一轮问完、同一问题问多人。</p>
+  <p><strong>3 分钟补充：</strong><a href="https://www.joelonsoftware.com/2000/08/09/the-joel-test-12-steps-to-better-code/">Joel Test</a> 的 12 条是 / 否基线，适合快速建立“好团队长什么样”的框架；注意它写于 2000 年，部分条目已过时。</p>
+  <p><strong>题库：</strong><a href="https://github.com/viraptor/reverse-interview">reverse-interview</a> 和它的<a href="https://github.com/yifeikong/reverse-interview-zh">简体中文版</a>。不要全问，按场景挑 2-3 个。</p>
+  <p><strong>原理：</strong><a href="https://www.momtestbook.com/">The Mom Test</a>——问过去具体事件，不问未来观点。</p>
+  <p><strong>速查：</strong><a href="../reference/interview-memo.html">R2 · 求职者面试反问备忘录</a>（一页清单，可勾选、可打印）；详细解释见 <a href="../reference/question-bank.html">R1 · 面试反问速查卡</a>。</p>
+  <p class="note"><strong>有疑问随时问老师。</strong>比如把你的目标岗位 JD 发给我，我帮你挑 5 个最适合那类公司的问题；或者把你实际得到的回答贴给我，我们一起判断红旗。</p>
+
+  <nav class="lesson-nav">
+    <a href="../reference/interview-memo.html">R2 · 求职者面试反问备忘录</a>
+    <a href="../reference/question-bank.html">R1 · 面试反问速查卡</a>
+    <a href="../MISSION.md">学习使命</a>
+    <a href="../RESOURCES.md">资源清单</a>
+    <a href="https://jvns.ca/blog/2013/12/30/questions-im-asking-in-interviews/">主源：Julia Evans</a>
+  </nav>
+</main>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/rewrite-check.js"></script>
+</body>
+</html>

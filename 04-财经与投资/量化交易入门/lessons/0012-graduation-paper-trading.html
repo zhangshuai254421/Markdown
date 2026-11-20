@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>第12课 · 毕业：模拟盘与实盘铁律</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <p class="eyebrow">量化交易入门 · 第 12 课 / 12</p>
+  <h1>毕业：模拟盘与实盘铁律</h1>
+  <p class="lead">十二课走完，工具链齐了。最后一课不是新知识，而是<strong>把你推向真实世界</strong>：出关前的五个问题、一个月纸面交易的完整协议、以及三条不可协商的铁律。毕业不是终点——是纪律的起点。</p>
+
+  <h2>出发前的五个问题</h2>
+  <p>任何策略上模拟盘之前，依次回答（对照 <a href="../reference/backtest-checklist.html">R2 第三关</a>）：</p>
+  <ol>
+    <li><strong>逻辑</strong>：我能一句话说清收益从哪个因子/行为来吗？（<a href="0010-factors-intro.html">第 10 课</a>）</li>
+    <li><strong>报告</strong>：七字段齐了吗？三道稳健性测试活下来了吗？（<a href="0011-evaluation-protocol.html">第 11 课</a>）</li>
+    <li><strong>成本</strong>：费率 ×3 后还活着吗？</li>
+    <li><strong>诚实</strong>：样本外只碰过一次吗？尝试次数记录了吗？</li>
+    <li><strong>底线</strong>：最坏情况亏多少？这笔钱全没了，我的生活会变化吗？</li>
+  </ol>
+  <p>五问有一问答不上，回到对应课重做——不丢人，丢人的是带着没答上的问题进市场。</p>
+
+  <h2>模拟盘协议（≥ 1 个月）</h2>
+  <p>使命要求至少一个月纸面交易才能谈实盘。协议核心是一份<strong>交易日志</strong>，每笔记录四件事：</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>字段</th><th>记录什么</th><th>它暴露什么</th></tr></thead>
+    <tbody>
+      <tr><td><strong>理由</strong></td><td>触发信号（哪条规则）</td><td>你是否在按规则交易，还是凭感觉</td></tr>
+      <tr><td><strong>滑点</strong></td><td>计划价 vs 实际成交价</td><td>回测执行假设与现实的真实差距</td></tr>
+      <tr><td><strong>情绪</strong></td><td>下单时的感受（犹豫/兴奋/侥幸）</td><td>你与策略的兼容性——能不能拿得住</td></tr>
+      <tr><td><strong>偏离</strong></td><td>与规则的任何差异及原因</td><td>纪律漏洞，实盘前必须修复</td></tr>
+    </tbody>
+  </table></div>
+  <p>通道参考：A 股个人的程序化路径主要是券商提供的 QMT / PTrade 终端（开通门槛各券商不同），以及提供 <strong>C# SDK</strong> 的第三方平台<a href="https://www.myquant.cn/terminal">掘金量化</a>（myquant.cn）——正好接上你的主语言。本课程第 2-3 课已经在掘金里跑通回测，模拟盘可以直接沿用同一套 C# 代码。模拟盘阶段用哪家都行，重点是协议完整。<span class="src third">社区经验</span>普遍的观察是：模拟盘会揭示两件事——执行差距（滑点、拒单）和你自己的心性。两者都会比你预期的严重。</p>
+  <div class="warning"><p><strong>模拟盘成绩差怎么办</strong>：不是硬着头皮上实盘，而是回去查——滑点大了改执行假设，情绪失控了降仓位。模拟盘的意义就是<strong>让这些失败发生在不花钱的地方</strong>。</p></div>
+
+  <h2>三条实盘铁律</h2>
+  <ol>
+    <li><strong>资金铁律</strong>：投入实盘的钱 = 全部亏光不影响生活的钱，且 ≤ 金融资产的 5%（<a href="../MISSION.md">MISSION</a> 的原始约定）。这不是保守，是让你在策略失效时（它会失效）依然有资本和心态重来。</li>
+    <li><strong>杠杆禁令</strong>：入门阶段不碰两融、不碰任何杠杆。凯利公式（<a href="0009-stop-loss-and-sizing.html">第 9 课</a>）的前提是参数正确，而你的参数是估的。</li>
+    <li><strong>偏离即停</strong>：任何一次违背规则的操作，立即停止实盘、回到模拟盘复盘。规则的唯一价值是完整执行，破一次就全无意义。</li>
+  </ol>
+  <div class="insight"><p><strong>呼应《炒股的智慧》</strong>：陈江挺全书反复保护的是"本钱"与"纪律"两样东西。十二课学完你会发现，量化没有推翻它们，只是把它们翻译成了代码与公式——回测协议保护本钱，状态机保护纪律。<strong>技术变了，人性没变</strong>。</p></div>
+
+  <h2>课程地图</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>课</th><th>一句话</th><th>带走的东西</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>手续费杀死策略</td><td>成本直觉</td></tr>
+      <tr><td>2</td><td>C#+掘金量化 首次回测</td><td>事件模型</td></tr>
+      <tr><td>3</td><td>双均线与第一次作弊</td><td>未来函数</td></tr>
+      <tr><td>4</td><td>回测作弊图鉴</td><td>五宗罪</td></tr>
+      <tr><td>5</td><td>真实 A 股数据</td><td>AKShare + 复权</td></tr>
+      <tr><td>6</td><td>基准平反与夏普</td><td>超额收益 ÷ 颠簸</td></tr>
+      <tr><td>7</td><td>自建引擎（上）</td><td>核心循环</td></tr>
+      <tr><td>8</td><td>自建引擎（下）</td><td>A 股物理</td></tr>
+      <tr><td>9</td><td>止损与仓位</td><td>2% 规则 + 半凯利</td></tr>
+      <tr><td>10</td><td>因子入门</td><td>收益归因</td></tr>
+      <tr><td>11</td><td>评估协议</td><td>七字段 + 三测试</td></tr>
+      <tr><td>12</td><td>毕业</td><td>模拟盘协议 + 铁律</td></tr>
+    </tbody>
+  </table></div>
+  <p>随身工具：<a href="../reference/glossary.html">术语表 R1</a> · <a href="../reference/backtest-checklist.html">回测自查清单 R2</a> · <a href="../reference/cn-platform-map.html">平台地图 R3</a> · <a href="../reference/myquant-csharp-cheatsheet.html">掘金 C# 速查 R4</a> · <a href="../RESOURCES.md">资源清单</a>。</p>
+
+  <h2>使命自评清单</h2>
+  <p>对照 <a href="../MISSION.md">MISSION.md</a> 的六条成功标准，逐条打勾：</p>
+  <ul>
+    <li>□ 独立完成一份回测报告（第 11 课作业）</li>
+    <li>□ 能指出任意回测的 5 种作弊（第 4 课 + R2）</li>
+    <li>□ 完成掘金量化的 C# 回测（第 2-3 课）</li>
+    <li>□ 理解 A 股机制约束（第 5、8 课）</li>
+    <li>□ ≥1 个月纸面交易（从今天开始计时，用上面的协议）</li>
+    <li>□ 小资金实盘 ≤ 金融资产 5%（模拟盘通过后，再议）</li>
+  </ul>
+
+  <h2>检验一下</h2>
+  <div class="quiz" data-answer="a"
+       data-explain-good="对。铁律的数学本质：这笔钱全亏光也不改变你的生活和心态——只有这样的钱才有资格进市场试错。"
+       data-explain-bad="不对。加仓和杠杆都不是铁律——铁律只关心一件事：最坏情况发生时，你还在牌桌上。">
+    <p class="quiz-question">实盘资金铁律是什么？</p>
+    <button class="opt" data-key="a">全亏不影响生活</button>
+    <button class="opt" data-key="b">收益翻倍再加仓</button>
+    <button class="opt" data-key="c">先上杠杆练心态</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <div class="quiz" data-answer="a"
+       data-explain-good="对。模拟盘的目标是暴露执行差距与心性漏洞——日志四字段就是为此设计的探针。"
+       data-explain-bad="不对。模拟盘不是用来'刷战绩'的——高收益说明不了什么，执行与规则的偏差才是要抓的东西。">
+    <p class="quiz-question">模拟盘一个月的重点？</p>
+    <button class="opt" data-key="a">记录情绪滑点偏差</button>
+    <button class="opt" data-key="b">追求模拟盘高收益</button>
+    <button class="opt" data-key="c">频繁切换交易策略</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <h3>自由回忆（隔天再做一遍效果更好）</h3>
+  <p>不看上文：① 出发前五问；② 交易日志四字段；③ 三条实盘铁律。</p>
+  <button class="reveal-btn" data-reveal="recall">回忆后对照</button>
+  <div class="answer" id="recall" hidden>
+    <p>① 逻辑/报告/成本/诚实/底线。② 理由、滑点、情绪、偏离。③ 资金铁律（全亏不影响生活且 ≤5%）、杠杆禁令、偏离即停。三条都指向同一件事：确保你在策略失效后还在牌桌上。</p>
+  </div>
+
+  <h2>下一步：走向真实的社区</h2>
+  <p>课程教到这里，接下来的问题大多属于"实践智慧"，最好的老师是社区（<a href="../RESOURCES.md">RESOURCES.md 社区板块</a>已备好入口）：<a href="https://www.jisilu.cn">集思录</a>（低风险与可转债/ETF 实盘讨论）、<a href="https://bbs.myquant.cn/topic/624">掘金量化社区</a>（平台/SDK 问题的中文搜索入口）、<a href="https://quant.stackexchange.com">Quant StackExchange</a>（英文硬核问答，可选）。提问礼仪：<strong>先搜后问、贴完整代码、说清数据与成本假设</strong>——你会用 R2 的语言提问，这已经超过大多数提问者。</p>
+  <p class="note">最后一课没有"下一课预告"。接下来的进度由你的实践决定：报告交卷、模拟盘日记、或者任何一个卡住的瞬间——<strong>回来找老师</strong>，这是学习记录（learning-records）该启动的时候。</p>
+
+  <div class="note"><p><strong>毕业作业（不限时）</strong>：① 第 11 课报告交卷；② 开始模拟盘日志，一个月后带日记回来复盘；③ 使命自评清单逐条打勾，没勾的告诉我们从哪课重启。</p></div>
+
+  <nav class="lesson-nav">
+    <a href="0011-evaluation-protocol.html">第 11 课：评估协议</a>
+    <a href="../reference/glossary.html">术语表（R1）</a>
+    <a href="../reference/backtest-checklist.html">自查清单（R2）</a>
+    <a href="../MISSION.md">回到使命（MISSION.md）</a>
+  </nav>
+</main>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/course-nav.js"></script>
+</body>
+</html>

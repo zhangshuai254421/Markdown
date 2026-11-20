@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 5 课 · WPF 授权与审计落地：矩阵不许只是许愿表</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="lesson-head">
+  <div class="kicker">软件登录与权限系统 · 第 5 课（纯桌面版）</div>
+  <h1>WPF 授权与审计落地<span class="subtitle">第 4 课的矩阵画得再好，不接进命令和界面，就只是一张许愿表</span></h1>
+</header>
+
+<p>第 4 课的权限矩阵描述了「应该怎样」，这一课回答「怎么在 WPF 里保证就是这样」。核心只有一句话：<strong>把权限检查集中在一处（权限服务），让命令的 CanExecute 和界面的显隐都来问它</strong>——而不是每个按钮各写一个 if，更不是把「谁能用什么」写死在代码里。OWASP 授权原则里的「默认拒绝」「最小权限」「检查集中」，在桌面形态全部翻译成这一层封装。</p>
+
+<h2>先分清：控制与体验</h2>
+
+<table>
+  <thead>
+    <tr><th></th><th>做什么</th><th>为什么这么分</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>控制（逻辑层）</strong></td><td>命令的 <code>CanExecute</code> 返回 false → 按钮禁用、命令不执行</td><td>这是<strong>真正的权限检查</strong>——执行路径上的一关，绕界面也绕不过命令</td></tr>
+    <tr><td><strong>体验（视图层）</strong></td><td>菜单/Tab 按权限点<strong>显隐</strong></td><td>让不同岗位看到不同界面，少干扰少误点。它是同一份权限数据的另一种呈现，<strong>不是</strong>控制本身</td></tr>
+  </tbody>
+</table>
+
+<p>两条用同一份权限数据（第 4 课那两张关系表），永远不要写两套判断——「菜单显示着但点了没反应」和「菜单藏了但命令没挂权限」都是两套判断打架的症状。</p>
+
+<h2>四件套落地</h2>
+
+<p><strong>① 权限服务：唯一的检查点</strong></p>
+
+<pre>public interface IPermissionService
+{
+    bool Can(string permissionCode);          // 查第4课的 RolePermissions 表
+    IReadOnlySet&lt;string&gt; Codes { get; }       // 当前用户全部权限点，给界面绑定用
+}
+
+public class PermissionService : IPermissionService
+{
+    // 登录时按 UserSession.Current 的角色一次性加载，缓存成 HashSet
+    private readonly HashSet&lt;string&gt; _codes;
+    public PermissionService(IEnumerable&lt;string&gt; roleCodes) =&gt;
+        _codes = new HashSet&lt;string&gt;(roleCodes);
+    public bool Can(string code) =&gt; _codes.Contains(code);   // 没有就是没有——默认拒绝
+    public IReadOnlySet&lt;string&gt; Codes =&gt; _codes;
+}</pre>
+
+<p><strong>② 命令：CanExecute 挂权限点（真正的控制）</strong></p>
+
+<pre>// RelayCommand / DelegateCommand（Prism）都支持 canExecute 参数
+SaveParamsCommand = new RelayCommand(
+    execute: SaveParams,
+    canExecute: _ =&gt; _perms.Can("工艺参数-修改"));     // 第4课定义的权限点编码
+
+private void SaveParams()
+{
+    // 执行前不必再查一次——CanExecute 已把住入口；
+    // 但拿不准的地方多查一次也无妨：_perms.Can(...)
+}</pre>
+
+<p><strong>③ 界面：显隐绑定同一份数据（体验）</strong></p>
+
+<pre>&lt;!-- ViewModel 暴露 Perms.Codes，转换器决定显隐 --&gt;
+&lt;MenuItem Header="用户管理"
+          Visibility="{Binding Perms.Codes, Converter={StaticResource ContainsToVisibility},
+                       ConverterParameter=用户管理}"/&gt;</pre>
+
+<p><strong>④ 审计：关键操作落一行</strong></p>
+
+<pre>public void Write(string action, string target, string detail = "")
+{
+    db.AuditLogs.Add(new AuditLog {
+        Time = DateTime.Now,
+        UserName = UserSession.Current?.Name ?? "(未登录)",
+        Action = action, Target = target, Detail = detail
+    });
+}
+// 用法：_audit.Write("修改工艺参数", "温度上上限", "120 → 150");
+// 四类必记（第1课第五环节）：改配置、删数据、登录成败、权限变更；「拒绝的操作」也记。</pre>
+
+<p>用 Prism 的话，把 <code>IPermissionService</code> 注册进容器（登录成功后构造一次，随 <code>UserSession</code> 生命周期），各 ViewModel 构造函数注入——检查点全局唯一，将来权限逻辑怎么改都只动一处。</p>
+
+<h2>桌面版的「越权」长什么样</h2>
+
+<p>服务端形态的越权是跨网络的请求伪造；桌面形态里这两个概念收敛成界面与数据的两问：</p>
+
+<table>
+  <thead>
+    <tr><th>概念</th><th>桌面语义</th><th>对策</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>垂直越手</strong>（原「垂直越权」）</td><td>操作员够到管理员的功能——多半是命令忘了挂 CanExecute</td><td>入口清单逐个核对（见作业）；默认新命令不挂权限就先禁用</td></tr>
+    <tr><td><strong>跨人看数据</strong>（原「水平越权」）</td><td>报表/历史数据里看到不该看的班组、别人的记录</td><td>查询逻辑按当前用户的数据范围过滤（如「只看本班组」），这是业务代码里的职责，不是界面显隐能解决的</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <span class="callout-label">诚实定位（第 1 课边界的最后一次重申）</span>
+  进程内的权限检查挡的是<strong>正常用户的误操作和越手</strong>——这覆盖工厂里绝大多数真实需求。它挡不住能改本地库、补丁程序的人。把这句答案准备好：「需要更强边界时，权限与账号数据收进中央数据库（禁用/调权全局生效、审计离开本机），或加应用服务端。」你就比大多数同行诚实且专业。
+</div>
+
+<div class="quiz" data-quiz='{
+  "questions": [
+    {
+      "type": "single",
+      "prompt": "按钮权限的真正控制在哪一层？",
+      "options": ["命令CanExecute", "只把菜单藏起来", "点了再弹窗提示"],
+      "answer": 0,
+      "explanation": "CanExecute 把住执行路径——绕界面也绕不过命令。显隐只是同一份权限数据的界面呈现；「点了才提示」则把检查放到了执行之后。"
+    },
+    {
+      "type": "single",
+      "prompt": "桌面形态里，权限数据的可信来源是？",
+      "options": ["本地或中央权限表", "代码里写死的名单", "当前登录人自报"],
+      "answer": 0,
+      "explanation": "权限点存库、按角色加载（第4课两张关系表），代码里只有权限点编码。写死人名是最快的死结；「自报」在服务端是大忌，桌面版的对应错误是把角色存在界面控件里。"
+    },
+    {
+      "type": "single",
+      "prompt": "下列哪类操作可以不写审计日志？",
+      "options": ["查询帮助文档", "修改工艺参数", "删除历史数据"],
+      "answer": 0,
+      "explanation": "四类必记：改配置、删数据、登录成败、权限变更。查询帮助不改变任何状态，无需审计——审计记「改变」，不记「浏览」。"
+    },
+    {
+      "type": "single",
+      "prompt": "桌面权限系统的诚实定位是？",
+      "options": ["防呆留痕责任追溯", "对抗逆向工程高手", "替代数据库账号权限"],
+      "answer": 0,
+      "explanation": "进程内检查覆盖工厂绝大多数真实需求（防误操作、可追溯），但不对抗拥有机器的人。需要更强边界时：中央数据库 / 应用服务端。"
+    },
+    {
+      "type": "multiple",
+      "prompt": "WPF 授权落地的正确做法有哪些？（多选）",
+      "options": [
+        "命令做实际控制",
+        "显隐做界面体验",
+        "权限绑到具体人名",
+        "拒绝操作也记审计"
+      ],
+      "answer": [0, 1, 3],
+      "explanation": "CanExecute 控制执行、显隐优化体验、两者共用一份权限数据；拒绝的操作记下来才能发现「有人在试」。权限绑人名是最快的死结——权限只经角色发放（第 4 课）。"
+    }
+  ]
+}'></div>
+
+<h2>课后作业：把权限接进命令</h2>
+
+<ol>
+  <li><strong>列入口</strong>：数出主界面全部「会改变什么」的按钮/命令，列成清单——这就是你家的入口表。</li>
+  <li><strong>挂权限</strong>：实现 IPermissionService + 审计服务，给清单上每条命令挂上权限点（对照第 4 课矩阵），先从「修改工艺参数」和「删除数据」这两类挂起。</li>
+  <li><strong>写审计</strong>：给挂好权限的三条命令补审计——登录成功、修改成功、修改被拒（CanExecute 为 false 的点击事件也值得记一条「尝试」）。</li>
+</ol>
+
+<footer class="lesson-foot">
+  <p><span class="primary-source">本课首选原文：OWASP <a href="https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html">Authorization Cheat Sheet</a></span>——默认拒绝、最小权限、检查集中的原始出处（本课把它们翻译成进程内版本）。WPF 命令机制：<a href="https://learn.microsoft.com/en-us/dotnet/desktop/wpf/advanced/commanding-overview">Microsoft Learn — Commanding Overview</a>；Prism 项目用 <a href="https://docs.prismlibrary.com/docs/wpf/essential-concepts/commands.html">DelegateCommand 文档</a>。课程内衔接：<a href="0004-rbac-modeling.html">第 4 课</a>（矩阵与权限点定义）。</p>
+  <p>权限服务想看带 Prism 容器注册的完整可编译实现、显隐转换器想直接抄、报表数据过滤想对方案——随时回对话问你的老师。下一课（结课）预告：<strong>等保自查</strong>——把六课所学对照 GB/T 22239-2019 条款走一遍，交出你家软件的差距清单。</p>
+  <p class="next-link"><a href="0006-dengbao-self-check.html">结课：等保自查 →</a> · <a href="../lessons/0004-rbac-modeling.html">回看：第 4 课 · RBAC 建模</a> · <a href="../reference/security-self-check.html">安全自查单</a></p>
+</footer>
+
+</main>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

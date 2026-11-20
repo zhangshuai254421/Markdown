@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>量化交易术语表 · 速查手册</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <p class="eyebrow">量化交易入门 · 参考文档 R1</p>
+  <h1>术语表</h1>
+  <p class="lead">全课程共用一套词汇。课程里出现这些词时，含义以本表为准；发现课程用词与表格冲突，视为课程错误，请告知老师。</p>
+  <p class="subtitle">更新：2026-11-06 · 打印友好 · <a href="../lessons/0001-why-backtests-die-to-fees.html">第 1 课</a></p>
+
+  <h2>一、绩效指标（衡量一个策略好不好）</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>术语</th><th>英文</th><th>一句话定义</th><th>常见坑</th></tr></thead>
+    <tbody>
+      <tr><td><strong>净值曲线</strong></td><td>Equity Curve</td><td>策略资金随时间变化的曲线，是回测的核心输出。</td><td>只看终点不看路径，会漏掉中途的深回撤。</td></tr>
+      <tr><td><strong>总收益率</strong></td><td>Total Return</td><td>期末净值 ÷ 期初净值 − 1。</td><td>不告诉你花了多少年，也没说冒了多大风险。</td></tr>
+      <tr><td><strong>年化收益</strong></td><td>CAGR</td><td>把总收益折算成"每年复利多少"的几何平均增长率。</td><td>回测期太短（<3 年）时，CAGR 基本是噪声。</td></tr>
+      <tr><td><strong>最大回撤</strong></td><td>Max Drawdown</td><td>净值曲线从历史最高点跌到最低点的最大幅度。</td><td>它只记录最惨的一段，不代表"平均有多惨"。</td></tr>
+      <tr><td><strong>基准</strong></td><td>Benchmark</td><td>用来对照的策略/指数（A股常用沪深300）。跑不赢基准的复杂策略没有存在意义。</td><td>选一个弱的基准来"证明"策略有效——隐形作弊。</td></tr>
+      <tr><td><strong>胜率</strong></td><td>Win Rate</td><td>盈利交易次数 ÷ 总交易次数。</td><td>高胜率 × 小赚、低胜率 × 大赔，照样亏——必须配盈亏比看。</td></tr>
+      <tr><td><strong>盈亏比</strong></td><td>Profit/Loss Ratio</td><td>平均每笔盈利 ÷ 平均每笔亏损。</td><td>单看胜率或单看盈亏比都没有意义。</td></tr>
+      <tr><td><strong>期望值</strong></td><td>Expected Value</td><td>胜率×平均盈利 − 败率×平均亏损；长期盈利的唯一来源。</td><td>期望值为正但样本太少时，实盘可能长期不兑现。</td></tr>
+      <tr><td><strong>夏普比率</strong></td><td>Sharpe Ratio</td><td>(收益 − 无风险利率) ÷ 收益波动率：每承担一份波动换来多少回报。</td><td>用日收益算的夏普会低估肥尾风险；第 6 课展开。</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>二、回测方法论（怎么验证一个策略）</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>术语</th><th>英文</th><th>一句话定义</th><th>常见坑</th></tr></thead>
+    <tbody>
+      <tr><td><strong>回测</strong></td><td>Backtest</td><td>把策略规则放进历史数据里模拟执行，检验它过去会怎样。</td><td>回测好 ≠ 未来好；它只回答"过去是否成立"。</td></tr>
+      <tr><td><strong>信号</strong></td><td>Signal</td><td>策略产生的买/卖/空仓指令，由明确规则算出。</td><td>规则含糊（"涨得多就卖"）的信号无法回测。</td></tr>
+      <tr><td><strong>SMA</strong></td><td>Simple Moving Average</td><td>最近 N 个周期收盘价的算术平均，用来平滑价格噪声。</td><td>均线滞后于价格；窗口越长越平滑，也越慢。</td></tr>
+      <tr><td><strong>双均线</strong></td><td>SMA Crossover</td><td>快线（如 SMA50）与慢线（如 SMA200）比较：快线上穿慢线买入，下穿卖出。详见 <a href="sma-crossover-explained.html">R5</a>。</td><td>震荡市假信号多；参数是自由度，容易过拟合。</td></tr>
+      <tr><td><strong>金叉 / 死叉</strong></td><td>Golden / Death Cross</td><td>快线从下往上穿越慢线 = 金叉；从上往下 = 死叉。</td><td>是事后确认信号，不是预测；金叉不代表一定上涨。</td></tr>
+      <tr><td><strong>样本内 / 样本外</strong></td><td>In / Out-of-Sample</td><td>调参数用的数据段 vs 从未参与调参的验证数据段。</td><td>反复"偷看"样本外调参，它就变成了样本内。</td></tr>
+      <tr><td><strong>过拟合</strong></td><td>Overfitting</td><td>参数调得完美贴合历史噪声，未来立刻失效。</td><td>参数越多、回测越漂亮，越该怀疑过拟合。</td></tr>
+      <tr><td><strong>未来函数</strong></td><td>Look-ahead Bias</td><td>用了当时不可能知道的数据做决策（如用收盘价在盘中成交）。</td><td>最常见的回测作弊，回测利润虚高的头号来源。</td></tr>
+      <tr><td><strong>幸存者偏差</strong></td><td>Survivorship Bias</td><td>股票池里只留了活到今天的股票（退市/暴雷的消失）。</td><td>用"今天的沪深300成分股"回测20年就是典型。</td></tr>
+      <tr><td><strong>走查验证</strong></td><td>Walk-forward</td><td>滚动窗口：用过去调参→用紧接着的未来验证，模拟真实使用。</td><td>计算量大，但比一次性样本内外划分更接近实战。</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>三、A股市场机制（策略必须服从的物理定律）</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>术语</th><th>英文</th><th>一句话定义</th><th>对策略的含义</th></tr></thead>
+    <tbody>
+      <tr><td><strong>T+1</strong></td><td>T+1 Settlement</td><td>今天买的股票，明天才能卖。</td><td>日内反转策略在股票上不可行；尾盘买入成为主流执行方式。</td></tr>
+      <tr><td><strong>涨跌停</strong></td><td>Price Limit</td><td>主板单日涨跌幅限制 ±10%（ST ±5%，创业板/科创板 ±20%）。</td><td>涨停买不进、跌停卖不出——回测必须处理"想交易但成交不了"。</td></tr>
+      <tr><td><strong>印花税</strong></td><td>Stamp Duty</td><td>卖出股票时国家收取的税（2023年8月起为成交额的 0.05%，单边卖出）；<strong>ETF 免征</strong>。</td><td>不可谈判的成本；高换手策略的天然敌人。用 ETF 回测时把印花税设为 0。</td></tr>
+      <tr><td><strong>做空受限</strong></td><td>Short Constraints</td><td>普通个人账户基本不能做空个股（融券门槛高、券源少）。</td><td>A股策略基本只有"做多/空仓"两个状态，与美股两极反转策略根本不同。</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>四、交易执行（成本从哪里来）</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>术语</th><th>英文</th><th>一句话定义</th><th>常见坑</th></tr></thead>
+    <tbody>
+      <tr><td><strong>佣金</strong></td><td>Commission</td><td>券商每笔交易收的手续费，万2.5~万3 常见，常有最低 5 元限制。</td><td>小资金高频交易被"最低5元"隐性重税。</td></tr>
+      <tr><td><strong>滑点</strong></td><td>Slippage</td><td>信号价与实际成交价之差。</td><td>回测用收盘价成交 = 零滑点 = 自欺；小盘股滑点远大于大盘股。</td></tr>
+      <tr><td><strong>换手率</strong></td><td>Turnover</td><td>一段时间内买卖总额占资金的比例；换手越猛成本越高。</td><td>成本敏感度测试：把费率调高 3 倍重跑，利润还在才是真利润。</td></tr>
+      <tr><td><strong>仓位</strong></td><td>Position Sizing</td><td>每笔交易投入多少资金的决定。</td><td>决定生死的往往不是选股而是仓位；与《炒股的智慧》资金管理同源。</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>五、掘金量化 C# SDK 术语（课程主平台）</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>术语</th><th>一句话定义</th><th>常见坑</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Strategy</strong></td><td>掘金的策略基类；你的策略继承它，重写 <code>OnInit</code>/<code>OnBar</code> 等方法。</td><td>把策略写成普通类、忘了继承 <code>GMSDK.Strategy</code>，引擎永远不会调用它。</td></tr>
+      <tr><td><strong>OnInit</strong></td><td>回测/实盘开始前调用一次；在这里订阅行情、初始化状态。</td><td>把下单逻辑写进 OnInit——它只跑一次，不会按 K 线重复。</td></tr>
+      <tr><td><strong>OnBar</strong></td><td>每来一根 K 线调用一次（日线即每个交易日一次）。</td><td>以为它只在收盘调用；不同频率下 <code>bar</code> 的周期不同。</td></tr>
+      <tr><td><strong>Subscribe</strong></td><td>订阅标的与频率，如 <code>Subscribe("SHSE.510300", "1d")</code>。</td><td>标的代码格式写错（应为 <code>SHSE.600000</code> / <code>SZSE.000001</code>），或忘了订阅导致 OnBar 不触发。</td></tr>
+      <tr><td><strong>OrderTargetPercent</strong></td><td>把仓位调整到占总资产的目标比例；<code>0.95</code> = 95%，<code>0</code> = 清仓。</td><td>用 <code>1.0</code> 满仓时手续费会让资金不足——留 5% 现金。</td></tr>
+      <tr><td><strong>SetBacktestConfig</strong></td><td>设置回测起止、初始资金、佣金、滑点、复权；必须在 <code>Run()</code> 前调用。</td><td>默认佣金/滑点是 0，不设就是"零成本"假报告。</td></tr>
+      <tr><td><strong>OnBacktestFinished</strong></td><td>回测结束回调，参数 <code>Indicator</code> 含 <code>pnlRatio</code>、<code>sharpRatio</code>、<code>maxDrawdown</code> 等指标。</td><td>字段名拼错（是 <code>sharpRatio</code> 不是 <code>sharpeRatio</code>）。</td></tr>
+      <tr><td><strong>token / 策略 ID</strong></td><td>token 在终端"系统设置 → 密钥管理"；策略 ID 在"量化研究 → 新建策略 → C#"时生成。</td><td>把 token 提交进 Git 仓库——它等同账号钥匙。</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>六、数据口径（复权与价格）</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>术语</th><th>一句话定义</th><th>常见坑</th></tr></thead>
+    <tbody>
+      <tr><td><strong>不复权</strong></td><td>交易所原始成交价，不做任何分红/拆分调整。</td><td>分红除息日价格会"跳空"；跨分红比较会低估真实收益。</td></tr>
+      <tr><td><strong>前复权</strong></td><td>以某个基准日为锚，把历史价格向下调整到与基准日可比。</td><td>基准日不同，同一天价格不同；每次分红后会重算，数据是"时变"的。</td></tr>
+      <tr><td><strong>后复权</strong></td><td>以历史某日为锚，把之后的价格向上调整，累计真实收益。</td><td>适合算长期收益，不适合看盘/挂单。</td></tr>
+      <tr><td><strong>定点复权</strong></td><td>前复权的一种：基准日固定为指定日期（如回测结束日）。</td><td>掘金回测 <code>ADJUST_PREV</code> 用它；改回测结束日，整段历史价格会变。</td></tr>
+      <tr><td><strong>复权因子</strong></td><td>把原始价换算成复权价的乘数；分红/拆分后更新。</td><td>不同数据商的因子/算法不同，同一天可能差几分钱。</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">510300 的试金石：2024-12-31 不复权收盘 <strong>4.022</strong>；AKShare qfq（2026-11 下载）<strong>3.811</strong>（差 0.211 = 2025-06-18 的 0.088 + 2026-01-19 的 0.123）。详见 <a href="backtest-data-reconciliation.html">R6</a>。</p>
+
+  <div class="warning">
+    <p><strong>本表的元规则：</strong>每当你想评价一个策略"好不好"，禁止只报总收益率。完整句式 = <code>年化收益 + 最大回撤 + 交易成本假设 + 与基准的对比</code>。这是本课程从头到尾的纪律。</p>
+  </div>
+
+  <nav class="lesson-nav">
+    <span>参考文档 R1 · 术语表</span>
+    <a href="../lessons/0001-why-backtests-die-to-fees.html">第 1 课：为什么多数策略活不过手续费</a>
+    <a href="sma-crossover-explained.html">双均线详解（R5）</a>
+    <a href="backtest-data-reconciliation.html">数据对账（R6）</a>
+    <a href="myquant-csharp-cheatsheet.html">掘金 C# 速查（R4）</a>
+    <a href="../RESOURCES.md">资源清单</a>
+  </nav>
+</main>
+<script src="../assets/course-nav.js"></script>
+</body>
+</html>

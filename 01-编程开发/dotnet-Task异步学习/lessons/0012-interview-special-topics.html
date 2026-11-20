@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>0012 · 面试专题:死锁、sync-over-async、Task vs Thread vs ValueTask</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">DOTNET · TASK SYSTEM · 第 0012 课 · 毕业课</p>
+  <h1>面试专题:死锁、sync-over-async、Task vs Thread vs ValueTask</h1>
+  <div class="meta">
+    <span class="chip">⏱ 预计 25 分钟</span>
+    <span class="chip">前置:全部 11 课</span>
+    <span class="chip">交付:三大题 60 秒答法 + 十问快答 + 横跨全课程的综合测验</span>
+  </div>
+
+  <p class="lede">毕业课,第四个动机<strong>面试准备</strong>今天兑现。这不是新课,是
+  <strong>压缩</strong>:把 12 课压成面试桌上 60 秒内能讲清的东西。面试考的不是背 API,
+  是<strong>机理 + 后果 + 纪律</strong>的连贯叙事——你已经具备全部零件,今天学组装。
+  <span class="tag tag-interview">面试高频</span></p>
+
+  <!-- ═══════════ 0. 隔日检索 ═══════════ -->
+  <h2>〇、隔日检索<span class="muted" style="font-size:.85rem">(先测后学:0011 还剩多少?)</span></h2>
+  <div id="warmup"></div>
+
+  <!-- ═══════════ 1. 答题框架 ═══════════ -->
+  <h2>一、答题三段式:结论 → 机理 → 纪律</h2>
+
+  <table>
+    <thead><tr><th>段</th><th>说什么</th><th>示范(以死锁题为例)</th></tr></thead>
+    <tbody>
+      <tr><td><strong>① 结论</strong></td><td>10 秒给出判断,让面试官立即校准你的水平</td><td>"这是经典 UI 死锁:同步等待 + 上下文回投,环就闭合了"</td></tr>
+      <tr><td><strong>② 机理</strong></td><td>30 秒讲清因果链,这是拉开差距的部分</td><td>"UI 线程 <code>.Result</code> 阻塞自等;async 方法挂在 SynchronizationContext 上,续延要 Post 回 UI 队列;UI 线程不泵消息 → 四节点循环等待"</td></tr>
+      <tr><td><strong>③ 纪律</strong></td><td>15 秒给出工程做法,证明你不只懂原理</td><td>"库代码一律 ConfigureAwait(false);应用层一路 async 到底;遗留同步边界用专门封装隔离"</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <p class="callout-title">为什么这个框架有效</p>
+    <p>三段式恰好是你 12 课的知识结构:结论来自心智模型(欠条/环/判决尺),
+    机理来自机制课(0005–0009),纪律来自工程课(0002–0004)。
+    面试官追问任何一段,你都有一整课的纵深可以展开。</p>
+  </div>
+
+  <!-- ═══════════ 2. 三大高频题 ═══════════ -->
+  <h2>二、三大高频题 · 60 秒答法</h2>
+
+  <h3>题一:异步死锁为什么发生?(0007)</h3>
+  <div class="code-label">60 秒脚本</div>
+<pre><code><span class="cmt">// 面试白板题标配代码</span>
+<span class="kw">private async void</span> Button_Click(...) =&gt; <span class="cmt">// UI 事件</span>
+    _label.Text = LoadData().Result;    <span class="cmt">// × 同步阻塞,环在此闭合</span>
+
+<span class="kw">private async</span> Task&lt;<span class="kw">string</span>&gt; LoadData()  <span class="cmt">// 默认捕获 UI 上下文</span>
+    =&gt; <span class="kw">await</span> _http.GetStringAsync(url); <span class="cmt">// 续延要 Post 回 UI 队列</span></code></pre>
+  <p><strong>因果链四节点</strong>:UI 线程 <code>.Result</code> 阻塞自等 → 欠条要等续延执行完 →
+  续延被 Post 回 UI 队列 → UI 线程不泵消息。<strong>破环两个方向</strong>:
+  应用层一路 async(<code>await LoadData()</code>);库层 <code>ConfigureAwait(false)</code> 让续延不再回投。
+  陷阱题防身:<code>ConfigureAwait(false)</code> 只管<strong>这一个 await 的续延</strong>,不传染(0007 三事实)。</p>
+
+  <h3>题二:sync-over-async 错在哪?(0007 + 0008)</h3>
+  <p><strong>定义</strong>:同步代码里等待异步操作(<code>.Result / .Wait() / GetAwaiter().GetResult()</code>)。</p>
+  <table>
+    <thead><tr><th>代价</th><th>机理</th></tr></thead>
+    <tbody>
+      <tr><td>死锁风险</td><td>存在同步上下文时,四节点环成立(题一)</td></tr>
+      <tr><td>白烧线程</td><td>欠条体系本可零线程等待;同步阻塞却钉死一个工人(0008 烧工人账本)</td></tr>
+      <tr><td>饥饿放大</td><td>sync-over-async 占用快于线程池补充(约半秒补一),队列积压 → 全站变慢(0005/0008)</td></tr>
+    </tbody>
+  </table>
+  <p><strong>修复次序</strong>:能改签名就一路 async;不能改(遗留边界)就隔离封装 + 明知代价 +
+  服务端上下文为 null(async framework)时至少不死锁,但烧线程照旧。</p>
+
+  <h3>题三:Task vs Thread vs ValueTask?(0001 + 0008)</h3>
+  <table>
+    <thead><tr><th></th><th>Thread</th><th>Task</th><th>ValueTask</th></tr></thead>
+    <tbody>
+      <tr><td>本质</td><td>OS 线程句柄(工人本身)</td><td>欠条(可 await 的并发单元)</td><td>结构体欠条(省分配的 Task 替身)</td></tr>
+      <tr><td>调度</td><td>自己掌管生命周期</td><td>线程池 / IO 完成端口</td><td>同 Task 或同步完成</td></tr>
+      <tr><td>结果</td><td>无返回值,靠共享状态</td><td>Task&lt;T&gt; 直接 await</td><td>同 Task&lt;T&gt;</td></tr>
+      <tr><td>成本</td><td>创建贵(MB 级栈)</td><td>堆分配一次</td><td>同步命中时零分配</td></tr>
+      <tr><td>适用</td><td><strong>专用长活线程</strong>(消息泵/常驻监听)</td><td>默认选择,可组合</td><td>仅热路径高频同步命中</td></tr>
+    </tbody>
+  </table>
+  <p><strong>一句话总结</strong>:默认 Task;要一个<strong>专属工人</strong>常驻才 new Thread;
+  热路径且常同步完成才 ValueTask——且记住三纪律:只消费一次、完成前不混用、别存字段(0008)。</p>
+
+  <!-- ═══════════ 3. 十问快答 ═══════════ -->
+  <h2>三、十问快答<span class="muted" style="font-size:.85rem">(每题目标 10 秒)</span></h2>
+
+  <table>
+    <thead><tr><th>问</th><th>一句话答</th><th>出处</th></tr></thead>
+    <tbody>
+      <tr><td>① Task 和 Thread 区别?</td><td>Thread 是工人,Task 是欠条;工人干完活填欠条</td><td>0001</td></tr>
+      <tr><td>② await 到底做了什么?</td><td>拆段 + 登记续延 + 提前返回;恢复时走状态机 MoveNext</td><td>0006</td></tr>
+      <tr><td>③ ConfigureAwait(false) 管什么?</td><td>只这一个 await 的续延不回投上下文;不传染</td><td>0007</td></tr>
+      <tr><td>④ 怎么给异步加超时?</td><td><code>WaitAsync</code> 最简;真中止要令牌贯穿全程</td><td>0003</td></tr>
+      <tr><td>⑤ ValueTask 何时用?</td><td>热路径高频同步命中;只消费一次</td><td>0008</td></tr>
+      <tr><td>⑥ 线程池饥饿机理?</td><td>阻塞占用快于约半秒一线的补充;队列积压恶化</td><td>0005/0008</td></tr>
+      <tr><td>⑦ async void 何时可以?</td><td>仅 UI 事件处理器;异常没人能接</td><td>0001/0007</td></tr>
+      <tr><td>⑧ WhenAny 超时模式的坑?</td><td>输家欠条永挂;要 cts.Cancel() 履行收尾义务</td><td>0003/0009</td></tr>
+      <tr><td>⑨ TCS 使用口诀?</td><td>Set 断言独占,Try 竞而不炸;广播终态;RCA 防重入</td><td>0002</td></tr>
+      <tr><td>⑩ 死锁四节点?</td><td>阻塞自等 → 欠条等续延 → 续延回投队列 → 不泵消息</td><td>0007</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ═══════════ 4. 综合测验 ═══════════ -->
+  <h2>四、毕业综合测验<span class="muted" style="font-size:.85rem">(六题横跨 12 课,大回环)</span></h2>
+  <div id="quiz"></div>
+
+  <!-- ═══════════ 5. 毕业检查单 ═══════════ -->
+  <h2>五、毕业检查单 + 间隔复习日历</h2>
+
+  <table>
+    <tbody>
+      <tr><td>☐</td><td>能画出欠条两半,指出 TCS 是生产半张、Task 属性是消费半张</td></tr>
+      <tr><td>☐</td><td>能手写编译器状态机骨架,指出 GetResult() 重抛点与快速路径</td></tr>
+      <tr><td>☐</td><td>能 60 秒讲清死锁四节点并给出两个破环方向</td></tr>
+      <tr><td>☐</td><td>能用"干活的是谁"判决尺划清 Task.Run 的三不边界</td></tr>
+      <tr><td>☐</td><td>能默写 WhenAny 竞速模板,含完成≠成功与收尾义务</td></tr>
+      <tr><td>☐</td><td>能在 InvocationRequest.cs 里认领五个课程模式(0011 对照表)</td></tr>
+      <tr><td>☐</td><td>TCS 卡、ConfigureAwait 卡、异常卡三张脱口而出</td></tr>
+      <tr><td>☐</td><td>十问快答全部 10 秒内作答</td></tr>
+    </tbody>
+  </table>
+
+  <table>
+    <thead><tr><th>时点</th><th>动作</th></tr></thead>
+    <tbody>
+      <tr><td>D+1</td><td>回今天 0011 的三道回忆任务;口答三大题脚本各一遍</td></tr>
+      <tr><td>D+3</td><td>0001→0006 各课"隔日检索"热身回炉,错的课重读对应节</td></tr>
+      <tr><td>D+7</td><td>九张速查卡过一遍:遮右栏自测,卡壳的卡打印放手边</td></tr>
+      <tr><td>D+14</td><td>综合测验重做;把三大题讲给一个真人(或 dotnet/runtime Discussions 发一帖)</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ═══════════ 复习钩子 ═══════════ -->
+  <h2>六、明天的回忆任务<span class="muted" style="font-size:.85rem">(30 秒,不翻书)</span></h2>
+  <details class="qa">
+    <summary>① 三段式答题框架的三段与各自秒数?</summary>
+    结论 10 秒 → 机理 30 秒(因果链)→ 纪律 15 秒(工程做法)。
+  </details>
+  <details class="qa">
+    <summary>② sync-over-async 的三重代价?</summary>
+    死锁风险(有同步上下文时)+ 钉死一个工人的线程浪费 + 占用快于补充的饥饿放大。
+  </details>
+  <details class="qa">
+    <summary>③ Thread / Task / ValueTask 各自一句适用判决?</summary>
+    默认 Task;专属常驻工人才 Thread;热路径高频同步命中才 ValueTask(且只消费一次)。
+  </details>
+
+  <!-- ═══════════ 尾部 ═══════════ -->
+  <div class="callout ask no-print">
+    <p class="callout-title">毕业答辩,老师在场</p>
+    <p>把三大题的<strong>口头回答录下来或写出来</strong>交给老师,逐段批改三段式;
+    十问快答哪题超时也报个数——这就是你的毕业成绩单。</p>
+  </div>
+
+  <div class="next-up">
+    <p class="next-title">▸ 课程完结:12 / 12 · 三个去处</p>
+    <p><strong>① 回炉</strong>:<a href="index.html">课程目录</a> + 九张速查卡是毕业后的常备兵器;
+    <strong>② 进阶</strong>:顺着 0011 的方法读 HttpConnection.cs、System.Threading.Channels、
+    IAsyncEnumerable 深水区——随时开新课,告诉老师即可;
+    <strong>③ 答辩</strong>:综合测验成绩告诉老师,给你写第一份学习记录
+    (learning-records/0002),把 12 课的掌握证据落档。</p>
+  </div>
+
+  <hr class="footrule">
+  <footer class="course-foot">
+    <span>dotnet-Task异步学习 · 第 0012 课 · 毕业课 · 主推阅读:<a href="https://devblogs.microsoft.com/dotnet/how-async-await-really-works/" target="_blank">How async/await really works — Stephen Toub</a></span>
+    <span><a href="0011-source-reading-signalr-tcs.html">上一课</a> · <a href="index.html">目录</a> · <a href="../reference/interview-速查卡.html">面试卡</a></span>
+  </footer>
+
+</div>
+<script src="../assets/quiz.js"></script>
+<script>
+  // ── 隔日检索热身(复习 0011)──
+  TeachQuiz.render(document.getElementById('warmup'), [
+    {
+      q: '【复习】源码精读三步法的顺序?',
+      options: ['先定位再翻译审问', '先通读再逐行背诵', '先收藏再慢慢消化', '先打断点再单步跟踪'],
+      answer: 0,
+      explain: '定位(链接+符号搜)→ 翻译(符号↔术语)→ 审问(三问)。'
+    },
+    {
+      q: '【复习】InvocationRequest 的 TCS 构造参数?',
+      options: ['RunContinuationsAsynchronously', 'TaskCreationOptions.None', 'LongRunning 的专用线程', 'PreferFairness 排队公平'],
+      answer: 0,
+      explain: '强制续延离开销账线程——SignalR 客户端的真实构造。'
+    },
+    {
+      q: '【复习】挂号处字典 _pendingInvocations 的 key?',
+      options: ['invocationId 字符串', '线程池工人的编号', 'HTTP 连接的句柄', '时间戳的毫秒值'],
+      answer: 0,
+      explain: '回复消息按 invocationId 找到欠条销账;TryAdd 防重号。'
+    },
+    {
+      q: '【复习】断线时,在途欠条怎么收场?',
+      options: ['批量广播失败销账', '永远悬停等待重连', '逐个排队重新发送', '静默删除不惊动谁'],
+      answer: 0,
+      explain: '广播终态(0004):任何欠条都不许永挂。'
+    }
+  ]);
+
+  // ── 毕业综合测验(横跨 12 课)──
+  TeachQuiz.render(document.getElementById('quiz'), [
+    {
+      q: 'Task 之所以能"暂停恢复",因为?',
+      options: ['编译器生成的状态机', '线程自带了暂停功能', '操作系统挂起了进程', '垃圾回收冻结了堆栈'],
+      answer: 0,
+      explain: 'await 拆段+登记+提前返回;恢复走 MoveNext(0006)。'
+    },
+    {
+      q: '给异步操作加超时,弃等之后?',
+      options: ['底层操作仍在继续跑', '底层操作被强制中止', '线程池回收了那资源', '欠条自动重发了一遍'],
+      answer: 0,
+      explain: '超时≠取消:真中止需令牌贯穿(0003)。'
+    },
+    {
+      q: '欠条完成后,SetResult 再次调用会?',
+      options: ['返回 false 毫无效果', '覆盖结果成新值一份', '抛出异常进程直接崩', '进入队列等待下一次'],
+      answer: 0,
+      explain: '单次完成语义;Set 断言独占,Try 竞而不炸(0002)。'
+    },
+    {
+      q: 'async void 相比 async Task,最大风险?',
+      options: ['异常无法被调用方接', '编译器拒绝生成代码', '永远无法完成任何事', '必须手动管理其内存'],
+      answer: 0,
+      explain: '异常直闯同步上下文,无人能 catch(0001/0007)。'
+    },
+    {
+      q: '线程池饥饿的机械根源?',
+      options: ['补充慢于占用消耗', '优先级被悄悄压低', '内核数低于排队数', '内存配额提前耗尽'],
+      answer: 0,
+      explain: '约半秒补一工人,sync-over-async 占用远快于此(0005/0008)。'
+    },
+    {
+      q: 'await 一张已完成的欠条,代价?',
+      options: ['几乎为零同步直通', '必须切一次线程池', '重注册续延再恢复', '分配双份的欠条类'],
+      answer: 0,
+      explain: 'IsCompleted==true 走快速路径,同步直通(0006);这也是 ValueTask 的生存空间(0008)。'
+    }
+  ]);
+</script>
+</body>
+</html>

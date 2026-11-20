@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>第1课 · 选股策略地图：从择时到横截面</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <p class="eyebrow">量化选股策略 · 第 1 课 / 12</p>
+  <h1>选股策略地图：从择时到横截面</h1>
+  <p class="lead">入门课你学会了在一只股票上看势：金叉买、死叉卖。选股是另一个维度——<strong>在每个调仓日，把整个股票池排个序，买前 N 名</strong>。今天先建立地图：主流策略有哪几类、各自赚什么钱、以及选股策略的最小闭环。</p>
+
+  <h2>从一条线到一张表</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>维度</th><th>双均线择时（入门课）</th><th>选股策略（本课程）</th></tr></thead>
+    <tbody>
+      <tr><td>决策对象</td><td>一只股票的时间序列</td><td>整个股票池的横截面</td></tr>
+      <tr><td>信号</td><td>金叉 / 死叉</td><td>因子分数（价值、质量、动量……）</td></tr>
+      <tr><td>仓位</td><td>0 / 1 两状态</td><td>Top-N 组合，多只股票同时持有</td></tr>
+      <tr><td>回测输出</td><td>单资产净值</td><td>组合净值 + 换手 + 相对基准</td></tr>
+      <tr><td>主要陷阱</td><td>未来函数</td><td>幸存者偏差、财报前视、风格暴露</td></tr>
+    </tbody>
+  </table></div>
+  <div class="insight"><p><strong>一句话区分：</strong>择时回答"现在买不买"，选股回答"买哪几只"。两者可以叠加——先用选股选出池子，再用择时决定仓位——但先把选股这一维学清楚。</p></div>
+
+  <h2>选股策略的最小闭环</h2>
+  <pre><code>股票池（universe）
+   │  每个调仓日（如每月最后一个交易日）
+   ▼
+因子打分（价值 / 质量 / 动量 / 反转 / 低波 / 红利 / 小市值 / 成长）
+   │  标准化、去极值、中性化（第 8 课）
+   ▼
+排序 → 选前 N 只（Top-N）
+   │  等权 / 打分加权 / 行业中性（第 9 课）
+   ▼
+持有到下个调仓日 → 换手 → 扣成本
+   │
+   ▼
+绩效评估（收益 / 回撤 / IC / 换手 / 归因）</code></pre>
+  <p>这条流水线只有四类决定：<strong>股票池、因子、组合权重、调仓频率</strong>。后面每一课，基本都是在替换其中一块，然后看结果怎么变。</p>
+  <p class="note"><strong>选股不是"预测哪只涨"</strong>，而是"用可复现的规则，长期押注某一类特征"。预测对一只股票没有意义；你要的是可重复的排序规则，和足够多的样本。</p>
+
+  <h2>八类主流策略：先认脸</h2>
+  <div class="table-wrap"><table class="strategy-families">
+    <thead><tr><th>家族</th><th>一句话逻辑</th><th>常用指标</th><th>A 股要注意</th></tr></thead>
+    <tbody>
+      <tr><td><strong>价值</strong></td><td>买相对便宜的，等估值修复</td><td>PE、PB、PS、CF/P、股息率</td><td>便宜可能是价值陷阱</td></tr>
+      <tr><td><strong>质量</strong></td><td>买赚钱能力强、利润含金量高的</td><td>ROE、毛利率、应计、F-Score</td><td>财报滞后；更适合当过滤器</td></tr>
+      <tr><td><strong>动量</strong></td><td>买过去涨得好的，趋势延续</td><td>12-1 月收益、残差动量</td><td>A 股原始动量弱，小盘反转更强</td></tr>
+      <tr><td><strong>反转</strong></td><td>买短期跌得多的，等反弹</td><td>1 月收益（取负）、超跌指标</td><td>A 股短期反转较显著；换手高</td></tr>
+      <tr><td><strong>低波</strong></td><td>低波动股票风险调整后收益更好</td><td>历史波动率、Beta、特质波动</td><td>长期较稳；拥挤时会失效</td></tr>
+      <tr><td><strong>红利</strong></td><td>买高股息、分红稳定的</td><td>股息率、派息率、分红连续性</td><td>行业集中；小心高股息陷阱</td></tr>
+      <tr><td><strong>小市值</strong></td><td>小盘股长期有超额</td><td>总市值、流通市值</td><td>壳价值/监管/流动性；风格切换剧烈</td></tr>
+      <tr><td><strong>成长</strong></td><td>买营收/利润高增长的</td><td>营收增速、利润增速、GARP/PEG</td><td>高估值+高预期，增速放缓杀估值</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">多因子不是第九类因子，而是把上面几类<strong>合成一个分数</strong>的方法。合成能分散单一因子的失效，但也会带来相关性、权重和过拟合问题——第 8 课专门讲。</p>
+  <div class="warning"><p><strong>每个家族都要能回答"什么时候失效"。</strong>价值会遇到价值陷阱，质量会遇到财报暴雷，动量会遇到震荡市，低波会遇到拥挤，小市值会遇到监管/流动性，成长会遇到杀估值。只会说"这个因子有效"的人，通常还没真正做过回测。</p></div>
+
+  <h2>最小例子：5 只股票，选前 2</h2>
+  <p>假设股票池只有 5 只股票，用"过去 20 个交易日收益"作为分数：</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>股票</th><th>20 日收益</th><th>排名</th><th>动量选前 2</th><th>反转选前 2</th></tr></thead>
+    <tbody>
+      <tr><td>A</td><td>+12%</td><td>1</td><td>✓</td><td></td></tr>
+      <tr><td>B</td><td>+8%</td><td>2</td><td>✓</td><td></td></tr>
+      <tr><td>C</td><td>+3%</td><td>3</td><td></td><td></td></tr>
+      <tr><td>D</td><td>−2%</td><td>4</td><td></td><td>✓</td></tr>
+      <tr><td>E</td><td>−6%</td><td>5</td><td></td><td>✓</td></tr>
+    </tbody>
+  </table></div>
+  <p>同样的数据，<strong>方向反过来就是两种策略</strong>：动量买过去涨得好的 A/B；反转买过去跌得多的 D/E。因子不是一个指标，而是"指标 + 方向 + 持有期"的完整定义。</p>
+  <div class="exercise">
+    <p><strong>动手（3 分钟）：</strong>假设下个月收益是 A +2%、B −1%、C +1%、D +4%、E +6%。分别算：① 动量 Top-2（A/B）等权收益；② 反转 Top-2（D/E）等权收益；③ 5 只股票等权（股票池平均）。</p>
+    <button class="reveal-btn" data-reveal="calc">算完再对照</button>
+    <div class="answer" id="calc" hidden>
+      <p>① 动量 (2% − 1%) ÷ 2 = <strong>+0.5%</strong>；② 反转 (4% + 6%) ÷ 2 = <strong>+5%</strong>；③ 股票池平均 (2 − 1 + 1 + 4 + 6) ÷ 5 = <strong>+2.4%</strong>。这个月反转赢，但一个月只是噪声；不要用一次结果判断因子好坏。</p>
+    </div>
+  </div>
+
+  <h2>选股策略赚的是什么钱</h2>
+  <ul>
+    <li><strong>风险补偿</strong>：价值、规模、低波可能承担了某种系统性风险，长期要求更高回报。</li>
+    <li><strong>错误定价 / 行为偏差</strong>：反转、动量可能来自投资者的过度反应或反应不足。</li>
+    <li><strong>结构性/流动性</strong>：小市值、红利可能来自资金结构、指数规则或投资者偏好。</li>
+  </ul>
+  <p>一个因子如果没有<strong>经济故事</strong>，只有一个漂亮的回测曲线，它更可能是数据挖掘的产物。第 10-11 课会专门训练你"先问故事，再看数字"。</p>
+
+  <h2>A 股选股的三个坑</h2>
+  <ol>
+    <li><strong>幸存者偏差</strong>：股票池只包含今天还活着的股票，退市/暴雷的消失，回测自动删掉了最危险的样本。</li>
+    <li><strong>财报前视</strong>：用报告期数据，却在公告前就交易；或者用了后来被重述的财务数据。</li>
+    <li><strong>交易摩擦</strong>：T+1、涨跌停、停牌、ST、100 股取整、佣金/印花税——选股组合的换手通常比双均线高得多，成本更致命。</li>
+  </ol>
+  <p>这三条在入门课第 4、8、10 课都出现过；本课程第 10 课会把它们放进横截面场景，逐条建模。</p>
+
+  <h2>检验一下</h2>
+  <div class="quiz" data-answer="a"
+       data-explain-good="对。选股的核心是横截面排序：在同一时点比较很多股票，选出前 N 名。"
+       data-explain-bad="不对。预测单只股票的涨跌是择时/预测问题；选股比的是同一时点上谁排前面。">
+    <p class="quiz-question">选股策略和双均线择时最根本的区别是？</p>
+    <button class="opt" data-key="a">对股票池做横截面排序</button>
+    <button class="opt" data-key="b">预测单只股票的未来涨跌</button>
+    <button class="opt" data-key="c">只交易一只股票做择时</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <div class="quiz" data-answer="b"
+       data-explain-good="对。ROE/毛利率/应计是质量因子的典型指标；PE/PB 是价值，过去涨幅是动量/反转。"
+       data-explain-bad="不对。低 PE/PB 是价值，过去涨幅是动量/反转；质量看的是公司赚钱能力和利润含金量。">
+    <p class="quiz-question">下面哪个最接近"质量因子"？</p>
+    <button class="opt" data-key="a">低 PE 与低 PB</button>
+    <button class="opt" data-key="b">高 ROE 与高毛利</button>
+    <button class="opt" data-key="c">过去一月涨幅高</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <div class="quiz" data-answer="a"
+       data-explain-good="对。A 股个股在约一个月尺度上通常反转强于动量；这也是不能照搬美股动量论文的原因。"
+       data-explain-bad="不对。A 股散户占比高、换手高，短期反转往往比动量更显著；具体还要分股票池和时段。">
+    <p class="quiz-question">A 股个股的短期（约一个月）效应通常是？</p>
+    <button class="opt" data-key="a">反转强于动量</button>
+    <button class="opt" data-key="b">动量强于反转</button>
+    <button class="opt" data-key="c">两者完全无效</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <h3>自由回忆（隔天再做一遍效果更好）</h3>
+  <p>不看上文：① 选股策略的最小闭环有哪四类决定？② 八类策略各说一句"赚什么钱"；③ 双均线和选股最根本的区别是什么？</p>
+  <button class="reveal-btn" data-reveal="recall">回忆后对照</button>
+  <div class="answer" id="recall" hidden>
+    <p>① 股票池、因子、组合权重、调仓频率。② 价值=估值修复；质量=好公司；动量=趋势延续；反转=过度反应；低波=风险补偿；红利=现金回报；小市值=规模溢价；成长=增长兑现。③ 双均线在单只股票的时间序列上做 0/1 择时；选股在股票池的横截面上排序选 Top-N。</p>
+  </div>
+
+  <h2>下一步</h2>
+  <p><strong>本课主源推荐</strong>：石川、刘洋溢、连祥斌《因子投资：方法与实践》第 1 章 + 第 3.1 节（数据和流程）。先读这两段，把"因子投资在解决什么问题"和"A 股实证的基本设定"建立起来；后面的因子课会按第 3 章逐节展开。</p>
+  <p><strong>下一课预告</strong>：第 2 课《横截面回测引擎》——把今天的流水线写成 C#：面板数据、股票池、调仓日、因子打分、Top-N、等权组合、换手与成本。上完你就能跑出第一份真正的选股回测。</p>
+  <p class="note"><strong>有疑问随时问老师。</strong>八类策略里哪一类最想先深挖？你的股票池想用沪深300、中证500，还是全A？这两个选择会直接影响第 2 课的数据和代码，告诉我，我按你的偏好准备。</p>
+
+  <nav class="lesson-nav">
+    <a href="../reference/course-map.html">课程地图（R1）</a>
+    <a href="../MISSION.md">学习使命</a>
+    <a href="../RESOURCES.md">资源清单</a>
+    <a href="../../量化交易入门/lessons/0010-factors-intro.html">先修：因子入门（入门课第 10 课）</a>
+  </nav>
+</main>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/course-nav.js"></script>
+</body>
+</html>

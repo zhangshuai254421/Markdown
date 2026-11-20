@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>0007 · SynchronizationContext 与 ConfigureAwait:异步死锁解剖</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">DOTNET · TASK SYSTEM · 第 0007 课</p>
+  <h1>SynchronizationContext 与 ConfigureAwait:异步死锁解剖</h1>
+  <div class="meta">
+    <span class="chip">⏱ 预计 25 分钟</span>
+    <span class="chip">前置:第 0006 课(状态机骨架)</span>
+    <span class="chip">交付:解剖经典 async 死锁,拿到三条防死锁纪律</span>
+  </div>
+
+  <p class="lede">0006 的骨架里,续延"默认内联在完成者的线程"。可为什么 UI 程序里
+  await 之后还能安心更新控件?是谁把代码送回 UI 线程的?答案是
+  <code>SynchronizationContext</code>——而它恰恰也是那道著名面试题
+  "为什么 <code>.Result</code> 会把程序卡死"的案发第一现场。
+  <span class="tag tag-interview">面试高频</span>
+  <span class="tag tag-source">源码视角</span></p>
+
+  <!-- ═══════════ 0. 隔日检索 ═══════════ -->
+  <h2>〇、隔日检索<span class="muted" style="font-size:.85rem">(先测后学:0006 还剩多少?)</span></h2>
+  <div id="warmup"></div>
+
+  <!-- ═══════════ 1. SyncContext ═══════════ -->
+  <h2>一、快递员:SynchronizationContext 是谁</h2>
+
+  <p>它是一个很小的抽象:<strong>"回调该送到哪个环境去执行"</strong>的调度约定。
+  核心就两个方法——<code>Post</code>(排队投递,异步)与 <code>Send</code>(立即投递,同步)。
+  每种应用环境给出一套自己的实现:</p>
+
+  <table>
+    <thead><tr><th>环境</th><th>Current 值</th><th>Post 的行为</th></tr></thead>
+    <tbody>
+      <tr><td>控制台 / Windows 服务 / ASP.NET Core</td><td><code>null</code></td><td>没有快递员——await 恢复直接内联在完成者/线程池线程上(<strong>0006 说的"默认内联"正是这种情形</strong>)</td></tr>
+      <tr><td>WinForms</td><td><code>WindowsFormsSynchronizationContext</code></td><td><code>Control.BeginInvoke</code> → 回 UI 消息循环</td></tr>
+      <tr><td>WPF</td><td><code>DispatcherSynchronizationContext</code></td><td><code>Dispatcher.BeginInvoke</code> → 回 UI 线程</td></tr>
+      <tr><td>ASP.NET(classic,Framework)</td><td><code>AspNetSynchronizationContext</code></td><td>在请求上下文内串行推进(不保证原线程)</td></tr>
+    </tbody>
+  </table>
+
+  <p>await 如何用它?把 0006 的骨架补上一个动作:</p>
+
+  <ol>
+    <li><strong>挂起时捕获</strong>:登记续延的同时,记下当前线程的
+    <code>SynchronizationContext.Current</code>;</li>
+    <li><strong>恢复时投递</strong>:欠条完成,若捕获到了非空的快递员 → 续延不再内联,
+    而是 <code>Post</code> 给它,送回那个环境(UI 消息循环、请求上下文……);
+    若是 <code>null</code> → 内联在完成者线程上跑,哪里完成哪里继续。</li>
+  </ol>
+
+  <div class="callout">
+    <p class="callout-title">对 0006 的一句话精确化(不是打脸,是补条件)</p>
+    <p>"续延内联在完成者线程"是<strong>没有同步上下文</strong>时的行为。
+    UI 程序里 await 会捕获 UI 上下文,恢复改走 Post——你平时更新控件不用做任何事,
+    正是这套机制在默默把你送回 UI 线程。真实实现还有"完成线程恰好同上下文时允许内联"
+    等优化边角,不影响本课结论,细节见文末 ConfigureAwait FAQ。</p>
+  </div>
+
+  <!-- ═══════════ 2. 死锁解剖 ═══════════ -->
+  <h2>二、尸体解剖:经典 async 死锁</h2>
+
+  <p><span class="tag tag-interview">面试高频</span>下面这段代码曾经出现在无数博客和无数生产事故里。
+  先自己读一遍,再播放解剖:</p>
+
+  <div class="code-label">案发现场 · UI 线程上同步等异步(WinForms/WPF 同理)</div>
+<pre><code><span class="cmt">// × 经典死锁写法</span>
+<span class="kw">private void</span> Button_Click(<span class="kw">object</span> sender, EventArgs e)
+{
+    <span class="hl">string</span> s = LoadDataAsync().<span class="hl">Result</span>;   <span class="cmt">// UI 线程同步阻塞,不再泵消息</span>
+    label1.Text = s;                       <span class="cmt">// 永远执行不到</span>
+}
+
+<span class="kw">private async</span> Task&lt;<span class="kw">string</span>&gt; LoadDataAsync()
+{
+    <span class="kw">string</span> raw = <span class="kw">await</span> _http.GetStringAsync(url);  <span class="cmt">// 挂起:捕获 UI 上下文</span>
+    <span class="kw">return</span> raw.Trim();                     <span class="cmt">// 续延(段 2)必须回 UI 才能跑</span>
+}</code></pre>
+
+  <p>现在逐步解剖这条<strong>死锁环</strong>——四个节点,四次"等待",首尾相接:</p>
+
+  <div id="loop"></div>
+  <script src="../assets/deadlock-loop.js"></script>
+  <script>
+    DeadlockLoop.render(document.getElementById('loop'), {
+      title: '死锁环解剖台 · 案发现场 vs 修复版',
+      badgeLabel: '状态:—',
+      ringTitle: '死锁环 · 四节点四支等待',
+      rightTitle: '解剖笔记',
+      nodes: [
+        { id: 'ui',    name: '① UI 线程',      sub: '卡在 .Result,不泵消息' },
+        { id: 'task',  name: '② 外壳欠条',      sub: '等段 2 跑完才 SetResult' },
+        { id: 'cont',  name: '③ 续延(段 2)',   sub: '捕获了 UI 上下文,要回 UI' },
+        { id: 'queue', name: '④ UI 消息队列',   sub: '续延排在这里,等泵' }
+      ],
+      arrows: [
+        { id: 'a1', label: '在等 →' },
+        { id: 'a2', label: '↓ 在等' },
+        { id: 'a3', label: '← Post 排队' },
+        { id: 'a4', label: '没人泵,等 ↑' }
+      ],
+      scenarios: [
+        { name: '死锁版:环如何闭合', steps: [
+          { focus: ['ui'], badge: '调用 + 挂起', note: 'UI 线程点击按钮:外壳启动状态机,发出 HTTP 请求;欠条未完成 → 挂起,登记续延的同时捕获 UI 上下文(0006 的骨架,今天多了一步"捕获")' },
+          { focus: ['ui'], badge: '阻塞!', note: 'UI 线程接着调 .Result:同步阻塞自己等欠条——消息循环停止,④队列从此没人泵' },
+          { focus: ['task'], note: 'HTTP 完成,但②外壳欠条还不能销账:SetResult 要等 MoveNext 跑完段 2(0006:销账永远在最后)' },
+          { focus: ['cont'], note: '③续延想执行?它捕获了 UI 上下文 → 被 Post 进④UI 消息队列,要求"回 UI 线程跑"' },
+          { focus: ['queue'], note: '续延在队列里排着,等①UI 线程泵消息——可 UI 线程正卡在 .Result 里,一动不动' },
+          { focus: ['ui', 'task', 'cont', 'queue', 'a1', 'a2', 'a3', 'a4'], alarm: true, badge: '死锁!', note: '环闭合:①等②、②等③、③堵在④里、④等①。四次等待首尾相接,谁也不动——这就是经典 async 死锁的全部机理。' }
+        ]},
+        { name: '修复版:ConfigureAwait(false) 破环', steps: [
+          { focus: ['cont'], badge: 'ConfigureAwait(false)', note: '同一场景,唯一改动:库代码写成 await …ConfigureAwait(false)——挂起时不捕获 UI 上下文' },
+          { focus: ['cont'], note: 'HTTP 完成:③续延不回 UI,直接在完成者/线程池线程上跑 MoveNext 段 2' },
+          { focus: ['task'], note: '段 2 跑完 → SetResult:②外壳欠条销账完成,全程没看④队列一眼' },
+          { focus: ['ui'], badge: '已恢复', note: '.Result 醒来拿到结果——UI 线程只等了网络时长,环从未形成。死锁被拆在"捕获"这一步' }
+        ]}
+      ]
+    });
+  </script>
+
+  <div class="callout">
+    <p class="callout-title">死锁的精确定义(面试就这样答)</p>
+    <p>死锁 = <strong>循环等待</strong>。UI 线程等欠条完成,欠条等续延执行,续延等 UI 线程泵消息。
+    破环只需断掉任何一环:<strong>不让 UI 线程阻塞</strong>(一路 async),或者
+    <strong>不让续延回 UI</strong>(ConfigureAwait(false))。两个方向都成立,下一节落成纪律。</p>
+  </div>
+
+  <!-- ═══════════ 3. 三条纪律 ═══════════ -->
+  <h2>三、验尸报告:三条防死锁纪律</h2>
+
+  <div class="code-label">纪律①+② · 修复后的完整代码</div>
+<pre><code><span class="cmt">// ✓ 应用层:一路 async 到底,事件处理器就是 async void(框架专门为此设计)</span>
+<span class="kw">private async void</span> Button_Click(<span class="kw">object</span> sender, EventArgs e)
+{
+    label1.Text = <span class="kw">await</span> LoadDataAsync();   <span class="cmt">// 恢复经 Post 回 UI,天然安全</span>
+}
+
+<span class="cmt">// ✓ 类库层:内部 await 一律 ConfigureAwait(false),不依赖调用方的上下文</span>
+<span class="kw">private async</span> Task&lt;<span class="kw">string</span>&gt; LoadDataAsync()
+{
+    <span class="kw">string</span> raw = <span class="kw">await</span> _http.GetStringAsync(url).ConfigureAwait(false);
+    <span class="kw">return</span> raw.Trim();                     <span class="cmt">// 续延直接在完成者线程跑,不排队,不回 UI</span>
+}</code></pre>
+
+  <table>
+    <thead><tr><th>#</th><th>纪律</th><th>一句话理由</th></tr></thead>
+    <tbody>
+      <tr><td>①</td><td><strong>类库代码一律 <code>ConfigureAwait(false)</code></strong></td><td>库不该关心调用方是谁——既根除死锁,又省一次 Post 调度</td></tr>
+      <tr><td>②</td><td><strong>应用代码一路 async 到底</strong>,绝不 <code>.Result</code> / <code>.Wait()</code></td><td>事件处理器支持 async void;顶层无阻塞,环就少一环</td></tr>
+      <tr><td>③</td><td><strong>遗留同步边界要"隔离",不要裸阻塞</strong></td><td>非要在同步方法里调异步:换 API,或放到无上下文的专门线程/进程中做</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout trap">
+    <p class="callout-title">偏方鉴别:<code>Task.Run(() =&gt; FooAsync().Result).Result</code></p>
+    <p>网上常见"破锁"偏方:把异步塞进 <code>Task.Run</code> 再阻塞。它能跑通是因为内层运行在
+    <strong>无上下文的线程池线程</strong>里,环凑不齐——但这是 sync-over-async:烧掉两个线程,
+    藏住问题而非解决问题。工程判断:仅作迁移期过渡,长期方案仍是纪律①②。(线程的账,0008 算。)</p>
+  </div>
+
+  <!-- ═══════════ 4. ConfigureAwait 语义 ═══════════ -->
+  <h2>四、ConfigureAwait 的准确语义(三个事实)</h2>
+
+  <p><span class="tag tag-source">源码视角</span>很多人会用但说不准,面试就考这份精确:</p>
+
+  <ol>
+    <li><strong>它只作用于写它的那一次 await</strong>,不传染整个方法,更不传染程序集。
+    每一处 await 单独决定捕获与否。</li>
+    <li><strong><code>false</code> 只改变"续延在哪恢复"</strong>,不改变欠条的结果、异常、取消语义——
+    0005/0006 讲的完成与销账机制原样不变。</li>
+    <li><strong>用在哪要看角色</strong>:库代码写 <code>false</code>(不依赖上下文);UI 事件处理器
+    <strong>不要</strong>写(你需要回 UI 更新控件)。ASP.NET Core 与控制台本就无 SyncContext,
+    写不写行为相同——但库的惯例仍是写,因为库不知道自己将来跑在哪。</li>
+  </ol>
+
+  <p class="muted">权威出处:<a href="https://devblogs.microsoft.com/dotnet/configureawait-faq/" target="_blank">ConfigureAwait FAQ — Stephen Toub</a>(本课主推阅读,常读常新)。
+  ASP.NET classic 有一处额外的坑:<code>ConfigureAwait(false)</code> 之后
+  <code>HttpContext.Current</code> 不再可用——上下文与请求绑定,丢了快递员就丢了包裹。
+  详见<a href="../reference/configureawait-速查卡.html">速查卡</a>的上下文一览表。</p>
+
+  <!-- ═══════════ 5. 检索练习 ═══════════ -->
+  <h2>五、检索练习<span class="muted" style="font-size:.85rem">(不看上文,凭记忆答)</span></h2>
+  <div id="quiz"></div>
+
+  <!-- ═══════════ 6. 复习钩子 ═══════════ -->
+  <h2>六、明天的回忆任务<span class="muted" style="font-size:.85rem">(30 秒,不翻书)</span></h2>
+  <details class="qa">
+    <summary>① 默画死锁环:四个节点,四支等待箭头。</summary>
+    UI 线程 →(等)外壳欠条 →(等)续延段 2 →(Post 排队)UI 消息队列 →(没人泵)UI 线程。环 = 循环等待。
+  </details>
+  <details class="qa">
+    <summary>② ConfigureAwait(false) 的准确含义?</summary>
+    仅对写它的那一次 await:挂起时不捕获上下文,续延直接在完成者/线程池线程恢复。不改变结果、异常、取消语义。
+  </details>
+  <details class="qa">
+    <summary>③ 三条防死锁纪律?</summary>
+    库代码一律 ConfigureAwait(false);应用代码一路 async 到底不裸阻塞;遗留同步边界用隔离而非 .Result。
+  </details>
+
+  <!-- ═══════════ 尾部 ═══════════ -->
+  <div class="callout ask no-print">
+    <p class="callout-title">卡住了?随时问你的老师</p>
+    <p>"我们的老服务是 ASP.NET Framework,ConfigureAwait(false) 敢不敢全局加?"
+    "async void 事件处理器里抛异常会怎样?""Send 和 Post 的具体分野?"
+    ——回 Claude Code 直接问,特别是拿你们项目里的真实代码来验尸。</p>
+  </div>
+
+  <div class="next-up">
+    <p class="next-title">▸ 下一课:<a href="0008-threadpool-taskrun-valuetask.html">0008 · 线程池调度与 Task.Run 的边界(附 ValueTask 初识)→</a></p>
+    <p>死锁解剖里反复出现"线程池线程"——它到底是什么、任务怎么排队、为什么
+    <code>Task.Run</code> 包 IO 是烧钱,以及为什么高性能库开始返回 <code>ValueTask</code>。
+    复习工具:<a href="../reference/configureawait-速查卡.html">ConfigureAwait 速查卡</a>(新增)。</p>
+  </div>
+
+  <hr class="footrule">
+  <footer class="course-foot">
+    <span>dotnet-Task异步学习 · 第 0007 课 · 主推阅读:<a href="https://devblogs.microsoft.com/dotnet/configureawait-faq/" target="_blank">ConfigureAwait FAQ — Stephen Toub</a></span>
+    <span><a href="0006-await-compiler-state-machine.html">上一课</a> · <a href="index.html">目录</a> · <a href="../reference/tcs-速查卡.html">TCS 卡</a> · <a href="../reference/configureawait-速查卡.html">ConfigureAwait 卡</a></span>
+  </footer>
+
+</div>
+<script src="../assets/quiz.js"></script>
+<script>
+  // ── 隔日检索热身(复习 0006)──
+  TeachQuiz.render(document.getElementById('warmup'), [
+    {
+      q: '【复习】await 遇到未完成的欠条,线程会?',
+      options: ['登记续延之后立刻返回', '原地自旋等待完成信号', '睡眠固定毫秒后再检查', '新建一个工人接管执行'],
+      answer: 0,
+      explain: '拆段 + 登记 + return;"暂停"从未发生,线程正常离开。'
+    },
+    {
+      q: '【复习】跨 await 存活的局部变量住在?',
+      options: ['状态机对象的字段里面', '调用栈的原始栈帧里面', '线程池的全局队列里面', '欠条对象的某个槽位里'],
+      answer: 0,
+      explain: '提升(hoisting):栈帧销毁,变量搬进堆上的状态机——"变形的栈帧"。'
+    },
+    {
+      q: '【复习】欠条早已完成时,await 会?',
+      options: ['跳过登记直接顺序走完', '照样登记续延等待恢复', '强制切换到线程池执行', '抛出状态非法的异常类'],
+      answer: 0,
+      explain: '快速路径:IsCompleted=true → 不注册不调度,直接走完。'
+    },
+    {
+      q: '【复习】(0006 说的)"续延默认内联"成立的前提是?',
+      options: ['完成欠条的那个线程上', '永远回到发起调用线程', '固定切到专门的UI线程', '新建独立线程执行续延'],
+      answer: 0,
+      explain: '内联发生在完成者线程上——本课你会看到它的精确条件:没有捕获到同步上下文时。'
+    }
+  ]);
+
+  // ── 本课检索练习 ──
+  TeachQuiz.render(document.getElementById('quiz'), [
+    {
+      q: 'await 挂起时"记住现场",记的是?',
+      options: ['当前线程的同步上下文', '当前线程的线程池槽位', '当前方法的完整调用栈', '当前欠条的实时完成态'],
+      answer: 0,
+      explain: '捕获 SynchronizationContext.Current;恢复时非空则 Post 回去,null 则内联。'
+    },
+    {
+      q: '经典 UI 死锁里,UI 线程卡死在哪一步?',
+      options: ['同步阻塞等结果的调用', '网络请求的远程等待中', '消息队列的泵循环内部', '续延的内联执行过程里'],
+      answer: 0,
+      explain: '.Result 同步阻塞 → 消息循环停摆 → 续延永远排队;UI 等欠条,欠条等续延,环闭合。'
+    },
+    {
+      q: '类库代码里 await 的惯例写法?',
+      options: ['一律 ConfigureAwait(false)', '一律 ConfigureAwait(true)', '全部用 Task.Run 包裹执行', '只在返回前再等一次任务'],
+      answer: 0,
+      explain: '库不依赖调用方上下文:根除死锁,还省一次 Post。UI 事件处理器是例外(要回 UI)。'
+    },
+    {
+      q: 'ConfigureAwait(false) 改变的是?',
+      options: ['这一次续延的恢复线程', '欠条的结果与异常语义', '取消令牌的全部传播链', '方法内后续所有次等待'],
+      answer: 0,
+      explain: '只作用于写它的那一次 await 的续延去向;结果/异常/取消语义原样,也不传染。'
+    }
+  ]);
+</script>
+</body>
+</html>

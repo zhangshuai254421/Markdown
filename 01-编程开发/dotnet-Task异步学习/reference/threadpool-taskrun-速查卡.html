@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>线程池与 Task.Run 速查卡</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">REFERENCE · 速查卡 · 可打印</p>
+  <h1>线程池与 Task.Run 速查卡</h1>
+  <div class="meta">
+    <span class="chip">来源:第 0008 课</span>
+    <span class="chip">主推阅读:<a href="https://blog.stephencleary.com/2013/11/taskrun-etiquette-and-proper-usage.html" target="_blank">Cleary · Task.Run Etiquette</a></span>
+  </div>
+
+  <p class="lede">一句话:<strong>线程池是"短平快 CPU 活"的经济系统</strong>——
+  凡占着工人不还的用法都在放血。判决尺第一问:<strong>真正干活的是谁?</strong></p>
+
+  <h2>一、判决尺</h2>
+  <table>
+    <thead><tr><th>活的本性</th><th>真正干活的</th><th>姿势</th><th>典型例子</th></tr></thead>
+    <tbody>
+      <tr><td><strong>CPU-bound</strong></td><td>本机 CPU</td><td>UI 场景 <code>Task.Run</code> 挪走防卡界面;服务端原地算</td><td>压缩、序列化、图像、算数</td></tr>
+      <tr><td><strong>IO-bound</strong></td><td>外部设备/远端</td><td>真异步 API + <code>await</code>(<strong>0 线程</strong>)</td><td>HTTP、磁盘、DB、定时</td></tr>
+    </tbody>
+  </table>
+
+  <h2>二、Task.Run 用 / 不用清单</h2>
+  <table>
+    <tbody>
+      <tr><td>✓</td><td>UI 应用里跑 CPU-bound 短活(防界面冻结)</td></tr>
+      <tr><td>✓</td><td>批处理/后台工具里做并行分片(有意识控制并发数)</td></tr>
+      <tr><td>×</td><td><strong>不包同步 IO</strong>——工人干等,慢性放血;找真异步 API</td></tr>
+      <tr><td>×</td><td><strong>库代码不用</strong>——并发的决定权在应用层(etiquette)</td></tr>
+      <tr><td>×</td><td><strong>ASP.NET Core 服务端不用</strong>——请求已是池工人,挪 = 多付开销</td></tr>
+      <tr><td>×</td><td><strong>不做 sync-over-async 糖衣</strong>——<code>Task.Run(() =&gt; FooAsync().Result)</code> 烧两个工人</td></tr>
+    </tbody>
+  </table>
+
+  <h2>三、线程池结构(讲得出才算懂)</h2>
+  <table>
+    <thead><tr><th>部件</th><th>一句话</th><th>课程钩子</th></tr></thead>
+    <tbody>
+      <tr><td>全局队列</td><td>非池线程发起的 <code>Task.Run</code> 排这里</td><td>0005:<code>WaitingToRun</code></td></tr>
+      <tr><td>本地队列</td><td>池线程内再排的活;含"偷活"(work stealing)</td><td>细节可问老师</td></tr>
+      <tr><td>工人循环</td><td>取活 → 干 → 还 → 取下一个</td><td>0005:<code>Running</code></td></tr>
+      <tr><td>补充机制</td><td>全忙时约半秒注入 1 个新线程;可 <code>SetMinThreads</code> 调底数</td><td>补充慢 → 饥饿的机械原因</td></tr>
+    </tbody>
+  </table>
+
+  <h2>四、烧工人账本(sync-over-async 三档)</h2>
+  <table>
+    <thead><tr><th>写法</th><th>工人占用</th><th>结论</th></tr></thead>
+    <tbody>
+      <tr><td><code>await</code> 真异步 IO</td><td><strong>0</strong></td><td>✓ 唯一正确姿势</td></tr>
+      <tr><td><code>Task.Run</code> 包同步 IO</td><td>1(干等)</td><td>× 放血</td></tr>
+      <tr><td><code>Task.Run(() =&gt; Async().Result).Result</code></td><td><strong>2</strong>(一个陪绑)</td><td>× 仅迁移期过渡</td></tr>
+    </tbody>
+  </table>
+
+  <h2>五、诊断链(0005 → 0008 闭环)</h2>
+  <table>
+    <tbody>
+      <tr><td>1. 日志见 <code>WaitingToRun</code> 堆积</td><td>→ 2. 找被占死的工人(<code>Running</code> 干等/卡死)</td><td>→ 3. 揪出包 IO 的 Task.Run 或 sync-over-async</td></tr>
+    </tbody>
+  </table>
+
+  <h2>六、ValueTask 三纪律 + 选择表</h2>
+  <table>
+    <tbody>
+      <tr><td>①</td><td><strong>只能 await 一次</strong>(不缓存复用、不并发 await)</td></tr>
+      <tr><td>②</td><td><strong>完成前不混用</strong>(await 前后别拆 <code>AsTask()</code> 两头用)</td></tr>
+      <tr><td>③</td><td><strong>仅"高频 + 常同步完成"热路径</strong>;一般 API 用 Task</td></tr>
+    </tbody>
+  </table>
+  <table>
+    <thead><tr><th></th><th>Task&lt;T&gt;</th><th>ValueTask&lt;T&gt;</th></tr></thead>
+    <tbody>
+      <tr><td>本体</td><td>class(分配)</td><td>struct(栈上)</td></tr>
+      <tr><td>同步完成</td><td>仍分配 Task</td><td>零分配(包结果)</td></tr>
+      <tr><td>消费</td><td>任意次</td><td>仅一次</td></tr>
+      <tr><td>默认</td><td>✓</td><td>仅热路径</td></tr>
+    </tbody>
+  </table>
+
+  <h2>七、术语表增量</h2>
+  <table>
+    <tbody>
+      <tr><td><strong>线程池 worker</strong></td><td>运行时养护的可复用工人线程;循环执行池任务</td></tr>
+      <tr><td><strong>饥饿 starvation</strong></td><td>工人被干等型任务占死,补充(约 0.5s/个)追不上排队速度</td></tr>
+      <tr><td><strong>IO-bound / CPU-bound</strong></td><td>活的本性二分:外部设备干活 vs 本机 CPU 干活——判决尺第一问</td></tr>
+      <tr><td><strong>work stealing</strong></td><td>本地队列的互补机制:空闲工人从别的工人本地队列"偷活"</td></tr>
+      <tr><td><strong>ValueTask</strong></td><td>struct 欠条:同步完成零分配;代价是只能消费一次</td></tr>
+      <tr><td><strong>sync-over-async</strong></td><td>同步阻塞等异步欠条(0007 死锁温床,0008 放血账本)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>八、面试自测五问</h2>
+  <details class="qa">
+    <summary>① 为什么说 await 的 IO 是"零线程"?</summary>
+    真异步 IO 由设备/OS 完成并回调,期间无任何线程在等——欠条机制(0001 起)的全部意义。占线程的是"同步等待",不是 IO 本身。
+  </details>
+  <details class="qa">
+    <summary>② WaitingToRun 堆积,下一步查什么?</summary>
+    查被占死的工人:Running 卡死、干等的 Task.Run、sync-over-async。状态 → 池 → 代码姿势,三步闭环。
+  </details>
+  <details class="qa">
+    <summary>③ 服务端为什么不该 Task.Run?</summary>
+    ASP.NET Core 请求本就跑在池工人上;Task.Run 只是把活挪个位置,还多付调度开销,降低吞吐。
+  </details>
+  <details class="qa">
+    <summary>④ ValueTask 为什么快?代价是什么?</summary>
+    struct 包结果,同步完成路径零分配。代价:只能 await 一次、完成前不混用——违反即未定义行为。
+  </details>
+  <details class="qa">
+    <summary>⑤ 线程池饥饿时加线程为什么救不了急?</summary>
+    补充速率约每半秒一个,而干等任务占用是长期持锁——补充追不上消耗;根治靠改代码姿势,不是调参数。
+  </details>
+
+  <hr class="footrule">
+  <footer class="course-foot">
+    <span>dotnet-Task异步学习 · 速查卡 · 配套课程:<a href="../lessons/0008-threadpool-taskrun-valuetask.html">第 0008 课</a></span>
+    <span><a href="../lessons/index.html">课程目录</a> · <a href="task-status-速查卡.html">状态卡</a> · <a href="configureawait-速查卡.html">ConfigureAwait 卡</a> · <a href="tcs-速查卡.html">TCS 卡</a></span>
+  </footer>
+
+</div>
+</body>
+</html>

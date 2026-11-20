@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>参考卡 · 桌面登录权限标准速查</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="lesson-head">
+  <div class="kicker">软件登录与权限系统 · 参考卡（纯桌面版）</div>
+  <h1>桌面登录权限标准速查<span class="subtitle">做功能查哪份、讲道理引哪份、过测评对哪份</span></h1>
+</header>
+
+<p>登录权限的「标准」分三层：<strong>法律</strong>决定为什么必须做，<strong>国标</strong>决定做到什么程度算合格，<strong>国际标准与行业实践</strong>给出具体怎么做才对。桌面软件没有服务端，但标准照样适用——只是条款落在你的登录窗口、本地库和命令层上。</p>
+
+<h2>一、中国国标与法规（合规层）</h2>
+
+<table>
+  <thead>
+    <tr><th>标准 / 法规</th><th>管什么</th><th>对你的意义</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>GB/T 22239-2019</strong><br>网络安全等级保护基本要求（等保 2.0）<br><a href="https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=BAFB47E8874764186BDB7865E8344DAF">官方全文 →</a></td>
+      <td>按系统定级（一至四级）给出安全通用要求；<strong>身份鉴别、访问控制、安全审计</strong>是安全功能要求项，三级起要求双因素鉴别</td>
+      <td>登录权限模块的<strong>合规底线</strong>。桌面软件过测评时，逐条对照「安全计算环境 → 身份鉴别 / 访问控制 / 安全审计」——第 6 课的验收主轴</td>
+    </tr>
+    <tr>
+      <td><strong>GB/T 39786-2021</strong><br>信息系统密码应用基本要求<br><a href="https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=53282C88712CE157043B7A2C590278FC">官方全文 →</a></td>
+      <td>信息系统商用密码（SM 系列算法）应用的技术与管理要求</td>
+      <td>客户指定<strong>国密算法</strong>（SM3 摘要/SM4 加密）或要做「密评」时查它——届时密码哈希路线要换成国密方案</td>
+    </tr>
+    <tr>
+      <td><strong>《网络安全法》</strong>（2017 施行）</td>
+      <td>确立等级保护制度；第 21 条要求<strong>日志留存不少于六个月</strong></td>
+      <td>审计记录「只增不删、留存 ≥6 个月」的法律依据（自查单 F-23 项）</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>二、国际标准与行业最佳实践（原理与落地层）</h2>
+
+<table>
+  <thead>
+    <tr><th>标准 / 实践</th><th>管什么</th><th>对你的意义</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>OWASP Cheat Sheet Series</strong><br><a href="https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html">Password Storage →</a> · <a href="https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html">Authentication →</a> · <a href="https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html">Authorization →</a></td>
+      <td>实现要点速查：密码怎么存（算法与参数）、密码策略怎么定（长度/黑名单/不强制换）、授权怎么设计（默认拒绝/最小权限）</td>
+      <td><strong>写代码前的第一站</strong>——第 2、3、4、5 课的参数与原则全部出自这三篇</td>
+    </tr>
+    <tr>
+      <td><strong>NIST SP 800-63B-4</strong><br>Digital Identity Guidelines（2025 定稿）<br><a href="https://pages.nist.gov/800-63-4/sp800-63b.html">在线全文 →</a></td>
+      <td>认证的权威技术参考：密码策略（<strong>不再建议定期强制换密</strong>、要求防撞库黑名单）、盐与慢哈希要求、AAL1–3 保障等级</td>
+      <td>回答「<strong>为什么</strong>这么做」时引它——比如推翻「90 天强制换密码」的老规矩</td>
+    </tr>
+    <tr>
+      <td><strong>OWASP ASVS 5.0</strong><br>Application Security Verification Standard<br><a href="https://owasp.org/projects/asvs">项目页 →</a></td>
+      <td>应用安全验证需求清单，认证、密码、访问控制章节可当<strong>验收自查表</strong></td>
+      <td>客户要求正式验收时，把课程自查单升级成 ASVS 对应条目的桥梁</td>
+    </tr>
+    <tr>
+      <td><strong>NIST RBAC</strong>（INCITS 359）<br><a href="https://csrc.nist.gov/projects/role-based-access-control">项目页 →</a></td>
+      <td>基于角色的访问控制参考模型：核心 / 层级 / 约束（职责分离）三层</td>
+      <td>第 4 课建模方法的模型出处；「分配权限与查看审计分离」来自约束层</td>
+    </tr>
+    <tr>
+      <td><strong>ISO/IEC 27001:2022</strong><br>附录 A 控制项 5.15–5.18<br><a href="https://www.urmconsulting.com/blog/iso-27001-2022-a-5-organisational-controls-access-management">5.15–5.18 解读 →</a></td>
+      <td>管理体系的访问管理控制簇：访问控制、身份管理、鉴别信息、访问权限</td>
+      <td>客户或集团<strong>要 ISO 27001 认证</strong>时的对接语言，视角偏管理流程</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="key">
+  <span class="callout-label">用法口诀</span>
+  <strong>存密码查 OWASP，讲策略引 NIST，过测评对等保。</strong>三层不冲突：OWASP 告诉你怎么写对，NIST 告诉你为什么这样算对，等保告诉你国内测评时最低要做到哪。（Web 联邦登录协议 OAuth/OIDC/SAML/WebAuthn 属 B/S 生态，桌面课程不展开；将来做 B/S 版本时再回来查。）
+</div>
+
+<footer class="lesson-foot">
+  <p class="next-link"><a href="../lessons/0001-desktop-map.html">回看：第 1 课 · 桌面全景 →</a> · <a href="security-self-check.html">桌面安全自查单</a></p>
+</footer>
+
+</main>
+</body>
+</html>

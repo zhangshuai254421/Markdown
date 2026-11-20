@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>第5课 · 真实A股数据：AKShare与复权的谎言</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <p class="eyebrow">量化交易入门 · 第 5 课 / 12</p>
+  <h1>真实 A 股数据：AKShare 与复权的谎言</h1>
+  <p class="lead">从今天起离开合成数据。<span class="src opinion">作者观点</span>业内的老话是：量化九成的苦役在数据——策略只写一次，数据的坑天天踩。本课目标：亲手拉取一份<strong>口径透明的 A 股日线</strong>，存成 CSV，为第 7-8 课的自建 C# 引擎备好弹药。</p>
+
+  <h2>为什么数据这么难</h2>
+  <p>第 4 课的"幸存者偏差"在数据层的真面目：很多免费接口返回的是"<strong>当前还在上市的股票</strong>"列表。用它回测十年，等于自动删掉了所有退市股。<span class="src third">第三方估计</span>A 股每年退市数量在注册制后显著上升——被删掉的恰恰是最大的风险样本。数据层的三个必查项：</p>
+  <ol>
+    <li><strong>退市股在不在？</strong>——决定你的回测有没有幸存者偏差。</li>
+    <li><strong>复权处理了吗？</strong>——决定你的收益率是不是真的。</li>
+    <li><strong>口径规范吗？</strong>——字段含义、停牌日处理、成交量为空的约定，各家不同。</li>
+  </ol>
+
+  <h2>三大数据源怎么选</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>数据源</th><th>定位</th><th>何时用</th></tr></thead>
+    <tbody>
+      <tr><td><strong>AKShare</strong></td><td>免费、接口面广（爬虫聚合）</td><td>本课默认选择；注意其"无中心化数据库"的特性（<a href="https://segmentfault.com/a/1190000047559797">避坑指南</a>）</td></tr>
+      <tr><td><strong>Tushare Pro</strong></td><td>口径规范、质量高（积分制）</td><td>认真回测期；DataFrame 可直接进回测引擎（<a href="https://zhuanlan.zhihu.com/p/2067012476840031953">对比评测</a>）</td></tr>
+      <tr><td><strong>Baostock</strong></td><td>零门槛、稳定</td><td>只想快速拿到历史日线时</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">本课程的语言分工（<a href="../MISSION.md">使命</a>约束）：Python 只当<strong>数据搬运工</strong>——下载、清洗、存 CSV；回测与策略仍在 C# 里。CSV 是两种语言之间的桥，也让你随时检查数据的原貌。</p>
+  <p class="note">你可能会问：掘金不是也有数据吗？有，而且和第 2-3 课的回测同源。但第 7-8 课的自建引擎需要一份<strong>你能用文本编辑器打开、逐行检查</strong>的原始 CSV——所以这一课用 AKShare 导出；掘金的数据接口留到你需要在平台内"一条龙"时再用。</p>
+  <p class="note"><strong>前复权是时变的：</strong>AKShare 的 <code>qfq</code> 以"下载时的最新日"为基准，每次分红除息后历史价格会重算；掘金回测的 <code>ADJUST_PREV</code> 以"回测结束日"为基准。两者同一天价格不同是正常的，排查见 <a href="../reference/backtest-data-reconciliation.html">R6 · 回测数据对不上排查清单</a>。</p>
+
+  <h2>复权的谎言</h2>
+  <p>分红、送股、拆分会让股价在除权日"跳空下跌"——平安银行分红前 15 元、分红后 14.7 元，看图是跌了 2%，实际你的账户一分没亏。<strong>不复权的价格序列会把这些假下跌记成真亏损</strong>，长期回测里分红越多误差越大。</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>类型</th><th>含义</th><th>用途</th></tr></thead>
+    <tbody>
+      <tr><td><strong>不复权</strong></td><td>原始成交价</td><td>看盘、挂单</td></tr>
+      <tr><td><strong>前复权</strong></td><td>以今为锚调整历史价格</td><td><strong>回测默认</strong>（最新价真实，历史价被调整）</td></tr>
+      <tr><td><strong>后复权</strong></td><td>以历史为锚累计真实收益</td><td>计算真实持有收益率更严谨</td></tr>
+    </tbody>
+  </table></div>
+  <div class="warning"><p><strong>查复权是行规动作</strong>：拿到任何数据源，先确认拉的是哪一种。用"不复权"价格回测，是继五宗罪之后最容易犯的第六宗（它通常导致收益被低估而非高估——错误方向不等于无害）。</p></div>
+
+  <h2>真实数字：510300 的复权账</h2>
+  <p>把 510300 的真实分红和 AKShare 的 qfq 对上，"复权"就不再是抽象词。510300 在 2015-2026 年间共分红 <strong>12 次</strong>（2019 年分了两次，2020 年没有），合计每份 <strong>0.799 元</strong>：2015-2021 的 7 次合计 0.380 元，2022-2026 的 5 次合计 0.419 元。</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>日期</th><th>不复权收盘</th><th>AKShare qfq（当前锚）</th><th>掘金定点 qfq（2024-12-31 锚，约）</th><th>差额来源</th></tr></thead>
+    <tbody>
+      <tr><td>2015-01-05</td><td>3.688</td><td>2.889</td><td>约 3.10</td><td>AKShare 扣 2015-2026 全部 12 次；掘金只扣到 2024</td></tr>
+      <tr><td>2022-01-18</td><td>4.881</td><td>4.462</td><td>约 4.67</td><td>AKShare 扣 2022-2026 五次；掘金只扣 2022-2024</td></tr>
+      <tr><td>2024-01-17</td><td>3.292</td><td>3.012</td><td>约 3.22</td><td>AKShare 扣 2024-2026 三次；掘金只扣 2024</td></tr>
+      <tr><td>2024-12-31</td><td>4.022</td><td>3.811</td><td>4.022</td><td>AKShare 扣 2025-2026 两次；掘金锚点日不扣</td></tr>
+    </tbody>
+  </table></div>
+  <p><strong>AKShare 的 qfq 是"加法"调整</strong>：<code>qfq = 不复权收盘 − 该日期之后、下载日之前的所有分红</code>。所以 2024-12-31 的 4.022 减去 2025-06-18 的 0.088 和 2026-01-19 的 0.123，正好是 3.811。每一天的差额，都能用"之后发生的分红"逐笔对上。</p>
+  <p class="note">表里的"掘金定点 2024-12-31"只是示例。如果你把掘金结束日改到 2026（且在 2026-01-19 之后），它应该接近第二列 AKShare qfq；如果仍差很多，按下面的"差异形状"排查。</p>
+  <div class="warning"><p><strong>掘金回测的 <code>ADJUST_PREV</code> 是"定点前复权"</strong>：锚点是<strong>回测结束日 2024-12-31</strong>，它不会扣 2025/2026 的 0.211。所以同一天它通常比 AKShare qfq 高 0.211（掘金用复权因子乘法，和 AKShare 的加法可能再差几分钱）。如果你把掘金回测结束日改成今天，它才会和 AKShare qfq 在同一基准上（算法差异可能留几分钱）。</p></div>
+  <div class="insight"><p><strong>三步确认你读的是哪一套数据：</strong>① 打开程序真正读取的 CSV，找 2024-12-31 的收盘价：<strong>4.022 = 不复权</strong>，<strong>3.811 = qfq</strong>；② 同花顺切到"不复权"看 2024-12-31 应显示 4.022；再切到"定点复权 2024-12-31"看 2015-01-05 应约 <strong>3.10</strong>（不是 3.688，也不是 2.889）；③ 掘金 <code>ADJUST_NONE</code> 看 2015-01-05 应显示 <strong>3.688</strong>，<code>ADJUST_PREV</code>（结束日 2024-12-31）应约 <strong>3.10</strong>。<strong>2024-12-31 是锚点日，复权和不复权刚好都等于 4.022，不能只用它区分"定点复权"和"不复权"</strong>——一定要加看 2015-01-05。</p></div>
+  <p class="note"><strong>把掘金结束日改到 2026 后仍和 AKShare 不一样？先看差异的形状：</strong>① 全区间差一个常数（例如 0.123）= 掘金漏了某次分红，或锚点落在除息日之前；② 越往前差得越大（从几分钱到几毛）= 掘金用复权因子乘法、AKShare 用加法，或两家分红因子不同；③ 差 0.2/0.8 级别 = 一方还是 raw、另一方是 qfq。用 2024-12-31、2022-01-18、2015-01-05 三个点就能判断。</p>
+
+  <h2>动手：拉一份干净的日线</h2>
+  <p>装好 Python 后（一次性，之后不再深入），下面 8 行拉取沪深300ETF十年日线并存 CSV：</p>
+  <p class="code-title">fetch_data.py — pip install akshare pandas 后直接可跑</p>
+  <pre><code>import akshare as ak
+
+# 前复权日线：沪市 ETF 510300（沪深300ETF）
+df = ak.fund_etf_hist_em(symbol="510300",
+                         period="daily",
+                         start_date="20150101",
+                         end_date="20241231",
+                         adjust="qfq")          # qfq = 前复权
+df.to_csv("hs300etf_daily.csv", index=False, encoding="utf-8-sig")
+print(df.head(), df.shape)</code></pre>
+  <p class="note">接口文档见 <a href="https://akshare.akfamily.xyz/demo.html">AKShare 官方文档</a>。个股用 <code>ak.stock_zh_a_hist(symbol="600519", adjust="qfq", ...)</code>。<strong>作业检查点</strong>：打开 CSV 数一下行数——十年约 2400 行；再肉眼看 2015 年股灾和 2024 年 9 月行情是否在数据里。这份数据第 7-8 课的引擎直接吃。</p>
+
+  <h2>检验一下</h2>
+  <div class="quiz" data-answer="c"
+       data-explain-good="对。复权就是消除分红、送股、拆分造成的假跳空——不复权序列会把假下跌记成真亏损。"
+       data-explain-bad="不对。复权与手续费、退市处理都不是一回事：它专门治理分红送股造成的价格跳空。">
+    <p class="quiz-question">复权处理的作用是？</p>
+    <button class="opt" data-key="a">把手续费折进价格</button>
+    <button class="opt" data-key="b">剔除退市股的价格</button>
+    <button class="opt" data-key="c">消除分红拆分的跳</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <div class="quiz" data-answer="a"
+       data-explain-good="对。口径与复权处理决定了数据能不能用于回测；速度和指标数量都是第二位的。"
+       data-explain-bad="不对。再快、再全的数据，若复权口径不明、退市股缺失，回测结论就不可信——先问口径。">
+    <p class="quiz-question">评估一个免费数据源的第一原则？</p>
+    <button class="opt" data-key="a">先看口径与复权处理</button>
+    <button class="opt" data-key="b">先看接口速度怎么样</button>
+    <button class="opt" data-key="c">先看覆盖多少个指标</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <h3>自由回忆（隔天再做一遍效果更好）</h3>
+  <p>不看上文：① 三大数据源各自的定位一句话；② 为什么回测必须用复权数据；③ 你拉取的 CSV 大约多少行、怎么验证它没骗你？</p>
+  <button class="reveal-btn" data-reveal="recall">回忆后对照</button>
+  <div class="answer" id="recall" hidden>
+    <p>① AKShare=免费广度 / Tushare=规范质量 / Baostock=零门槛。② 分红送股造成假跳空，不复权序列把假下跌记成真亏损。③ 约 2400 行；肉眼核对极端行情（2015 股灾、2024 年 9 月）是否在场——数据验证的核心是"带着怀疑看数据"。</p>
+  </div>
+
+  <h2>下一步</h2>
+  <p><strong>本课主源推荐</strong>：<a href="https://akshare.akfamily.xyz/demo.html">AKShare 官方文档</a>——把"股票"与"基金 ETF"两节数据接口目录浏览一遍，知道有什么比记住怎么用更重要。</p>
+  <p><strong>下一课预告</strong>：第 6 课《基准平反与夏普》——第 2 课你造的"买入持有"将被正式平反：它是大多数主动策略打不过的对手；同时学一个把收益和风险放在一起算的数：<strong>夏普比率</strong>。</p>
+
+  <div class="note"><p><strong>卡住了？随时问老师。</strong>Python 环境、AKShare 接口报错、复权概念发懵——都可以直接问。数据拉好了告诉老师行数和你核对的方法。</p></div>
+
+  <nav class="lesson-nav">
+    <a href="0004-backtest-cheating-catalog.html">第 4 课：回测作弊图鉴</a>
+    <a href="../reference/glossary.html">术语表（R1）</a>
+    <a href="../reference/backtest-data-reconciliation.html">数据对账（R6）</a>
+    <a href="0006-benchmark-and-sharpe.html">下一课：基准平反与夏普</a>
+  </nav>
+</main>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/course-nav.js"></script>
+</body>
+</html>

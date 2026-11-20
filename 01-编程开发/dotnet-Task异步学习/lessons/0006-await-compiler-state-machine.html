@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>0006 · await 编译期真相:手写还原状态机</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">DOTNET · TASK SYSTEM · 第 0006 课</p>
+  <h1>await 编译期真相:手写还原状态机</h1>
+  <div class="meta">
+    <span class="chip">⏱ 预计 25 分钟</span>
+    <span class="chip">前置:第 0001–0005 课</span>
+    <span class="chip">交付:看清 await 的"暂停与恢复",拆掉魔术</span>
+  </div>
+
+  <p class="lede">前五课你反复听见同一句话:"await 等欠条,完成即恢复。"
+  但"暂停一个方法再恢复"听起来像魔术——线程没有暂停键,栈帧也不会自己消失再回来。
+  今天把魔术拆开:await 是<strong>编译器的障眼法</strong>,它把你的 async 方法整个搬进一个类,
+  切成段,提前返回。<span class="tag tag-interview">面试高频</span>
+  <span class="tag tag-source">源码视角</span></p>
+
+  <!-- ═══════════ 0. 隔日检索 ═══════════ -->
+  <h2>〇、隔日检索<span class="muted" style="font-size:.85rem">(先测后学:0005 还剩多少?)</span></h2>
+  <div id="warmup"></div>
+
+  <!-- ═══════════ 1. 魔术表象 ═══════════ -->
+  <h2>一、魔术为什么不可能是真的</h2>
+
+  <p>先想清楚物理约束:<strong>线程只能执行,不能暂停</strong>。线程跑完当前方法就顺着调用栈
+  往下走;所谓"方法暂停在 await 上",意味着一张栈帧凭空冻住——CPU 和执行模型里没有这种东西。</p>
+
+  <p>所以唯一可能的解释是:<strong>编译器改写了你的代码</strong>。"暂停"根本没发生,发生的是:</p>
+
+  <ol>
+    <li>你的 async 方法被<strong>拆成几段</strong>(await 是切缝);</li>
+    <li>遇到未完成的欠条,<strong>登记一个回调,然后提前 return</strong>——线程正常离开;</li>
+    <li>欠条完成时,<strong>有人替你把下一段重新调起来</strong>——这就是全部的"恢复"。</li>
+  </ol>
+
+  <div class="callout">
+    <p class="callout-title">今天的单一收获</p>
+    <p>看完本课,你要能对着任何 async 方法,在白板上手写还原编译器生成的状态机骨架。
+    这个能力直接服务三个动机:读框架源码(源码里全是状态机思路)、面试讲 await 原理、
+    调试时看懂反编译产物。</p>
+  </div>
+
+  <!-- ═══════════ 2. 源码 vs 产物 ═══════════ -->
+  <h2>二、拆开看:源码 → 编译器产物</h2>
+
+  <p>从一个最小的 async 方法开始:</p>
+
+  <div class="code-label">你写的源码</div>
+<pre><code><span class="cmt">// 一句一动作:打印、await、打印、返回</span>
+<span class="kw">public async</span> Task&lt;<span class="kw">int</span>&gt; LoadCountAsync(HttpClient http, <span class="kw">string</span> url)
+{
+    Console.WriteLine(<span class="str">"开始下载"</span>);                       <span class="cmt">// ① await 之前</span>
+    <span class="kw">byte</span>[] bytes = <span class="kw">await</span> http.GetByteArrayAsync(url);   <span class="cmt">// ② 切缝在这里</span>
+    Console.WriteLine(<span class="str">$"拿到 {bytes.Length} 字节"</span>);      <span class="cmt">// ③ await 之后</span>
+    <span class="kw">return</span> bytes.Length;                                <span class="cmt">// ④ 返回</span>
+}</code></pre>
+
+  <p>编译器看到 <code>async</code>,做的事是:<strong>新建一个嵌套类,把整个方法体搬进它的
+  <code>MoveNext()</code> 方法,按 await 切段,再生成一个薄外壳方法</strong>。下面是骨架还原
+  (简化自 Stephen Toub 的逐层拆解,保留了全部关键结构):</p>
+
+  <div class="code-label">编译器产物 · 状态机骨架(手写还原)</div>
+<pre><code><span class="cmt">[CompilerGenerated]</span>
+<span class="kw">private sealed class</span> LoadCountStateMachine : IAsyncStateMachine
+{
+    <span class="kw">public int</span> State;                <span class="cmt">// 段号:-1 = 首次进入;0 = 已过一个 await</span>
+    <span class="kw">public</span> TaskAwaiter Awaiter;      <span class="cmt">// 临时:正在等的那个欠条的"读取器"</span>
+
+    <span class="cmt">// ↓ 跨 await 存活的局部变量,被"提升"为字段(hoisting)</span>
+    <span class="kw">public</span> HttpClient Http;
+    <span class="kw">public string</span> Url;
+
+    <span class="cmt">// ↓ 负责开出并完成那张欠条(Task)的角色</span>
+    <span class="kw">public</span> AsyncTaskMethodBuilder&lt;<span class="kw">int</span>&gt; Builder;
+
+    <span class="kw">void</span> IAsyncStateMachine.MoveNext()      <span class="cmt">// ← 你的方法体全体,住在这里</span>
+    {
+        <span class="kw">switch</span> (State)
+        {
+            <span class="kw">case</span> -1:   <span class="cmt">/* ── 段 1:await 之前 ── */</span>
+                Console.WriteLine(<span class="str">"开始下载"</span>);
+                Awaiter = Http.GetByteArrayAsync(Url).GetAwaiter();
+                <span class="kw">if</span> (!Awaiter.IsCompleted)              <span class="cmt">// 欠条还没完成?</span>
+                {
+                    State = 0;                         <span class="cmt">// 记住"下次从段 2 继续"</span>
+                    Builder.AwaitUnsafeOnCompleted(<span class="kw">ref</span> Awaiter, <span class="kw">ref this</span>);
+                    <span class="hl">return;</span>                            <span class="cmt">// ← 方法到此返回,线程走人!</span>
+                }
+                <span class="kw">goto case</span> 0;                           <span class="cmt">// 已完成 → 直接走段 2</span>
+
+            <span class="kw">case</span> 0:    <span class="cmt">/* ── 段 2:await 之后 ── */</span>
+                State = -1;
+                <span class="kw">int</span> count = Awaiter.GetResult();       <span class="cmt">// 取结果;异常也从这里重抛!</span>
+                Console.WriteLine(<span class="str">$"拿到 {count} 字节"</span>);
+                Builder.SetResult(count);              <span class="cmt">// 销账:我们欠的 Task 完成</span>
+                <span class="kw">return</span>;
+        }
+    }
+}</code></pre>
+
+  <p>而你实际调用的,只是一个薄外壳(shell/stub)——创建状态机、点火、交出欠条:</p>
+
+  <div class="code-label">外壳方法 · 你签名里那个"原方法"</div>
+<pre><code><span class="cmt">// async 关键字在编译后消失;外壳里没有任何你的逻辑</span>
+<span class="kw">public</span> Task&lt;<span class="kw">int</span>&gt; LoadCountAsync(HttpClient http, <span class="kw">string</span> url)
+{
+    <span class="kw">var</span> sm = <span class="kw">new</span> LoadCountStateMachine();        <span class="cmt">// 状态机 = 堆上的普通对象</span>
+    sm.Http = http; sm.Url = url;
+    sm.Builder = AsyncTaskMethodBuilder&lt;<span class="kw">int</span>&gt;.Create();
+    sm.Builder.Start(<span class="kw">ref</span> sm);                    <span class="cmt">// 点火:立刻执行一次 MoveNext()</span>
+    <span class="kw">return</span> sm.Builder.Task;                      <span class="cmt">// 交出欠条——调用者拿到 Task</span>
+}</code></pre>
+
+  <p class="muted">源码↔产物的完整对照表已放进
+  <a href="../reference/await-state-machine-速查卡.html">await 状态机速查卡</a>(新增)。
+  真实产物比骨架更抠:状态机其实是 <code>struct</code>、能不装箱就不装箱(异步方法零分配的由来)——
+  结构相同,细节问老师或读 Toub 原文。</p>
+
+  <table>
+    <thead><tr><th>你写的</th><th>编译器变成</th></tr></thead>
+    <tbody>
+      <tr><td>async 方法</td><td>嵌套状态机类 + 一个薄外壳方法</td></tr>
+      <tr><td>跨 await 的局部变量</td><td>状态机的公共字段(提升 hoisting)</td></tr>
+      <tr><td>await 之前的代码</td><td><code>case -1</code> 段</td></tr>
+      <tr><td>await 那一行</td><td><code>IsCompleted</code> 分岔 + 登记续延 + return</td></tr>
+      <tr><td>await 之后的代码</td><td><code>case 0</code> 段</td></tr>
+      <tr><td>方法的 return</td><td><code>Builder.SetResult(...)</code></td></tr>
+      <tr><td>抛出的异常</td><td><code>Builder.SetException(ex)</code></td></tr>
+    </tbody>
+  </table>
+
+  <!-- ═══════════ 3. 单步播放器 ═══════════ -->
+  <h2>三、亲手走一遍:MoveNext 的慢路径与快路径</h2>
+
+  <p>对着上面骨架,依次播放两条路径——注意徽章里欠条状态的每一步变化,它们和
+  0005 的状态地图严丝合缝:</p>
+
+  <div id="stepper"></div>
+  <script src="../assets/state-machine-stepper.js"></script>
+  <script>
+    StateMachineStepper.render(document.getElementById('stepper'), {
+      title: '状态机单步播放器 · LoadCountStateMachine',
+      badgeLabel: '欠条状态:—',
+      codeTitle: 'MoveNext() 骨架(对应上文)',
+      rightTitle: '解说 · 线程与欠条视角',
+      codeLines: [
+        '<span class="kw">void</span> MoveNext()',
+        '{',
+        '    <span class="kw">switch</span> (State)',
+        '    {',
+        '        <span class="kw">case</span> -1:  <span class="cmt">// 段 1</span>',
+        '            Console.WriteLine("开始下载");',
+        '            Awaiter = http.GetByteArrayAsync(url).GetAwaiter();',
+        '            <span class="kw">if</span> (!Awaiter.IsCompleted)',
+        '            {',
+        '                State = 0;',
+        '                Builder.AwaitUnsafeOnCompleted(ref Awaiter, ref this);',
+        '                <span class="kw">return</span>;',
+        '            }',
+        '            <span class="kw">goto case</span> 0;',
+        '        <span class="kw">case</span> 0:   <span class="cmt">// 段 2</span>',
+        '            State = -1;',
+        '            <span class="kw">int</span> count = Awaiter.GetResult();',
+        '            Console.WriteLine($"拿到 {count} 字节");',
+        '            Builder.SetResult(count);',
+        '            <span class="kw">return</span>;'
+      ],
+      scenarios: [
+        { name: '慢路径:欠条未完成', steps: [
+          { line: 0, status: 'Running', note: '你调用的方法被编译成外壳:创建状态机,MoveNext() 首次执行——就在调用者的线程上' },
+          { line: 5, status: 'Running', note: '段 1:await 之前的代码,和普通方法毫无区别' },
+          { line: 6, status: 'Running', note: '拿到欠条的 awaiter;问它 IsCompleted → false,IO 还没完成' },
+          { line: 10, status: 'Running', note: '登记续延:把"这个状态机"交给欠条,完成后请调 MoveNext(0002 的续延机制)' },
+          { line: 11, status: 'WaitingForActivation', note: '方法 return!调用者立刻拿到 Task,线程回池——没有暂停,只有提前离开' },
+          { line: -1, status: 'WaitingForActivation', note: '……时间流逝……IO 完成:完成者在欠条上执行续延 → MoveNext() 再次被调(默认就在完成者的线程,0002)' },
+          { line: 14, status: 'Running', note: '重新进入 MoveNext,State=0 → 直接跳到段 2:这就是"恢复"的全部含义' },
+          { line: 16, status: 'Running', note: 'GetResult() 取出结果;若欠条是 Faulted,异常就从这里重抛(重抛点)' },
+          { line: 18, status: 'RanToCompletion', note: 'Builder.SetResult(count) → 欠条销账 → 所有 await 它的人恢复(0005:RanToCompletion 广播)' }
+        ]},
+        { name: '快路径:欠条已完成', steps: [
+          { line: 0, status: 'Running', note: '调用方法,MoveNext() 首次执行(调用者线程)' },
+          { line: 7, status: 'Running', note: 'IsCompleted → true:欠条早已完成(缓存命中、已完成的数据源都算)' },
+          { line: 13, status: 'Running', note: '不登记、不 return,goto 直接进段 2——快速路径' },
+          { line: 16, status: 'Running', note: 'GetResult() 直接取值:没有挂起、没有状态保存、没有调度' },
+          { line: 18, status: 'RanToCompletion', note: 'SetResult → 全程同步走完,一次没切线程:await 已完成的 Task 几乎零开销' }
+        ]}
+      ]
+    });
+  </script>
+
+  <div class="callout">
+    <p class="callout-title">两条路径对照出的设计</p>
+    <p>慢路径的全部代价 = 一个状态机对象 + 一次续延登记;<strong>快路径零注册零调度</strong>。
+    这就是高性能库敢在热路径上大量 await 的底气:只要数据常常已就绪,await 基本免费。
+    真实的"暂停感",只存在于慢路径里那一次提前 return。</p>
+  </div>
+
+  <!-- ═══════════ 4. 六个关键事实 ═══════════ -->
+  <h2>四、把骨架焊进脑子:六个关键事实</h2>
+
+  <ol>
+    <li><strong>没有暂停,只有拆段 + 提前返回。</strong>await 遇到未完成的欠条 = 登记回调 + return。
+    调用者立刻拿到欠条,线程正常走人。</li>
+    <li><strong>局部变量被提升为字段。</strong>栈帧要销毁,跨 await 的变量必须搬到堆上的状态机里——
+    这就是"await 之后为什么还能用 <code>bytes</code>"的机械答案。</li>
+    <li><strong>恢复 = 完成者调用 MoveNext()。</strong>欠条完成 → 续延执行 → 状态机从断点段继续。
+    默认就在完成者的线程上内联执行(0002 讲过的恢复语义)。</li>
+    <li><strong>async 方法自己就是出票人。</strong><code>Builder.SetResult</code> 正是 0001 四种出票人的
+    第一种——你现在能说出它的机械细节了。await 的每张欠条背后,都有一个状态机在销账。</li>
+    <li><strong>快速路径让 await 近乎免费。</strong>欠条已完成(<code>IsCompleted == true</code>)→
+    不登记、不挂起,顺序走完。缓存、已完成数据源都走这条。</li>
+    <li><strong>调用堆栈为什么是"断"的。</strong>每次真实暂停 = 一次方法返回 + 一次被 MoveNext 重新拉起。
+    调试器里 async 方法出现在不连续的栈之间,原因在此。</li>
+  </ol>
+
+  <p>异常的归途补上最后一块(骨架里省略的 try/catch,真实产物必有):</p>
+
+  <div class="code-label">骨架里省略的异常通道</div>
+<pre><code><span class="kw">void</span> MoveNext()
+{
+    <span class="kw">try</span>   { <span class="cmt">/* 你写的所有段 */</span> }
+    <span class="kw">catch</span> (Exception ex)
+    {
+        Builder.SetException(ex);   <span class="cmt">// 普通异常 → 欠条 Faulted</span>
+                                    <span class="cmt">// OCE      → 欠条 Canceled(0005 的 TAP 规则,就实现在这!)</span>
+    }
+}</code></pre>
+
+  <table>
+    <thead><tr><th>前课概念</th><th>状态机里的真身</th></tr></thead>
+    <tbody>
+      <tr><td>欠条的生产者半张(0001)</td><td>Builder + MoveNext:async 方法本身就是出票人</td></tr>
+      <tr><td>续延(0002)</td><td><code>AwaitUnsafeOnCompleted</code> 登记的那个"完成后叫我"</td></tr>
+      <tr><td>默认内联恢复(0002)</td><td>完成者线程直接跑你的 <code>case 0</code> 段</td></tr>
+      <tr><td>状态流转(0005)</td><td><code>SetResult</code> / <code>SetException</code> 就是流转扳机</td></tr>
+      <tr><td>广播安全(0004)</td><td>SetResult 触发欠条上的<strong>所有</strong>续延,终态不可变兜底</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ═══════════ 5. 检索练习 ═══════════ -->
+  <h2>五、检索练习<span class="muted" style="font-size:.85rem">(不看上文,凭记忆答)</span></h2>
+  <div id="quiz"></div>
+
+  <!-- ═══════════ 6. 复习钩子 ═══════════ -->
+  <h2>六、明天的回忆任务<span class="muted" style="font-size:.85rem">(30 秒,不翻书)</span></h2>
+  <details class="qa">
+    <summary>① 慢路径五步,用动词串一遍?</summary>
+    拿 awaiter → 问 IsCompleted → 未完成则登记续延 → return(线程离开)→ 完成者调 MoveNext 进下一段。
+  </details>
+  <details class="qa">
+    <summary>② 跨 await 的局部变量住哪?为什么必须搬过去?</summary>
+    状态机的字段。栈帧随 return 销毁,要跨暂停存活的变量只能提升到堆上的状态机对象里。
+  </details>
+  <details class="qa">
+    <summary>③ 异常从 await 处抛出,是谁在重抛?终态由谁决定?</summary>
+    GetResult() 重抛欠条里存的异常;Builder.SetException 决定终态——普通异常 Faulted,OCE 进 Canceled(0005 规则)。
+  </details>
+
+  <!-- ═══════════ 尾部 ═══════════ -->
+  <div class="callout ask no-print">
+    <p class="callout-title">卡住了?随时问你的老师</p>
+    <p>"真实反编译产物长什么样,和骨架差在哪?""struct 状态机怎么做到零分配?"
+    "AwaitUnsafeOnCompleted 和 AwaitOnCompleted 的 Unsafe 差别?"——回 Claude Code 直接问,
+    这正是老师存在的意义。</p>
+  </div>
+
+  <div class="next-up">
+    <p class="next-title">▸ 下一课:<a href="0007-synccontext-and-deadlock.html">0007 · SynchronizationContext 与 ConfigureAwait:异步死锁解剖 →</a></p>
+    <p>状态机每一段"在哪个线程上跑"——恢复时回哪个线程,是 <code>ConfigureAwait</code> 的全部秘密,
+    也是经典 UI 死锁的案发现场。状态机骨架在手,0007 将第一次"解剖尸体"。
+    复习工具:<a href="../reference/await-state-machine-速查卡.html">await 状态机速查卡</a>(新增)。</p>
+  </div>
+
+  <hr class="footrule">
+  <footer class="course-foot">
+    <span>dotnet-Task异步学习 · 第 0006 课 · 主推阅读:<a href="https://devblogs.microsoft.com/dotnet/how-async-await-really-works/" target="_blank">How async/await really works — Stephen Toub</a></span>
+    <span><a href="0005-task-states-and-lifecycle.html">上一课</a> · <a href="index.html">目录</a> · <a href="../reference/tcs-速查卡.html">TCS 速查卡</a> · <a href="../reference/await-state-machine-速查卡.html">状态机速查卡</a></span>
+  </footer>
+
+</div>
+<script src="../assets/quiz.js"></script>
+<script>
+  // ── 隔日检索热身(复习 0005)──
+  TeachQuiz.render(document.getElementById('warmup'), [
+    {
+      q: '【复习】TCS 欠条出生时不经过 Running 区,因为?',
+      options: ['欠条从不执行任何代码', '欠条没有资格占用线程', '线程池拒绝执行欠条', '欠条天生就是终态状态'],
+      answer: 0,
+      explain: '欠条只是等完成信号的对象——Task ≠ 线程的活证据。'
+    },
+    {
+      q: '【复习】async 方法抛出 OCE,任务终态是?',
+      options: ['进入取消的终态状态', '进入异常的终态状态', '永远悬停在运行状态', '回退到已创建的状态'],
+      answer: 0,
+      explain: 'TAP 规则 → Canceled(而非 Faulted)。本课你会看到这条规则的实现位置。'
+    },
+    {
+      q: '【复习】终态不可变带来什么保证?',
+      options: ['续延重复触发只生效一次', '异常信息会被加密再保存', '线程永远不会被重复使用', '状态字段不再占用内存'],
+      answer: 0,
+      explain: '终态后 Set*/Try* 都无法再改变它——广播安全、TrySet 返回 false,皆源于此。'
+    },
+    {
+      q: '【复习】日志里 WaitingForActivation 滞留太久,说明?',
+      options: ['没有人前来销账完成它', '线程池排队已经爆满', '正在某个线程上死循环', '任务已完成但被隐藏了'],
+      answer: 0,
+      explain: '等一个不会来的完成信号——完成路径漏写或事件先于订阅溜走(0004)。'
+    }
+  ]);
+
+  // ── 本课检索练习 ──
+  TeachQuiz.render(document.getElementById('quiz'), [
+    {
+      q: 'await 遇到未完成的欠条时,线程会?',
+      options: ['登记续延之后立刻返回', '原地自旋等待完成信号', '睡眠固定毫秒后再检查', '新建一个工人接管执行'],
+      answer: 0,
+      explain: 'AwaitUnsafeOnCompleted 登记 + return。线程离开,调用者拿到欠条;"暂停"从未发生。'
+    },
+    {
+      q: '跨 await 存活的局部变量,最终存在?',
+      options: ['状态机对象的字段里面', '调用栈的原始栈帧里面', '线程池的全局队列里面', '欠条对象的某个槽位里'],
+      answer: 0,
+      explain: '提升(hoisting):栈帧要销毁,变量搬进堆上的状态机——状态机就是"变形的栈帧"。'
+    },
+    {
+      q: 'await 的欠条早已完成,会发生?',
+      options: ['跳过登记直接顺序走完', '照样登记续延等待恢复', '强制切换到线程池执行', '抛出状态非法的异常类'],
+      answer: 0,
+      explain: '快速路径:IsCompleted=true → 不注册不调度,直接走完。await 已完成的 Task 几乎零开销。'
+    },
+    {
+      q: '异常从 await 表达式处抛出,意味着?',
+      options: ['欠条曾以故障终态完成', '当前线程发生了新异常', '编译器生成的代码有错', '状态机忘记了恢复现场'],
+      answer: 0,
+      explain: 'await 是重抛点:GetResult() 把欠条存的异常重抛。这也是调用堆栈"是断的"的根源。'
+    }
+  ]);
+</script>
+</body>
+</html>

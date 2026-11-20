@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>参考卡 · 桌面登录权限安全自查单</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="lesson-head">
+  <div class="kicker">软件登录与权限系统 · 结课参考卡（纯桌面版）</div>
+  <h1>桌面登录权限安全自查单<span class="subtitle">22 项 · 按五环节排列 · 每项都标了依据 · 可打印</span></h1>
+</header>
+
+<p>用法：逐项核对自家软件，勾「符合 / 不符合 / 不适用」，<strong>不符合的当场写下差距</strong>。依据列：<code>OWASP</code> = 各速查表与 ASVS；<code>NIST</code> = SP 800-63B-4；<code>等保</code> = GB/T 22239-2019（条款为要点转述，<strong>测评以官方原文为准</strong>）；<code>课程</code> = 对应课次。</p>
+
+<h2>A · 凭据存储（第 2 课）</h2>
+<table>
+  <thead><tr><th style="width:38%">检查项</th><th style="width:22%">依据</th><th style="width:30%">怎么查</th><th style="width:10%">结果</th></tr></thead>
+  <tbody>
+    <tr><td>1. 密码用加盐慢哈希存储（PasswordHasher 调 ≥60 万次 / bcrypt cost ≥10 / Argon2id）</td><td>OWASP 密码存储 / 课程②</td><td>看注册/改密代码与密码列内容</td><td>□</td></tr>
+    <tr><td>2. 无明文、无可逆加密、无 Base64 存密码</td><td>OWASP 密码存储</td><td>搜 <code>Encrypt/AES/Base64</code> 出现在密码相关代码</td><td>□</td></tr>
+    <tr><td>3. 哈希参数按当前算力校准过（单次 &lt;1 秒）</td><td>OWASP / NIST</td><td>实测一次登录校验耗时（第 2 课实验台）</td><td>□</td></tr>
+    <tr><td>4. 旧格式密码有「登录时升级」迁移路径</td><td>OWASP 密码存储</td><td>找 <code>SuccessRehashNeeded</code> 处理</td><td>□</td></tr>
+  </tbody>
+</table>
+
+<h2>B · 登录窗口（第 3 课）</h2>
+<table>
+  <thead><tr><th style="width:38%">检查项</th><th style="width:22%">依据</th><th style="width:30%">怎么查</th><th style="width:10%">结果</th></tr></thead>
+  <tbody>
+    <tr><td>5. 失败提示统一为「用户名或密码错误」</td><td>OWASP 认证</td><td>用不存在的账号试一次</td><td>□</td></tr>
+    <tr><td>6. 连续失败有简单锁定（如 5 次锁 5 分钟）</td><td>OWASP 认证 / 等保 8.1.4.1 b)</td><td>连错 5 次看行为</td><td>□</td></tr>
+    <tr><td>7. 登录成功与失败都写审计（含尝试的账号名）</td><td>OWASP 认证 / 等保安全审计</td><td>查审计表登录记录</td><td>□</td></tr>
+  </tbody>
+</table>
+
+<h2>C · 密码策略（第 2、3 课）</h2>
+<table>
+  <thead><tr><th style="width:38%">检查项</th><th style="width:22%">依据</th><th style="width:30%">怎么查</th><th style="width:10%">结果</th></tr></thead>
+  <tbody>
+    <tr><td>8. 最小长度：有 MFA ≥8 位；无 MFA ≥15 位；上限 ≥64 位</td><td>NIST 800-63B-4</td><td>看校验代码</td><td>□</td></tr>
+    <tr><td>9. 弱口令黑名单（常见口令拦截）</td><td>NIST / OWASP</td><td>用 <code>123456</code> 注册一次</td><td>□</td></tr>
+    <tr><td>10. 无强制组合规则；「定期更换」按测评条款沟通后处理</td><td>NIST 800-63B-4 / 等保 8.1.4.1 a)</td><td>看注册校验与有效期字段</td><td>□</td></tr>
+    <tr><td>11. 无安全问题找回（KBA）</td><td>OWASP / ASVS</td><td>找回流程走一遍</td><td>□</td></tr>
+  </tbody>
+</table>
+
+<h2>D · 会话与凭据保护（第 3 课）</h2>
+<table>
+  <thead><tr><th style="width:38%">检查项</th><th style="width:22%">依据</th><th style="width:30%">怎么查</th><th style="width:10%">结果</th></tr></thead>
+  <tbody>
+    <tr><td>12. 会话只放身份不放密码；有「退出/切换账号」入口</td><td>课程③ / 等保 b)</td><td>看 UserSession 与主界面</td><td>□</td></tr>
+    <tr><td>13. 无操作锁屏回登录窗（工业现场建议 30 分钟）</td><td>等保 8.1.4.1 b)「超时自动退出」</td><td>挂机 31 分钟再看</td><td>□</td></tr>
+    <tr><td>14. 多机连库：账号表集中管理；新登录顶掉旧终端；数据库账号只给业务表读写</td><td>课程③ / OWASP 授权</td><td>看账号表位置与数据库账号权限</td><td>□</td></tr>
+  </tbody>
+</table>
+
+<h2>E · 授权控制（第 4、5 课）</h2>
+<table>
+  <thead><tr><th style="width:38%">检查项</th><th style="width:22%">依据</th><th style="width:30%">怎么查</th><th style="width:10%">结果</th></tr></thead>
+  <tbody>
+    <tr><td>15. 默认拒绝：新用户不授角色时无任何可用功能</td><td>OWASP 授权</td><td>建一个测试账号不授角色</td><td>□</td></tr>
+    <tr><td>16. 权限只经角色发放：无用户直连表、无人名硬编码</td><td>OWASP 授权 / 课程④</td><td>搜 <code>UserPermissions</code> 与 <code>if (userName==</code></td><td>□</td></tr>
+    <tr><td>17. 全部「会改变什么」的命令挂了权限点（CanExecute），入口清单核对过</td><td>OWASP 授权 / 课程⑤</td><td>对照第 5 课作业的入口清单</td><td>□</td></tr>
+    <tr><td>18. 职责分离：「分配权限」与「查看审计日志」不同角色</td><td>NIST RBAC 约束层</td><td>看权限矩阵</td><td>□</td></tr>
+    <tr><td>19. 默认账户已改名或禁用；多余/过期账号及时删除</td><td>等保 访问控制（转述）</td><td>列全部账号核对</td><td>□</td></tr>
+  </tbody>
+</table>
+
+<h2>F · 审计留存（第 1、5 课）</h2>
+<table>
+  <thead><tr><th style="width:38%">检查项</th><th style="width:22%">依据</th><th style="width:30%">怎么查</th><th style="width:10%">结果</th></tr></thead>
+  <tbody>
+    <tr><td>20. 审计覆盖每个用户；记录含时间、用户、动作、对象、结果</td><td>等保 安全审计（转述）</td><td>抽 3 类操作各查一条日志</td><td>□</td></tr>
+    <tr><td>21. 四类必记：改配置、删数据、登录成败、权限变更；「拒绝的操作」也记</td><td>课程⑤</td><td>故意输错密码后查日志</td><td>□</td></tr>
+    <tr><td>22. 审计表只增不删（无「清空」入口）；留存 ≥6 个月；多机连库放中央库</td><td>等保 /《网络安全法》第 21 条</td><td>看表权限与归档策略</td><td>□</td></tr>
+  </tbody>
+</table>
+
+<div class="key">
+  <span class="callout-label">差距清单怎么写</span>
+  每个不符合项一行：<strong>编号 + 现状 + 依据编号 + 整改方向 + 责任人/期限</strong>。示例：「1 现状：密码列存明文 → 依据 A-1 → 整改：PasswordHasher 调 60 万次 + 登录时升级迁移，随下版本」。这份清单同时就是等保整改台账的雏形。
+</div>
+
+<footer class="lesson-foot">
+  <p>依据原文：<a href="https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html">OWASP 密码存储</a> · <a href="https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html">OWASP 认证</a> · <a href="https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html">OWASP 授权</a> · <a href="https://pages.nist.gov/800-63-4/sp800-63b.html">NIST SP 800-63B-4</a> · <a href="https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=BAFB47E8874764186BDB7865E8344DAF">GB/T 22239-2019 官方全文</a>（等保条款为要点转述，测评以原文与测评机构口径为准）。</p>
+  <p class="next-link"><a href="../lessons/0001-desktop-map.html">回看：第 1 课 · 桌面全景</a> · <a href="standards.html">标准速查卡</a></p>
+</footer>
+
+</main>
+</body>
+</html>

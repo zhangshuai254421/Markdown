@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>异常处理速查卡</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">REFERENCE · 速查卡 · 可打印</p>
+  <h1>异常处理速查卡</h1>
+  <div class="meta">
+    <span class="chip">来源:第 0010 课</span>
+    <span class="chip">主推阅读:<a href="https://learn.microsoft.com/en-us/dotnet/api/system.runtime.exceptionservices.exceptiondispatchinfo" target="_blank">ExceptionDispatchInfo — Microsoft Learn</a></span>
+  </div>
+
+  <p class="lede">一句话:<strong>await 解包,Wait/Result 打包</strong>;
+  堆栈是案发现场——<code>throw ex</code> 毁现场,<code>throw;</code> 保现场,EDI 存现场。</p>
+
+  <h2>一、两套规则总表</h2>
+  <table>
+    <thead><tr><th>消费方式</th><th>抛出形状</th><th>多异常</th></tr></thead>
+    <tbody>
+      <tr><td><code>await task</code></td><td>原始异常(解包)</td><td>仅第一个</td></tr>
+      <tr><td><code>Wait() / Result</code></td><td>AggregateException(打包)</td><td>全在 InnerExceptions</td></tr>
+      <tr><td><code>GetAwaiter().GetResult()</code></td><td>原始异常(仍同步阻塞!)</td><td>仅第一个</td></tr>
+      <tr><td><code>task.Exception</code> 属性</td><td>AggregateException?(不抛,取出看)</td><td>全部——WhenAll 拆包靠它</td></tr>
+    </tbody>
+  </table>
+
+  <h2>二、WhenAll 全异常拆包(三步模板)</h2>
+<pre><code>Task&lt;<span class="kw">int</span>[]&gt; all = Task.WhenAll(jobs);      <span class="cmt">/* ① 先留住合成欠条本体 */</span>
+<span class="kw">try</span> { <span class="kw">var</span> r = <span class="kw">await</span> all; }                <span class="cmt">/* ② 正常拿结果(await 只给第一个) */</span>
+<span class="kw">catch</span> (Exception) {
+    <span class="kw">foreach</span> (<span class="kw">var</span> ex <span class="kw">in</span> all.Exception!.InnerExceptions) <span class="cmt">/* ③ 拆全部 */</span>
+        Log(ex);
+}</code></pre>
+  <p class="muted">接不到 <code>catch (AggregateException)</code> 当 await 已拆包;Flatten() 拍平嵌套;Handle(pred) 批量筛。</p>
+
+  <h2>三、四种上抛写法对比</h2>
+  <table>
+    <thead><tr><th>写法</th><th>堆栈</th><th>判断</th></tr></thead>
+    <tbody>
+      <tr><td><code>throw;</code></td><td>保留</td><td>✓ catch 内原样上抛</td></tr>
+      <tr><td><code>throw ex;</code></td><td><strong>重置为当前行</strong></td><td>× 几乎总是错误</td></tr>
+      <tr><td><code>EDI.Capture(ex).Throw()</code></td><td>保留原始完整</td><td>✓ 存起来日后再抛(跨方法/线程)</td></tr>
+      <tr><td><code>catch (ex) when (条件)</code></td><td>不中即自然上飞</td><td>✓ 精准过滤,零重置零开销</td></tr>
+    </tbody>
+  </table>
+
+  <h2>四、五条纪律</h2>
+  <table>
+    <tbody>
+      <tr><td>①</td><td>async 代码用 await 接异常,不用 Result/Wait(形状对 + 免死锁)</td></tr>
+      <tr><td>②</td><td>WhenAll 全异常:先留本体,再拆 .Exception</td></tr>
+      <tr><td>③</td><td>绝不 throw ex;异地重抛用 EDI(欠条重抛内部即 EDI,0006)</td></tr>
+      <tr><td>④</td><td>过滤用 catch when;OCE 只表取消(0005),用 catch (OCE) when (ct.IsCancellationRequested) 辨析(0003)</td></tr>
+      <tr><td>⑤</td><td>async void 异常无人能接、直闯 SyncContext——仅限事件处理器(0001/0007)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>五、术语表增量</h2>
+  <table>
+    <tbody>
+      <tr><td><strong>解包 unpacking</strong></td><td>await 把聚合拆开,重抛第一个真实异常</td></tr>
+      <tr><td><strong>打包 wrapping</strong></td><td>Wait/Result 用 AggregateException 携带全部</td></tr>
+      <tr><td><strong>堆栈重置</strong></td><td>throw ex 把案发现场改写成当前行——毁证</td></tr>
+      <tr><td><strong>ExceptionDispatchInfo</strong></td><td>捕获异常对象并保留原始堆栈异地重抛的工具</td></tr>
+      <tr><td><strong>异常过滤器</strong></td><td>catch when:谓词不中 = 未捕获,自然上飞</td></tr>
+    </tbody>
+  </table>
+
+  <h2>六、面试自测五问</h2>
+  <details class="qa">
+    <summary>① await 抛的和 Result 抛的,为什么不一样?</summary>
+    历史层次:TPL 时代打包携带多异常;async/await 时代为了"像同步代码"而解包,catch 见到原始形状。
+  </details>
+  <details class="qa">
+    <summary>② 三个任务各抛一异常,await WhenAll 收到几个?</summary>
+    1 个(第一个);要全部需先留 WhenAll 本体再取 all.Exception.InnerExceptions。
+  </details>
+  <details class="qa">
+    <summary>③ EDI 解决什么问题?</summary>
+    异常是对象,但直接存下来再 throw 会丢原栈;EDI.Capture 冻结原始堆栈,Throw 原样重抛——Task 故障重抛内部即用 EDI。
+  </details>
+  <details class="qa">
+    <summary>④ catch (Exception ex) { throw ex; } 错在哪?</summary>
+    重置堆栈,案发现场变成 catch 那一行,排障线索全毁;要上抛用 throw;。
+  </details>
+  <details class="qa">
+    <summary>⑤ Handle(Flatten) 何时用?</summary>
+    遍历聚合、按谓词消化已处理项(Handle 后未处理项再聚);嵌套聚合先 Flatten 拍平。
+  </details>
+
+  <hr class="footrule">
+  <footer class="course-foot">
+    <span>dotnet-Task异步学习 · 速查卡 · 配套课程:<a href="../lessons/0010-exception-handling-panorama.html">第 0010 课</a></span>
+    <span><a href="../lessons/index.html">课程目录</a> · <a href="task-status-速查卡.html">状态卡</a> · <a href="combinators-速查卡.html">组合器卡</a> · <a href="configureawait-速查卡.html">ConfigureAwait 卡</a></span>
+  </footer>
+
+</div>
+</body>
+</html>

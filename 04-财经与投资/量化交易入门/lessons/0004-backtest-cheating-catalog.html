@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>第4课 · 回测作弊图鉴</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <p class="eyebrow">量化交易入门 · 第 4 课 / 12</p>
+  <h1>回测作弊图鉴：五宗罪</h1>
+  <p class="lead">量化新手和成熟从业者的差别，不在会不会写策略，而在<strong>能不能识破一份漂亮回测里的假货</strong>。<span class="src third">研究共识</span>López de Prado（AQR 前机器学习负责人）估计<strong>九成以上回测良好的策略实盘失败</strong>——本课教你对付另外五宗罪。这是你使命里"指出任意回测的 5 种作弊"标准的正课。</p>
+
+  <h2>五宗罪总览</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>作弊</th><th>一句话定义</th><th>检验动作</th><th>出处</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><strong>未来函数</strong></td><td>用了决策时点不可能知道的信息</td><td>信号时间戳严格早于成交时间戳</td><td><a href="0003-sma-crossover-and-lookahead-bias.html">第 3 课</a>你亲手犯过</td></tr>
+      <tr><td>2</td><td><strong>幸存者偏差</strong></td><td>股票池只含活到今天的标的</td><td>确认数据含退市/调出标的</td><td>本课新学</td></tr>
+      <tr><td>3</td><td><strong>过拟合</strong></td><td>参数贴合历史噪声而非规律</td><td>参数 ±20% 重跑看是否塌方</td><td>本课深讲</td></tr>
+      <tr><td>4</td><td><strong>成本缺失</strong></td><td>不算佣金/印花税/滑点</td><td>费率 ×3 重跑</td><td><a href="0001-why-backtests-die-to-fees.html">第 1 课</a>的直觉</td></tr>
+      <tr><td>5</td><td><strong>样本内外混淆</strong></td><td>拿验证集反复调参，验证集变训练集</td><td>样本外只碰一次，记录调参次数</td><td>本课新学</td></tr>
+    </tbody>
+  </table></div>
+  <p>全部检验动作已固化成一张可打印的清单：<a href="../reference/backtest-checklist.html"><strong>参考文档 R2 · 回测报告自查清单</strong></a>——以后每份回测交出来之前先过它。</p>
+
+  <h2>幸存者偏差：死人不会抗议</h2>
+  <p>用"<strong>今天的沪深300成分股</strong>"回测过去十年，等于让先知替你选股：那些十年里退市、暴雷、被调出指数的股票，在你回测开始时就被悄悄删掉了。结果自然漂亮——你的股票池天生只会"剩者为王"。</p>
+  <div class="insight"><p><strong>这是免费数据最常见的坑。</strong>第 5 课讲数据源时你会看到：很多免费接口给的是"<em>当前上市</em>"的股票列表。拿到数据的第一问永远是：<strong>退市的股票在吗？</strong>（<a href="https://zhuanlan.zhihu.com/p/2067012476840031953">数据源对比</a>里 Tushare 的价值之一就是口径规范。）</p></div>
+
+  <h2>过拟合：自由度的暴政</h2>
+  <p>第 3 课结尾你换了参数（50/200 → 20/60）重跑，然后心里冒出"留哪个好"的念头。<strong>每换一次参数，你就在用同一份历史数据多"考"一次策略</strong>。考的次数足够多，总会有一组参数撞上大运——它拟合的是噪声，不是规律。参数越多、试得越多，撞上大运的假策略越漂亮。</p>
+  <div class="warning"><p><strong>残酷的算术</strong>：策略只有 2 个参数、每个试 5 档，就是 25 组回测；从中挑最好的一组，它的漂亮成绩有相当部分是"考了 25 次挑最高分"的运气。<span class="src third">学术补救</span>López de Prado 提出的 <strong>Deflated Sharpe Ratio</strong> 就是给"考了很多次"的成绩打折扣（<a href="https://papers.ssrn.com/sol3/Delivery.cfm/SSRN_ID3637110_code434076.pdf?abstractid=3261943&amp;mirid=1">讲义第 6 讲</a>）——本课你只需记住方向：<strong>试得越多，成绩越要打折</strong>。</p></div>
+  <p><strong>最便宜的检验</strong>：把选中的参数各调 ±20%（50/200 → 40/200、60/200、50/160、50/240）。若邻域结果全面塌方，只有原参数一枝独秀——你拟合的是噪声。若邻域普遍不错，规律才有几分可信。</p>
+
+  <h2>样本内外：数据的"一次不忠"</h2>
+  <p>正规姿势：把历史数据切成两段——<strong>样本内</strong>（训练/调参用）与<strong>样本外</strong>（只做最终验证）。铁律是<strong>样本外只碰一次</strong>：因为每"偷看"一次并据此调整，它就实质变成了样本内，你的"验证"自欺欺人。</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>做法</th><th>性质</th></tr></thead>
+    <tbody>
+      <tr><td>样本内调参 → 样本外验证一次 → 汇报</td><td>合格</td></tr>
+      <tr><td>样本外不理想 → 回头改参数 → 再验样本外</td><td><strong>作弊</strong>（验证集被污染）</td></tr>
+      <tr><td>滚动前进：用 2015-2017 调参验 2018，再 2016-2018 调参验 2019……（walk-forward）</td><td>更严格，第 11 课展开</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>一个管总的态度</h2>
+  <div class="insight"><p><span class="src third">研究者观点</span>López de Prado 的话转述：<strong>回测不是实验，是 sanity check（健全性检查）</strong>——它的价值是排除明显坏掉的策略，而不是证明策略未来会赚钱（见《Advances in Financial Machine Learning》<a href="https://www.oreilly.com/library/view/advances-in-financial/9781119482086/c11.xhtml">第 11 章</a>，全书笔记见 <a href="https://reasonabledeviations.com/notes/adv_fin_ml">reasonabledeviations</a>）。把它当"证明工具"的人，会不自觉地走向作弊；把它当"排雷工具"的人，才能长期活下来。</p></div>
+
+  <h2>检验一下</h2>
+  <div class="quiz" data-answer="b"
+       data-explain-good="对。参数贴合噪声=过拟合。±20% 邻域检验就是要区分'规律'和'撞大运'。"
+       data-explain-bad="不对。三个选项都是真实存在的病，但'参数微调就塌方、只有原参数漂亮'这个指纹指向的是过拟合。">
+    <p class="quiz-question">参数调到极致回测完美，实盘就崩——这叫什么？</p>
+    <button class="opt" data-key="a">幸存者偏差在作怪</button>
+    <button class="opt" data-key="b">过拟合历史噪声了</button>
+    <button class="opt" data-key="c">交易成本没有算够</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <div class="quiz" data-answer="a"
+       data-explain-good="对。被幸存者偏差抹掉的，正是那些退市、暴雷、被调出指数的股票——它们恰恰是策略风险的真实来源。"
+       data-explain-bad="不对。方向反了：偏差不是'多进来'什么，而是'消失'了谁。想想十年里谁最可能从股票池里无声消失。">
+    <p class="quiz-question">用"今天的沪深300成分股"回测二十年，缺了谁？</p>
+    <button class="opt" data-key="a">退市与被调出的股</button>
+    <button class="opt" data-key="b">新上市的新能源股</button>
+    <button class="opt" data-key="c">高分红的高息股啊</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <h3>自由回忆（隔天再做一遍效果更好）</h3>
+  <p>不看上文，默写<strong>五宗罪</strong>，并为每一宗配一句检验动作。写完对照 <a href="../reference/backtest-checklist.html">R2 清单第一关</a>。</p>
+  <button class="reveal-btn" data-reveal="recall">回忆后对照</button>
+  <div class="answer" id="recall" hidden>
+    <p>①未来函数→信号时间戳早于成交时间戳；②幸存者偏差→数据含退市标的；③过拟合→参数±20%邻域检验；④成本缺失→费率×3重跑；⑤样本内外混淆→样本外只碰一次。五条全中，你就超过了大多数新手——也满足了使命里那条成功标准。</p>
+  </div>
+
+  <h2>下一步</h2>
+  <p><strong>本课主源推荐</strong>：López de Prado《Advances in Financial Machine Learning》<a href="https://www.oreilly.com/library/view/advances-in-financial/9781119482086/c11.xhtml">第 11 章 The Dangers of Backtesting</a>（免费可读）。中文路线可在读毕 Ernest Chan 后进入石川《因子投资》（<a href="https://waylandz.com/quant-book/%E9%87%8F%E5%8C%96%E6%8E%A8%E8%8D%90%E4%B9%A6%E5%8D%95">书单定位</a>）。</p>
+  <p><strong>下一课预告</strong>：第 5 课《真实 A 股数据》——让幸存者偏差从名词变成你能亲手检查的东西：AKShare 拉数据、复权的谎言、以及为什么数据工作是量化的九成苦役。</p>
+
+  <div class="note"><p><strong>卡住了？随时问老师。</strong>"我试了参数邻域没塌方但年化还是很低，说明什么？"这类问题正是老师存在的意义。五宗罪哪一条在概念上还含糊，直接指出编号来问。</p></div>
+
+  <nav class="lesson-nav">
+    <a href="0003-sma-crossover-and-lookahead-bias.html">第 3 课：双均线与作弊现场</a>
+    <a href="../reference/backtest-checklist.html">自查清单（R2）</a>
+    <a href="../reference/glossary.html">术语表（R1）</a>
+    <a href="0005-real-cndata-akshare.html">下一课：真实 A 股数据</a>
+  </nav>
+</main>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/course-nav.js"></script>
+</body>
+</html>

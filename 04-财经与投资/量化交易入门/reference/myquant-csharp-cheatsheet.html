@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>R4 · 掘金量化 C# SDK 速查</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <p class="eyebrow">量化交易入门 · 参考文档 R4</p>
+  <h1>掘金量化 C# SDK 速查</h1>
+  <p class="lead">课程主平台是<strong>掘金量化（MyQuant，myquant.cn）</strong>。这张卡把第 2-3 课用到的 API 压缩成一页，方便你写策略时对照。API 细节以官方文档为准：<a href="https://www.myquant.cn/docs2/sdk/cSharp/%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B.html">C# SDK 快速开始</a> · <a href="https://www.myquant.cn/docs2/sdk/cSharp/%E7%AD%96%E7%95%A5%E5%9F%BA%E7%B1%BB.html">策略基类</a>。</p>
+
+  <h2>一、策略骨架</h2>
+  <p class="code-title">MyStrategy.cs — 最小可运行结构</p>
+  <pre><code>using GMSDK;
+
+public class MyStrategy : Strategy
+{
+    private const string Symbol = "SHSE.510300"; // 沪市 ETF；深市写 SZSE.000001
+
+    public MyStrategy(string token, string strategyId, StrategyMode mode)
+        : base(token, strategyId, mode) { }
+
+    public override void OnInit()
+    {
+        Subscribe(Symbol, "1d");                 // 订阅日线；也可 "60s"、"tick"
+    }
+
+    public override void OnBar(Bar bar)
+    {
+        // 你的信号逻辑：读 bar.close，决定买/卖/不动
+    }
+
+    public override void OnBacktestFinished(Indicator indicator)
+    {
+        // 回测结束：indicator.pnlRatio / sharpRatio / maxDrawdown ...
+    }
+}</code></pre>
+
+  <p class="code-title">Program.cs — 回测入口</p>
+  <pre><code>using System;
+using GMSDK;
+
+class Program
+{
+    static void Main()
+    {
+        string token = "你的 token";        // 终端：头像 → 系统设置 → 密钥管理
+        string strategyId = "你的策略 ID";  // 终端：量化研究 → 新建策略 → C#
+
+        var s = new MyStrategy(token, strategyId, StrategyMode.MODE_BACKTEST);
+
+        // 起止时间、初始资金、成交比例、佣金、滑点、复权
+        s.SetBacktestConfig("2016-01-01 09:30:00", "2025-12-31 15:00:00",
+                            100000, 1, 0.0003, 0.001, Adjust.ADJUST_PREV);
+
+        int code = s.Run();                  // 0 = 成功；阻塞到回测结束
+        Console.WriteLine("返回码: " + code);
+    }
+}</code></pre>
+
+  <h2>二、生命周期：引擎什么时候调用你</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>回调</th><th>时机</th><th>典型用途</th></tr></thead>
+    <tbody>
+      <tr><td><code>OnInit()</code></td><td>开始前一次</td><td>订阅行情、初始化状态、设定时任务</td></tr>
+      <tr><td><code>OnBar(Bar bar)</code></td><td>每根 K 线一次</td><td>算信号、决定下单</td></tr>
+      <tr><td><code>OnOrderStatus(Order order)</code></td><td>委托状态变化时</td><td>确认成交/拒单，再改仓位状态</td></tr>
+      <tr><td><code>OnBacktestFinished(Indicator indicator)</code></td><td>回测结束一次</td><td>打印/保存绩效指标</td></tr>
+    </tbody>
+  </table></div>
+
+  <p class="note"><strong>记录成交明细</strong>：重写 <code>OnOrderStatus(Order order)</code>，当 <code>order.status == (int)OrderStatus.OrderStatus_Filled</code> 时读 <code>order.filledVwap</code>（成交均价）、<code>order.filledVolume</code>（已成量）、<code>order.filledAmount</code>（成交金额）、<code>order.filledCommission</code>（手续费）。注意 <code>status</code>/<code>side</code> 字段是 <code>int</code>，比较时要强转，例如 <code>order.side == (int)OrderSide.OrderSide_Buy</code>。</p>
+
+  <h2>三、常用 API</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>API</th><th>作用</th><th>注意</th></tr></thead>
+    <tbody>
+      <tr><td><code>Subscribe(symbol, "1d")</code></td><td>订阅标的与频率</td><td>标的格式 <code>SHSE.600000</code> / <code>SZSE.000001</code></td></tr>
+      <tr><td><code>OrderTargetPercent(symbol, percent, PositionSide.PositionSide_Long, OrderType.OrderType_Market)</code></td><td>调仓到目标持仓比例</td><td><code>0.95</code>=95%，<code>0</code>=清仓；100% 易因手续费拒单</td></tr>
+      <tr><td><code>OrderPercent(symbol, percent, side, orderType, positionEffect)</code></td><td>按总资产比例下单</td><td>买入用 <code>OrderSide_Buy</code> + <code>PositionEffect_Open</code></td></tr>
+      <tr><td><code>OrderVolume(symbol, volume, side, orderType, positionEffect, price)</code></td><td>按股数下单</td><td>股票 100 股整数倍，不足向下取整</td></tr>
+      <tr><td><code>GetOrder(orderId)</code></td><td>查委托状态</td><td>下单成功 ≠ 成交；以 <code>OnOrderStatus</code> 为准</td></tr>
+      <tr><td><code>Now()</code></td><td>当前回测/实盘时间</td><td>回测里别用 <code>DateTime.Now</code>，那是真实时间</td></tr>
+      <tr><td><code>Stop()</code></td><td>停止策略</td><td>实盘退出时用</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>四、终端操作路径</h2>
+  <ol>
+    <li><strong>下载安装</strong>：<a href="https://www.myquant.cn/terminal">myquant.cn/terminal</a>（Windows 终端）。</li>
+    <li><strong>新建策略</strong>：量化研究 → 新建策略 → 选 <strong>C#</strong> → 记下策略 ID。</li>
+    <li><strong>拿 token</strong>：头像 → 系统设置 → 密钥管理 → 复制。</li>
+    <li><strong>写代码</strong>：用 Visual Studio 打开终端生成的 <code>.sln</code>。</li>
+    <li><strong>跑回测</strong>：按 F5；终端保持登录，结束后到 策略研究 → 绩效 看报告。</li>
+  </ol>
+
+  <h2>五、常见坑（先看这一节）</h2>
+  <ul>
+    <li><strong>佣金/滑点默认 0</strong>：<code>SetBacktestConfig</code> 不显式设置，报告就是"零成本"假象。</li>
+    <li><strong>100% 仓位被拒</strong>：手续费会让现金不足；用 95% 留缓冲。</li>
+    <li><strong>标的代码格式</strong>：<code>SHSE.</code>（沪）/ <code>SZSE.</code>（深），不是 <code>600000.SH</code>。</li>
+    <li><strong>x86/x64 位数</strong>：SDK 版本与项目平台目标不一致会报 <code>BadImageFormatException</code>。</li>
+    <li><strong>token 泄露</strong>：token 等同账号钥匙，别提交进 Git。</li>
+    <li><strong>撮合模式</strong>：选"下一根 K 线开盘"才是诚实档；"当前 K 线收盘"等于自己开作弊器。</li>
+  </ul>
+
+  <h2>六、回测报告字段（Indicator）</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>字段</th><th>含义</th></tr></thead>
+    <tbody>
+      <tr><td><code>pnlRatio</code></td><td>累计收益率</td></tr>
+      <tr><td><code>pnlRatioAnnual</code></td><td>年化收益率</td></tr>
+      <tr><td><code>sharpRatio</code></td><td>夏普比率（注意拼写是 sharp，不是 sharpe）</td></tr>
+      <tr><td><code>maxDrawdown</code></td><td>最大回撤</td></tr>
+      <tr><td><code>winRatio</code></td><td>胜率</td></tr>
+      <tr><td><code>openCount</code> / <code>closeCount</code></td><td>开仓/平仓次数</td></tr>
+      <tr><td><code>riskRatio</code> / <code>calmarRatio</code></td><td>风险比率 / 卡玛比率</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="note"><p><strong>有疑问随时问老师。</strong>API 版本差异、字段名对不上、终端报错——把错误码和代码贴过来，我们一起查。</p></div>
+
+  <nav class="lesson-nav">
+    <a href="glossary.html">术语表（R1）</a>
+    <a href="backtest-checklist.html">自查清单（R2）</a>
+    <a href="cn-platform-map.html">平台地图（R3）</a>
+    <a href="../lessons/0002-first-csharp-backtest.html">第 2 课：第一个 C# 回测</a>
+    <a href="../lessons/0003-sma-crossover-and-lookahead-bias.html">第 3 课：双均线</a>
+  </nav>
+</main>
+<script src="../assets/course-nav.js"></script>
+</body>
+</html>

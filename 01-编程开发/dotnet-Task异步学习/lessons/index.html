@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>课程目录 · dotnet-Task 异步学习</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">COURSE INDEX · 枢纽页</p>
+  <h1>dotnet-Task 异步学习 · 课程目录</h1>
+  <div class="meta">
+    <span class="chip">使命:把 Task 体系从"会用"学到"通透"</span>
+    <span class="chip">节奏:每天 15–30 分钟</span>
+    <span class="chip">已完成:12 / 12 · 课程完结 🎓</span>
+  </div>
+
+  <div class="callout">
+    <p class="callout-title">怎么用这套课程</p>
+    <p>① 每课开头先做"隔日检索"热身,再学新内容;② 课末完成"明日回忆任务"(30 秒,不翻书);
+    ③ 速查卡打印放手边;④ 任何疑问回 Claude Code 问老师。</p>
+  </div>
+
+  <h2>课程</h2>
+  <table>
+    <thead><tr><th>课</th><th>主题</th><th>一句话收获</th><th>状态</th></tr></thead>
+    <tbody>
+      <tr><td><a href="0001-task-iou-and-tcs.html">0001</a></td><td>Task 是一张欠条:TCS 初见</td><td>欠条两半模型;回调→Task 桥接</td><td>✓ 已发布</td></tr>
+      <tr><td><a href="0002-tcs-set-vs-try-and-continuations.html">0002</a></td><td>TCS 三板斧:销账的姿势与续延的去向</td><td>Set*/Try* 决策;RunContinuationsAsynchronously</td><td>✓ 已发布</td></tr>
+      <tr><td><a href="0003-timeout-control.html">0003</a></td><td>超时控制:超时 ≠ 取消</td><td>WaitAsync 弃等;令牌贯穿才有真中止</td><td>✓ 已发布</td></tr>
+      <tr><td><a href="0004-event-to-task-and-async-init.html">0004</a></td><td>事件流→Task 与异步初始化</td><td>先订阅后检查;单飞广播欠条</td><td>✓ 已发布</td></tr>
+      <tr><td><a href="0005-task-states-and-lifecycle.html">0005</a></td><td>Task 状态机与生命周期</td><td>三区八状态;状态即诊断语言</td><td>✓ 已发布</td></tr>
+      <tr><td><a href="0006-await-compiler-state-machine.html">0006</a></td><td>await 编译期真相:状态机骨架</td><td>拆段 + 登记 + 提前返回;快速路径</td><td>✓ 已发布</td></tr>
+      <tr><td><a href="0007-synccontext-and-deadlock.html">0007</a></td><td>SynchronizationContext 与 ConfigureAwait</td><td>死锁环四节点;三条防死锁纪律</td><td>✓ 已发布</td></tr>
+      <tr><td><a href="0008-threadpool-taskrun-valuetask.html">0008</a></td><td>线程池调度与 Task.Run 边界</td><td>判决尺:干活的是谁;ValueTask 初识</td><td>✓ 已发布</td></tr>
+      <tr><td><a href="0009-task-combinators.html">0009</a></td><td>Task 组合器</td><td>并发聚合与竞速;嵌套解包</td><td>✓ 已发布</td></tr>
+      <tr><td><a href="0010-exception-handling-panorama.html">0010</a></td><td>异常处理全景</td><td>await 解包;EDI 原栈重抛;WhenAll 拆包</td><td>✓ 已发布</td></tr>
+      <tr><td><a href="0011-source-reading-signalr-tcs.html">0011</a></td><td>源码阅读实战:SignalR 里的 TCS</td><td>精读三步法;欠条编号/挂号处/Try 销账</td><td>✓ 已发布</td></tr>
+      <tr><td><a href="0012-interview-special-topics.html">0012</a></td><td>面试专题(毕业课)</td><td>三段式答法;三大题 60 秒;十问快答</td><td>✓ 已发布</td></tr>
+    </tbody>
+  </table>
+
+  <h2>速查卡(可打印)</h2>
+  <table>
+    <tbody>
+      <tr><td><a href="../reference/tcs-速查卡.html">TaskCompletionSource 速查卡</a></td><td>五件套 API · 黄金模板 · 四大坑 · 术语表</td></tr>
+      <tr><td><a href="../reference/timeout-速查卡.html">超时控制模式速查卡</a></td><td>三式对比 · 三个模板 · 异常辨析 · 选型决策</td></tr>
+      <tr><td><a href="../reference/event-init-速查卡.html">事件与异步初始化速查卡</a></td><td>事件→Task 四步骨架 · 单飞模板 · 术语表</td></tr>
+      <tr><td><a href="../reference/task-status-速查卡.html">Task 状态速查卡</a></td><td>三区八状态 · 属性映射 · 生产诊断表</td></tr>
+      <tr><td><a href="../reference/await-state-machine-速查卡.html">await 状态机速查卡</a></td><td>源码↔产物对照 · 慢/快路径 · 角色表 · 术语表</td></tr>
+      <tr><td><a href="../reference/configureawait-速查卡.html">ConfigureAwait 与死锁速查卡</a></td><td>上下文一览 · 死锁环 · 三纪律 · 偏方鉴别</td></tr>
+      <tr><td><a href="../reference/threadpool-taskrun-速查卡.html">线程池与 Task.Run 速查卡</a></td><td>判决尺 · 用/不用清单 · 烧工人账本 · ValueTask 三纪律</td></tr>
+      <tr><td><a href="../reference/combinators-速查卡.html">Task 组合器速查卡</a></td><td>四组合器总表 · 竞速模板 · 选型决策 · 术语表</td></tr>
+      <tr><td><a href="../reference/exceptions-速查卡.html">异常处理速查卡</a></td><td>两套规则 · WhenAll 拆包 · throw 对比 · EDI</td></tr>
+      <tr><td><a href="../reference/source-reading-速查卡.html">源码精读方法卡</a></td><td>链接地图 · 符号六连搜 · 三问清单 · 对照表</td></tr>
+      <tr><td><a href="../reference/interview-速查卡.html">面试速查卡(毕业兵器)</a></td><td>三大题脚本 · 十问快答 · 毕业清单 · 复习日历</td></tr>
+    </tbody>
+  </table>
+
+  <hr class="footrule">
+  <footer class="course-foot">
+    <span>进度与教学决策记录:<span class="muted">NOTES.md · learning-records/</span></span>
+    <span class="muted">本目录随新课交付自动更新</span>
+  </footer>
+
+</div>
+</body>
+</html>

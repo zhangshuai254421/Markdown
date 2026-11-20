@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>R1 · 课程地图与策略家族</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <p class="eyebrow">量化选股策略 · 参考文档 R1</p>
+  <h1>课程地图与策略家族</h1>
+  <p class="lead">这张地图回答两个问题：<strong>主流选股策略有哪几类、各自赚的是什么钱</strong>；以及<strong>这 12 课会按什么顺序把它们拆开</strong>。先看全景，再进单课，不会被术语淹没。</p>
+  <p class="subtitle">更新：2026-11-18 · 关联：<a href="../lessons/0001-stock-selection-landscape.html">第 1 课</a> · <a href="../MISSION.md">学习使命</a> · <a href="../RESOURCES.md">资源清单</a></p>
+
+  <h2>一、八类主流选股策略</h2>
+  <p>先记住一句话：<strong>选股策略 = 在每个调仓日，按某个可计算的分数给股票池排序，买前 N 名。</strong>不同策略的差别，只在"分数怎么算"和"为什么这个分数未来可能继续有效"。</p>
+  <div class="table-wrap"><table class="strategy-families">
+    <thead><tr><th>家族</th><th>核心思想</th><th>常用指标</th><th>A 股要注意</th></tr></thead>
+    <tbody>
+      <tr><td><strong>价值</strong></td><td>买相对便宜的股票，等待估值修复</td><td>PE、PB、PS、CF/P、股息率</td><td>便宜可能是价值陷阱；行业/市值中性很重要</td></tr>
+      <tr><td><strong>质量</strong></td><td>买赚钱能力强、利润含金量高的公司</td><td>ROE、毛利率、应计、F-Score</td><td>财报有滞后与重述；质量更适合当"过滤器"</td></tr>
+      <tr><td><strong>动量</strong></td><td>买过去涨得好的，趋势延续</td><td>12-1 月收益、残差动量</td><td>A 股原始动量弱；小盘池反转更强</td></tr>
+      <tr><td><strong>反转</strong></td><td>买短期跌得多的，等待反弹</td><td>1 月收益（取负）、超跌指标</td><td>A 股短期反转较显著；换手/成本高</td></tr>
+      <tr><td><strong>低波</strong></td><td>低波动股票风险调整后收益更好</td><td>历史波动率、Beta、特质波动</td><td>长期较稳；拥挤时也会失效</td></tr>
+      <tr><td><strong>红利</strong></td><td>买高股息、分红稳定的公司</td><td>股息率、派息率、分红连续性</td><td>行业集中在银行/公用事业；注意"高股息陷阱"</td></tr>
+      <tr><td><strong>小市值</strong></td><td>小盘股长期有超额</td><td>总市值、流通市值</td><td>壳价值/监管/流动性；风格切换剧烈</td></tr>
+      <tr><td><strong>成长</strong></td><td>买营收/利润高增长的公司</td><td>营收增速、利润增速、GARP/PEG</td><td>高估值+高预期；增速放缓时杀估值</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">多因子不是第九类"因子"，而是把上面几类<strong>合成一个分数</strong>的方法。合成能分散单一因子的失效，但也会带来相关性、权重和过拟合问题——第 8 课专门讲。</p>
+  <div class="warning"><p><strong>每个家族都要能回答"什么时候失效"。</strong>价值会遇到价值陷阱，质量会遇到财报暴雷，动量会遇到震荡市，低波会遇到拥挤，小市值会遇到监管/流动性，成长会遇到杀估值。只会说"这个因子有效"的人，通常还没真正做过回测。</p></div>
+
+  <h2>二、12 课路线图</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>课</th><th>主题</th><th>这一课要解决的问题</th><th>带走的东西</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><a href="../lessons/0001-stock-selection-landscape.html">选股策略地图</a></td><td>选股和择时到底差在哪？主流策略有哪几类？</td><td>八类策略地图 + Top-N 最小闭环</td></tr>
+      <tr><td>2</td><td>横截面回测引擎</td><td>怎么把"排序选前 N"写成 C# 回测？</td><td>面板数据 + 调仓 + 等权组合 + 成本</td></tr>
+      <tr><td>3</td><td>价值因子</td><td>便宜就是好吗？价值陷阱怎么识别？</td><td>PE/PB/PS/CF/P 组合与中性化</td></tr>
+      <tr><td>4</td><td>质量因子</td><td>好公司等于好股票吗？财报怎么用才不前视？</td><td>ROE/毛利/应计/F-Score 过滤器</td></tr>
+      <tr><td>5</td><td>动量与反转</td><td>为什么 A 股"追涨"常常失效？</td><td>12-1 动量 vs 1 月反转</td></tr>
+      <tr><td>6</td><td>低波、红利与小市值</td><td>三种防守/风格策略各自怕什么？</td><td>低波/红利/小市值组合与风格环境</td></tr>
+      <tr><td>7</td><td>成长因子</td><td>高增长为什么也会亏钱？</td><td>增速、GARP/PEG 与预期差</td></tr>
+      <tr><td>8</td><td>多因子合成</td><td>多个因子怎么合成一个分数？</td><td>标准化/去极值/中性化/IC/IR</td></tr>
+      <tr><td>9</td><td>组合构建</td><td>选出来之后，买多少、多久换一次？</td><td>权重、持仓数、换手、成本、容量</td></tr>
+      <tr><td>10</td><td>回测陷阱与 A 股物理</td><td>哪些偏差会让选股回测虚高？</td><td>幸存者/财报前视/停牌/涨跌停/ST 排雷清单</td></tr>
+      <tr><td>11</td><td>因子评估与归因</td><td>超额收益到底从哪来？</td><td>分层收益、IC、风格暴露、样本外</td></tr>
+      <tr><td>12</td><td>毕业：模拟盘与监控</td><td>怎么把回测变成可跟踪的系统？</td><td>纸面跟踪协议、偏离分析、失效退出</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>三、选股策略的最小闭环</h2>
+  <pre><code>股票池（universe）
+   │  每个调仓日（如每月最后一个交易日）
+   ▼
+因子打分（value / quality / momentum / ...）
+   │  标准化、去极值、中性化（第 8 课）
+   ▼
+排序 → 选前 N 只（Top-N）
+   │  等权 / 打分加权 / 行业中性（第 9 课）
+   ▼
+持有到下个调仓日 → 换手 → 扣成本
+   │
+   ▼
+绩效评估（收益/回撤/IC/换手/归因）</code></pre>
+  <p>这条流水线里，<strong>任何一步错了，回测都会骗你</strong>：股票池有幸存者偏差、因子用了未来数据、排序后偷偷改了参数、换手成本没算、评估只报收益。第 10 课会把它们逐条拆开。</p>
+
+  <h2>四、怎么用这门课</h2>
+  <ol>
+    <li><strong>先读第 1 课</strong>，把八类策略的名字和"赚什么钱"说清楚；不要求记住公式。</li>
+    <li><strong>第 2 课必须动手</strong>：没有横截面引擎，后面的因子课都会变成纸上谈兵。</li>
+    <li><strong>每个因子课只做一件事</strong>：用同一套引擎、同一个股票池、同一段样本，替换因子，比较结果。不要一上来就多因子。</li>
+    <li><strong>每次回测先过 R2 自查清单</strong>（在入门课程里）：五宗罪 + 稳健性测试。</li>
+    <li><strong>记录每次尝试</strong>：参数、股票池、样本区间、结果。试得越多，越要防止过拟合。</li>
+  </ol>
+
+  <h2>五、主源</h2>
+  <p><strong>本课程主参考</strong>：石川、刘洋溢、连祥斌《因子投资：方法与实践》（电子工业出版社，2020）。第 1 章建立框架，第 3 章逐个讲规模/价值/动量/盈利/投资/换手，第 4 章讲多因子模型，第 5 章讲低波等异象，第 7 章讲实践。先读第 1 章和第 3.1 节，再按课程进度读对应小节。</p>
+  <p class="note"><strong>有疑问随时问老师。</strong>哪一类策略的经济逻辑没听懂、A 股证据和美股相反、或者想先深挖某一类，直接说。课程顺序可以按你的兴趣调整，但第 2 课的引擎不建议跳过。</p>
+
+  <nav class="lesson-nav">
+    <a href="../lessons/0001-stock-selection-landscape.html">第 1 课：选股策略地图</a>
+    <a href="../MISSION.md">学习使命</a>
+    <a href="../RESOURCES.md">资源清单</a>
+    <a href="../../量化交易入门/reference/backtest-checklist.html">先修：回测自查清单</a>
+  </nav>
+</main>
+<script src="../assets/course-nav.js"></script>
+</body>
+</html>

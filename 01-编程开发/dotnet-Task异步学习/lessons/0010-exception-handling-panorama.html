@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>0010 · 异常处理全景:AggregateException 与 await 的解包</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">DOTNET · TASK SYSTEM · 第 0010 课</p>
+  <h1>异常处理全景:AggregateException 与 await 的解包</h1>
+  <div class="meta">
+    <span class="chip">⏱ 预计 20 分钟</span>
+    <span class="chip">前置:第 0005 / 0006 / 0009 课</span>
+    <span class="chip">交付:任何路径抛出的异常,都知道它长什么样、从哪接</span>
+  </div>
+
+  <p class="lede">欠条体系里,异常是<strong>内容物</strong>:0005 讲过 Faulted 状态装着异常,
+  0006 讲过 <code>GetResult()</code> 是重抛点。但"重抛出来的到底是什么形状"——
+  是原始异常还是聚合包装?堆栈保不保真?多张欠条一起失败怎么拆?
+  这就是今天要画的全景图。<span class="tag tag-interview">面试高频</span>
+  <span class="tag tag-source">源码视角</span></p>
+
+  <!-- ═══════════ 0. 隔日检索 ═══════════ -->
+  <h2>〇、隔日检索<span class="muted" style="font-size:.85rem">(先测后学:0009 还剩多少?)</span></h2>
+  <div id="warmup"></div>
+
+  <!-- ═══════════ 1. 两套规则 ═══════════ -->
+  <h2>一、两套规则:await 解包,Wait/Result 打包</h2>
+
+  <p>同一张故障欠条,两种消费方式,接到的异常<strong>形状不同</strong>:</p>
+
+  <table>
+    <thead><tr><th>消费方式</th><th>抛出的形状</th><th>多个异常时</th></tr></thead>
+    <tbody>
+      <tr><td><code>await task</code></td><td><strong>原始异常</strong>(解包,不带包装)</td><td>只抛<strong>第一个</strong>(WhenAll 场景)</td></tr>
+      <tr><td><code>task.Wait()</code> / <code>task.Result</code></td><td><code>AggregateException</code>(打包)</td><td>全部装在 <code>InnerExceptions</code></td></tr>
+      <tr><td><code>GetAwaiter().GetResult()</code></td><td>原始异常(行为同 await,但仍是同步阻塞)</td><td>只抛第一个</td></tr>
+      <tr><td><code>task.Exception</code>(属性)</td><td><code>AggregateException?</code>(不抛,取出来看)</td><td>全部可见——WhenAll 拆包靠它</td></tr>
+    </tbody>
+  </table>
+
+  <div class="code-label">一张欠条,两种接法</div>
+<pre><code>Task&lt;<span class="kw">string</span>&gt; task = GetTextAsync();     <span class="cmt">// 假设它将抛 TimeoutException</span>
+
+<span class="kw">try</span> { <span class="kw">var</span> s = <span class="kw">await</span> task; }
+<span class="kw">catch</span> (TimeoutException ex) { <span class="cmt">/* ✓ await:直接接到原始异常 */</span> }
+
+<span class="kw">try</span> { <span class="kw">var</span> s = task.Result; }
+<span class="kw">catch</span> (AggregateException agg) { <span class="cmt">/* Wait/Result:包了一层,要 .GetBaseException() */</span> }</code></pre>
+
+  <div class="callout">
+    <p class="callout-title">为什么有两套?</p>
+    <p>历史层次:<code>Task</code> 诞生于 TPL 时代,消费端是 <code>Wait/Result</code>,打包便于一次携带多个;
+    <code>async/await</code> 时代追求"异步代码读起来像同步",于是 await 帮你<strong>解包</strong>——
+    catch 里看到的和同步代码抛出的形状一致。这也是"async 方法内用 await 而不是 Result"的
+    又一理由:不接包装,还顺带躲开死锁(0007)。</p>
+  </div>
+
+  <!-- ═══════════ 2. WhenAll 拆包 ═══════════ -->
+  <h2>二、WhenAll 的全异常拆法(0009 的坑,今天填)</h2>
+
+  <p>0009 说过:WhenAll 把多张欠条的异常聚合成 <code>AggregateException</code>,但 await 只重抛
+  第一个。要<strong>全部</strong>拿到的标准姿势——先留住合成欠条本体,再拆 <code>.Exception</code>:</p>
+
+  <div class="code-label">全异常拆包 · 标准模板</div>
+<pre><code>Task&lt;<span class="kw">int</span>&gt;[] jobs = ids.Select(id =&gt; CountAsync(id)).ToArray();
+Task&lt;<span class="kw">int</span>[]&gt; all = Task.WhenAll(jobs);          <span class="cmt">// ① 先留住合成欠条本体!</span>
+<span class="kw">try</span>
+{
+    <span class="kw">int</span>[] results = <span class="kw">await</span> all;                 <span class="cmt">// ② 正常路径拿结果</span>
+}
+<span class="kw">catch</span> (Exception)
+{
+    <span class="cmt">// ③ 异常路径:从本体拆出全部异常(await 只给了你第一个)</span>
+    <span class="kw">foreach</span> (<span class="kw">var</span> ex <span class="kw">in</span> all.Exception!.InnerExceptions)
+        _logger.LogError(ex, <span class="str">"任务失败"</span>);
+}</code></pre>
+
+  <div class="callout warn">
+    <p class="callout-title">易错点</p>
+    <p>直接 <code>catch (AggregateException)</code> 接 <code>await Task.WhenAll(...)</code> 是接不到的——
+    await 已经把包拆了,你手里的是第一个原始异常。拆包的前提是<strong>先留住 <code>WhenAll</code>
+    返回的那张合成欠条</strong>(模板第①行)。另:<code>Flatten()</code> 可把嵌套聚合拍平,
+    <code>Handle(pred)</code> 可批量筛掉已处理的。</p>
+  </div>
+
+  <!-- ═══════════ 3. EDI ═══════════ -->
+  <h2>三、ExceptionDispatchInfo:把异常存起来,原栈重抛</h2>
+
+  <p><span class="tag tag-source">源码视角</span>第三个角色回答一个特定问题:
+  <strong>"异常能不能先存起来,过一会儿在别处再抛?"</strong>可以,而且必须用对工具:</p>
+
+  <table>
+    <thead><tr><th>写法</th><th>堆栈</th><th>适用</th></tr></thead>
+    <tbody>
+      <tr><td><code>throw;</code></td><td>保留当前堆栈</td><td>catch 块内原样上抛——日常首选</td></tr>
+      <tr><td><code>throw ex;</code></td><td><strong>重置</strong>为这一行(原始堆栈丢失)</td><td>几乎总是错误,代码评审直接打回</td></tr>
+      <tr><td><code>ExceptionDispatchInfo.Capture(ex).Throw()</code></td><td><strong>保留原始完整堆栈</strong></td><td>存起来日后再抛(跨方法/跨线程)</td></tr>
+      <tr><td><code>catch (Exception ex) when (条件)</code></td><td>过滤不中 = 像没 catch 过,自然上飞</td><td>精准过滤;不中时零开销不重置</td></tr>
+    </tbody>
+  </table>
+
+  <div class="code-label">EDI 标准用法</div>
+<pre><code>Exception? saved = <span class="kw">null</span>;
+<span class="kw">try</span> { <span class="kw">await</span> RunAsync(); }
+<span class="kw">catch</span> (Exception ex) { saved = ex; }          <span class="cmt">// ① 先存</span>
+
+<span class="cmt">// ……稍后、别处(另一个线程 / 清理路径 / 重试框架)……</span>
+<span class="kw">if</span> (saved <span class="kw">is not null</span>)
+    ExceptionDispatchInfo.Capture(saved).Throw();   <span class="cmt">// ② 原栈重抛,不失真</span></code></pre>
+
+  <div class="callout">
+    <p class="callout-title">连回 0006:重抛不失真的幕后功臣就是它</p>
+    <p>故障欠条在 await 处重抛异常时,<strong>内部正是用 EDI</strong> 把当初存入的异常原栈抛出——
+    否则你看到的堆栈会是 <code>GetResult()</code> 那一行,而不是真正的案发现场。
+    异常的"打包"(<code>Task</code> 存 <code>AggregateException</code>)与"重抛"(EDI)都藏在
+    0006 那个骨架之下。</p>
+  </div>
+
+  <!-- ═══════════ 4. 纪律 ═══════════ -->
+  <h2>四、全景收拢:五条异常纪律</h2>
+
+  <ol>
+    <li><strong>async 代码里用 await 接,不用 Result/Wait</strong>——接原始形状,顺带躲死锁(0007)。</li>
+    <li><strong>要 WhenAll 的全部异常,先留合成欠条再拆 .Exception</strong>——模板见第二节。</li>
+    <li><strong>绝不 throw ex;要上抛用 throw;要异地重抛用 EDI</strong>——堆栈是案发现场,别毁。</li>
+    <li><strong>过滤用 catch when,不用 catch 再判断</strong>——不中时堆栈与性能都干净。</li>
+    <li><strong>别拿 OCE 当业务异常,async void 的异常没人能接</strong>——0005 的 Canceled 规则 +
+    0001/0007 的 async void 坑,一条线收拢:异常要么被欠条运到 await 处,要么逃出体系。</li>
+  </ol>
+
+  <p class="muted">权威出处:<a href="https://learn.microsoft.com/en-us/dotnet/api/system.runtime.exceptionservices.exceptiondispatchinfo" target="_blank">ExceptionDispatchInfo API — Microsoft Learn</a>。</p>
+
+  <!-- ═══════════ 5. 检索练习 ═══════════ -->
+  <h2>五、检索练习<span class="muted" style="font-size:.85rem">(不看上文,凭记忆答)</span></h2>
+  <div id="quiz"></div>
+
+  <!-- ═══════════ 6. 复习钩子 ═══════════ -->
+  <h2>六、明天的回忆任务<span class="muted" style="font-size:.85rem">(30 秒,不翻书)</span></h2>
+  <details class="qa">
+    <summary>① await 与 Result 接异常,形状差在哪?</summary>
+    await 解包抛原始异常;Result/Wait 打包抛 AggregateException。多异常时 await 只给第一个。
+  </details>
+  <details class="qa">
+    <summary>② WhenAll 要拿全部异常,标准三步?</summary>
+    先留合成欠条本体 → await 正常拿结果 → catch 后从 all.Exception.InnerExceptions 拆全部。
+  </details>
+  <details class="qa">
+    <summary>③ throw / throw ex / EDI 三者的堆栈差异?</summary>
+    throw 保留;throw ex 重置成当前行(几乎总是错);EDI 保存后原栈重抛——欠条重抛内部用的就是 EDI。
+  </details>
+
+  <!-- ═══════════ 尾部 ═══════════ -->
+  <div class="callout ask no-print">
+    <p class="callout-title">卡住了?随时问你的老师</p>
+    <p>"WhenAll 里混入取消态,合成欠条到底算什么?""Handle 的谓词漏接了会怎样?"
+    "我们代码库里要不要全局禁止 throw ex?"——回 Claude Code 直接问,
+    也可以贴一段你们项目的 catch 让老师验伤。</p>
+  </div>
+
+  <div class="next-up">
+    <p class="next-title">▸ 下一课:<a href="0011-source-reading-signalr-tcs.html">0011 · 源码阅读实战:SignalR 里的 TaskCompletionSource →</a></p>
+    <p>知识全部就位,该兑现第一个动机了:<strong>打开真实框架源码</strong>。
+    下一课拿 SignalR 客户端的 <code>HubConnection</code> 开刀——你会看到前八课的每个模式
+    都活在那里:欠条编号、Try 销账、广播终态、防重入构造。复习工具:
+    <a href="../reference/exceptions-速查卡.html">异常处理速查卡</a>(新增)。</p>
+  </div>
+
+  <hr class="footrule">
+  <footer class="course-foot">
+    <span>dotnet-Task异步学习 · 第 0010 课 · 主推阅读:<a href="https://learn.microsoft.com/en-us/dotnet/api/system.runtime.exceptionservices.exceptiondispatchinfo" target="_blank">ExceptionDispatchInfo — Microsoft Learn</a></span>
+    <span><a href="0009-task-combinators.html">上一课</a> · <a href="index.html">目录</a> · <a href="../reference/task-status-速查卡.html">状态卡</a> · <a href="../reference/exceptions-速查卡.html">异常卡</a></span>
+  </footer>
+
+</div>
+<script src="../assets/quiz.js"></script>
+<script>
+  // ── 隔日检索热身(复习 0009)──
+  TeachQuiz.render(document.getElementById('warmup'), [
+    {
+      q: '【复习】假并发的根源与口诀?',
+      options: ['先发起,后聚合', '先聚合,后发起', '多开线程池工人', '换用异步的库函数'],
+      answer: 0,
+      explain: 'await 写进发起节奏 = 串行;先把欠条全放出去,再 WhenAll 聚合。'
+    },
+    {
+      q: '【复习】WhenAll 结果数组的顺序由谁定?',
+      options: ['传入顺序一一对应', '完成先后实时排位', '任务名称排序输出', '由线程池随机安排'],
+      answer: 0,
+      explain: 'r[i] 对应第 i 张传入欠条——定位靠位置约定。'
+    },
+    {
+      q: '【复习】WhenAny 的"第一张完成"包括?',
+      options: ['失败取消也算完成', '仅成功完成的欠条', '仅最先发起的那张', '仅耗时最短的那张'],
+      answer: 0,
+      explain: '任一终态即结算——完成 ≠ 成功,取值前先验明正身。'
+    },
+    {
+      q: '【复习】StartNew 包 async 委托,返回?',
+      options: ['嵌套欠条需再解包', '已自动解包的一层', '编译器报错不接受', '同步执行完毕的任务'],
+      answer: 0,
+      explain: 'Task<Task<T>>:await 只完成外层;用 .Unwrap() 或改 Task.Run。'
+    }
+  ]);
+
+  // ── 本课检索练习 ──
+  TeachQuiz.render(document.getElementById('quiz'), [
+    {
+      q: 'await 一个多异常的 WhenAll 欠条,抛出?',
+      options: ['第一个异常的本尊', '聚合异常的包装壳', '所有异常的列表项', '取消异常的替代品'],
+      answer: 0,
+      explain: 'await 解包:重抛第一个真实异常;聚合壳留给 Wait/Result 与 task.Exception。'
+    },
+    {
+      q: 'task.Result 失败时抛出的异常类型?',
+      options: ['AggregateException', 'InnerException 裸抛', 'NullReferenceException', 'TaskCanceledException'],
+      answer: 0,
+      explain: 'Wait/Result 打包;原始异常在 InnerExceptions / GetBaseException() 里。'
+    },
+    {
+      q: 'ExceptionDispatchInfo 的本领?',
+      options: ['保存异常并原栈重抛', '吞掉异常再记入日志', '把异常包装成新类型', '阻止异常离开catch块'],
+      answer: 0,
+      explain: 'Capture 存、Throw 原栈重抛——欠条体系重抛不失真的幕后功臣。'
+    },
+    {
+      q: '比起 catch 后 throw ex,更推荐?',
+      options: ['异常过滤器when子句', '捕获后重新throw ex', '捕获后转成字符串', '什么都不写让它飞'],
+      answer: 0,
+      explain: 'when 过滤不中 = 像没写过 catch:堆栈不重置、性能零损耗。'
+    }
+  ]);
+</script>
+</body>
+</html>

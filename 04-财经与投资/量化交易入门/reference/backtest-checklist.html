@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>回测报告自查清单 · 速查手册 R2</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <p class="eyebrow">量化交易入门 · 参考文档 R2</p>
+  <h1>回测报告自查清单</h1>
+  <p class="lead">任何回测结果，在交给老师（或未来的你）之前，先过这三关。<span class="src third">经验共识</span>研究者 López de Prado 估计<strong>九成以上回测表现良好的策略实盘会失败</strong>（<a href="https://papers.ssrn.com/sol3/Delivery.cfm/SSRN_ID3637110_code434076.pdf?abstractid=3261943&amp;mirid=1">其讲义第 6 讲</a>专门讨论）——这份清单就是用来把你排除在九成之外的。</p>
+  <p class="subtitle">更新：2026-11-05 · 打印友好 · 配套：<a href="../lessons/0004-backtest-cheating-catalog.html">第 4 课</a> · <a href="../lessons/0011-evaluation-protocol.html">第 11 课</a></p>
+
+  <h2>第一关：五种作弊，逐一排查</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>作弊</th><th>一句话定义</th><th>检验动作（可执行）</th></tr></thead>
+    <tbody>
+      <tr><td><strong>未来函数</strong></td><td>决策用了决策时点不可能知道的信息</td><td>逐笔核对：每笔交易的<strong>信号时间戳</strong>是否严格早于<strong>成交时间戳</strong>（至少差一根 K 线）</td></tr>
+      <tr><td><strong>幸存者偏差</strong></td><td>股票池只含活到今天的标的</td><td>问数据源：股票池是否含<strong>已退市</strong>标的？用"今天的成分股"回测十年 = 作弊</td></tr>
+      <tr><td><strong>过拟合</strong></td><td>参数贴合了历史噪声而非规律</td><td>参数各调 <strong>±20%</strong> 重跑：结果塌方 = 你拟合的是噪声</td></tr>
+      <tr><td><strong>成本缺失</strong></td><td>回测没算佣金/印花税/滑点</td><td><strong>费率 ×3</strong> 重跑：利润还在才是真利润</td></tr>
+      <tr><td><strong>样本内外混淆</strong></td><td>用"验证集"反复调参，验证集变训练集</td><td>样本外数据<strong>只碰一次</strong>；调参次数记录在报告里</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>第二关：报告七个必备字段</h2>
+  <ol>
+    <li><strong>回测区间</strong>：起止日期，且说明为何选这段（不许只挑顺风段）。</li>
+    <li><strong>标的池</strong>：代码列表或选股规则，注明是否含退市股。</li>
+    <li><strong>信号规则</strong>：无歧义的伪代码或公式——第三者能据此复现。</li>
+    <li><strong>执行假设</strong>：何时成交（信号次日开盘？收盘？）、停牌与涨跌停怎么处理。</li>
+    <li><strong>成本假设</strong>：佣金率、印花税、滑点假设，逐项列数字。</li>
+    <li><strong>核心指标 vs 基准</strong>：年化、最大回撤、夏普、交易次数，与基准并排。</li>
+    <li><strong>稳健性检验</strong>：第一关三条的运行结果（费率×3、参数±20%、样本外）。</li>
+  </ol>
+  <div class="warning"><p><strong>缺任何一项 = 报告不合格。</strong>本课程的纪律：评价策略禁止只报收益率——完整句式见 <a href="glossary.html">术语表 R1</a> 元规则。</p></div>
+
+  <h2>第三关：上线前五问</h2>
+  <ol>
+    <li>报告七字段齐了吗？三关全部通过了吗？</li>
+    <li>模拟盘跟踪 ≥1 个月的计划排了吗？（记录格式见<a href="../lessons/0012-graduation-paper-trading.html">第 12 课</a>）</li>
+    <li>这笔实盘资金<strong>全损也不影响生活</strong>吗？</li>
+    <li>策略的<strong>最大回撤</strong>你心理上拿得住吗？按回撤 ×1.5 想象一下。</li>
+    <li>交易日志模板准备好了吗？（每笔：理由 / 情绪 / 计划 vs 实际）</li>
+  </ol>
+
+  <h2>引证</h2>
+  <ul class="source-list">
+    <li>López de Prado《Advances in Financial Machine Learning》第 11 章 "The Dangers of Backtesting"（<a href="https://www.oreilly.com/library/view/advances-in-financial/9781119482086/c11.xhtml">O'Reilly 可在线阅读</a>；<a href="https://reasonabledeviations.com/notes/adv_fin_ml">全书章节笔记</a>）。</li>
+    <li>Deflated Sharpe Ratio 讲义：<a href="https://papers.ssrn.com/sol3/Delivery.cfm/SSRN_ID3637110_code434076.pdf?abstractid=3261943&amp;mirid=1">SSRN Lecture 6/10</a>。</li>
+    <li>书中工具的开源实现：<a href="https://github.com/Neyt/How-To-Backtest-Correctly">Neyt/How-To-Backtest-Correctly</a>（进阶，本课不要求）。</li>
+  </ul>
+
+  <nav class="lesson-nav">
+    <a href="glossary.html">术语表（R1）</a>
+    <a href="../lessons/0004-backtest-cheating-catalog.html">第 4 课：回测作弊图鉴</a>
+    <a href="../lessons/0011-evaluation-protocol.html">第 11 课：评估协议</a>
+  </nav>
+</main>
+<script src="../assets/course-nav.js"></script>
+</body>
+</html>

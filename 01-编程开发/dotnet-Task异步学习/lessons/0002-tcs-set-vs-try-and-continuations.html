@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>0002 · TCS 三板斧:销账的姿势与续延的去向</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">DOTNET · TASK SYSTEM · 第 0002 课</p>
+  <h1>TCS 三板斧:销账的姿势与续延的去向</h1>
+  <div class="meta">
+    <span class="chip">⏱ 预计 20–25 分钟</span>
+    <span class="chip">前置:第 0001 课</span>
+    <span class="chip">交付:竞态安全销账 + RunContinuationsAsynchronously</span>
+  </div>
+
+  <p class="lede">上一课的模拟器里,你亲手触发过那个红色异常:<strong>欠条销账后再次 Set*,抛
+  <code>InvalidOperationException</code></strong>。这是故意的——但真实世界存在两种"第二次完成":
+  一种是 <em>bug</em>(应该炸给你看),一种是 <em>合法竞态</em>(应该安静容错)。
+  本课的核心技能就一个:<strong>分辨二者,选对 API</strong>。顺带解决第二个悬念:
+  await 之后的代码,到底在哪个线程上继续跑?</p>
+
+  <!-- ═══════════ 0. 隔日检索 ═══════════ -->
+  <h2>〇、隔日检索<span class="muted" style="font-size:.85rem">(先测后学:昨天的课还在记忆里吗?)</span></h2>
+  <p class="muted">凭记忆作答,答错也没关系——检索失败本身就在加深存储强度。</p>
+  <div id="warmup"></div>
+
+  <!-- ═══════════ 1. Set* vs Try* ═══════════ -->
+  <h2>一、Set* 是断言,Try* 是容错</h2>
+
+  <p>五件套里每个 Set 都有一个 Try 兄弟。决策不是"哪个更安全用哪个",而是看<strong>场景里是否存在合法的竞争者</strong>:</p>
+
+  <table>
+    <thead><tr><th>场景</th><th>用哪个</th><th>为什么</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>只有一条路径能完成欠条(如 0001 的硬件回调桥接)</td>
+        <td><strong><code>Set*</code></strong></td>
+        <td>若真的发生二次完成,那必然是逻辑 bug——让它<strong>当场炸出来</strong>,而不是被静默吞掉</td>
+      </tr>
+      <tr>
+        <td>存在合法的竞争者(超时兜底、取消信号、多个事件源)</td>
+        <td><strong><code>TrySet*</code></strong></td>
+        <td>"谁先到谁赢,后到的放弃"是<strong>预期行为</strong>,返回 <code>false</code> 按分支处理即可</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout warn">
+    <p class="callout-title"><span class="tag tag-interview">面试高频</span>反模式:无脑全用 TrySet*</p>
+    <p>"Try 更安全"是常见的错误直觉。在没有竞态的场景用 <code>TrySet*</code>,
+    等于把"同一欠条被完成两次"这种 bug 的报警器拆了——它照常运行,只是永远不响。
+    <em>Set* 抛异常不是缺陷,是断言(assert);Try* 是容错(tolerance)。</em>
+    面试里能讲出这个权衡,比背 API 签名高一个层级。</p>
+  </div>
+
+  <p class="muted">语义依据:<a href="https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.taskcompletionsource-1.setresult" target="_blank">SetResult(Microsoft Learn)</a>——"若 Task 已处于终态,此方法抛 <code>InvalidOperationException</code>"。</p>
+
+  <!-- ═══════════ 2. 竞态模拟器 ═══════════ -->
+  <h2>二、动手玩:两条路径抢一张欠条</h2>
+
+  <p>场景升级:在 0001 的硬件读取上加了<strong>超时兜底</strong>——结果路径与超时路径都在等销账机会。
+  请做三个实验:</p>
+  <p><strong>实验 1</strong>:先点"结果到达",再点"超时到点"→ 观察后者的返回值。<br>
+  <strong>实验 2</strong>:重置后反过来,先"超时"后"结果"→ 观察赢家换了人,消费者收到什么。<br>
+  <strong>实验 3</strong>:完成后再连点任意按钮 → 确认再也不会抛异常,只是安静地返回 false。</p>
+
+  <div id="race"></div>
+  <script src="../assets/race-simulator.js"></script>
+  <script>
+    RaceSimulator.render(document.getElementById('race'), {
+      pathA: { name: '结果到达 → TrySetResult(36.5)', call: 'tcs.TrySetResult(36.5)',
+               okLine: 'TrySetResult 返回 true', winEcho: '收到 36.5' },
+      pathB: { name: '超时到点 → TrySetException(TimeoutException)', call: 'tcs.TrySetException(new TimeoutException())',
+               okLine: 'TrySetException 返回 true', winEcho: 'Unhandled exception. TimeoutException: 设备未响应' }
+    });
+  </script>
+
+  <div class="callout">
+    <p class="callout-title">实验后对照答案</p>
+    <p>① 后到的路径 <code>TrySet*</code> 返回 <code>false</code>,<strong>不抛异常、无副作用</strong>——这就是容错语义。<br>
+    ② 谁先到谁赢:超时赢了,消费者只会看到 <code>TimeoutException</code>;迟到的结果被直接丢弃。<br>
+    ③ 完成后一切 Try 调用都安全返回 false——竞态代码因此不需要加锁来"保护"销账动作,Task 终态自身就是原子裁判。</p>
+  </div>
+
+  <!-- ═══════════ 3. 单次完成语义的为什么 ═══════════ -->
+  <h2>三、为什么"只能销一次"?——不可变性即线程安全</h2>
+
+  <p><span class="tag tag-source">源码视角</span>把 0001 的"欠条只能销一次"和本课实验合起来看,一个设计意图浮出水面:
+  <strong>Task 一旦进入终态(成功/异常/取消)就永久不可变</strong>。正因为不可变:</p>
+
+  <p>① 一张欠条可以放心地交给 N 个消费者 await——大家读到的都是同一条不可变事实;<br>
+  ② 销账的竞争不需要调用方加锁——Task 内部自带的原子状态切换就是裁判;<br>
+  ③ 消费者可以"随时加入"——即使欠条早已销账,新来的 await 也会立刻拿到结果。</p>
+
+  <p>这也是为什么框架敢把 <code>tcs.Task</code> 作为公共属性暴露给任意多的内部模块。
+  深入机制可读 Stephen Toub 的 <a href="https://devblogs.microsoft.com/dotnet/how-async-await-really-works/" target="_blank">Async/Await FAQ</a>。</p>
+
+  <!-- ═══════════ 4. RunContinuationsAsynchronously ═══════════ -->
+  <h2>四、续延去哪了?——默认内联与它的代价</h2>
+
+  <p>现在回答第二个悬念。消费者 <code>await</code> 挂起后,当生产者调用 <code>SetResult</code> 的那一刻,
+  <strong>await 之后的代码(续延,continuation)默认就在"调用 SetResult 的这条线程"上直接执行</strong>——
+  不排队、不切换,像普通函数调用一样"顺路"跑掉。术语叫<strong>内联(inline)执行</strong>。</p>
+
+  <div class="iou">
+    <div class="iou-node">
+      <span class="n-title">默认:内联</span>
+      <span class="n-sub">续延直接在完成者线程上跑完才返回 Set* 那一行</span>
+    </div>
+    <div class="iou-arrow">vs</div>
+    <div class="iou-node">
+      <span class="n-title">RunContinuationsAsynchronously</span>
+      <span class="n-sub">续延排队到线程池,Set* 立刻返回,两者不再纠缠</span>
+    </div>
+  </div>
+
+  <p>内联是<strong>有意的性能优化</strong>(省一次线程池调度)。但它有个危险的前提:
+  完成者线程"顺路"执行的其实是<strong>消费者写的任意代码</strong>。看这个真实的重入死锁:</p>
+
+  <div class="code-label">危险写法 · 持锁销账(可运行的陷阱)</div>
+<pre><code>private readonly object _gate = new();
+private TaskCompletionSource&lt;int&gt;? _pending;
+
+public void OnExternalEvent(int value)
+{
+    lock (_gate)
+    {
+        _pending?.SetResult(value);
+        <span class="cmt">// ⚠ 默认内联:await 之后的消费者代码【此刻就在你的锁里】执行</span>
+    }
+}
+
+<span class="cmt">// 消费者某处:</span>
+var v = await _pending.Task;      <span class="cmt">// 恢复时机 = 上面 SetResult 那一行,且在锁内</span>
+DoSomething(v);                   <span class="cmt">// 若这条调用链上任何地方再想拿 _gate → 死锁</span></code></pre>
+
+  <p>就算不死锁,完成者线程(比如一个高频消息接收循环)也会被消费者的慢代码<strong>劫持</strong>。
+  解法是构造时的一行选项:</p>
+
+  <div class="code-label">修复 · 构造时声明"续延不内联"</div>
+<pre><code>var tcs = new TaskCompletionSource&lt;int&gt;(
+    TaskCreationOptions.<span class="hl">RunContinuationsAsynchronously</span>);
+<span class="cmt">// 续延改为排队到线程池:Set* 立刻返回,锁立刻释放,两者解耦。</span>
+<span class="cmt">// 代价:多一次线程池调度(纳秒~微秒级)。隔离换性能,几乎总是划算。</span></code></pre>
+
+  <div class="callout">
+    <p class="callout-title"><span class="tag tag-source">源码视角</span>框架作者的肌肉记忆</p>
+    <p>在 ASP.NET Core、SignalR、Npgsql 等库的源码里,几乎每个 <code>TaskCompletionSource</code>
+    构造都带着 <code>RunContinuationsAsynchronously</code>——库作者无法预见消费者续延会干什么,
+    默认隔离是防御性设计。你现在去反编译工具里验证,会成为你读源码时的一个"认路标记"。
+    选项语义见 <a href="https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.taskcreationoptions" target="_blank">TaskCreationOptions(Microsoft Learn)</a>。</p>
+  </div>
+
+  <!-- ═══════════ 5. 实战拼图 ═══════════ -->
+  <h2>五、实战拼图:升级 0001 的桥接模板</h2>
+
+  <p>把本课两个技能组装进 0001 的硬件桥接——竞态安全版:</p>
+
+  <div class="code-label">竞态安全版桥接 · Try* + RunContinuationsAsynchronously</div>
+<pre><code>public Task&lt;double&gt; ReadTemperatureAsync()
+{
+    var tcs = new TaskCompletionSource&lt;double&gt;(
+        TaskCreationOptions.<span class="hl">RunContinuationsAsynchronously</span>);  <span class="cmt">// ① 续延隔离</span>
+
+    _sensor.ReadTemperature(
+        onSuccess: v  =&gt; tcs.<span class="hl">TrySetResult</span>(v),   <span class="cmt">// ② 有超时兜底在竞争 → 用 Try*</span>
+        onError:   ex =&gt; tcs.<span class="hl">TrySetException</span>(ex));
+
+    <span class="cmt">// ③ 超时兜底:5 秒后与结果路径竞速(生产级写法下一课展开)</span>
+    var timer = new System.Threading.Timer(
+        _ =&gt; tcs.TrySetException(new TimeoutException("设备未响应")),
+        null, dueTime: 5000, period: Timeout.Infinite);
+
+    return tcs.Task;
+}
+
+<span class="cmt">// 调用端:5 秒内必返回 —— 要么拿到温度,要么拿到 TimeoutException</span>
+double temp = await bridge.ReadTemperatureAsync();</code></pre>
+
+  <p>对比 0001 的版本,三处升级正好对应本课三个知识点:①防劫持、②容错竞速、③消灭"永久悬挂"陷阱。
+  下一课(0003)我们会把③重写成生产级形态,并对比 .NET 6 的官方捷径 <code>task.WaitAsync(TimeSpan)</code>。</p>
+
+  <!-- ═══════════ 6. 检索练习 ═══════════ -->
+  <h2>六、检索练习<span class="muted" style="font-size:.85rem">(不看上文,凭记忆答)</span></h2>
+  <div id="quiz"></div>
+
+  <!-- ═══════════ 7. 复习钩子 ═══════════ -->
+  <h2>七、明天的回忆任务<span class="muted" style="font-size:.85rem">(30 秒,不翻书)</span></h2>
+  <details class="qa">
+    <summary>① TrySetResult 返回 false 意味着什么?此时应该抛异常吗?</summary>
+    欠条已被别的路径抢先销账。不抛——false 是竞态中的预期分支,不是错误。
+  </details>
+  <details class="qa">
+    <summary>② 默认情况下,续延在哪个线程执行?风险是什么?</summary>
+    内联在调用 Set* 的完成者线程上。风险:消费者代码劫持完成者线程;持锁销账时可造成重入死锁。
+  </details>
+  <details class="qa">
+    <summary>③ 什么时候给 TCS 构造加 RunContinuationsAsynchronously?</summary>
+    库代码/无法预见续延行为时、持锁销账时、完成者线程有实时性要求时——默认隔离几乎总是对的。
+  </details>
+
+  <!-- ═══════════ 尾部 ═══════════ -->
+  <div class="callout ask no-print">
+    <p class="callout-title">卡住了?随时问你的老师</p>
+    <p>"内联执行的续延到底是怎么'接上'回调线程的?""Timer 那行为什么要 period: Infinite?"
+    ——任何疑问直接回 Claude Code 问,追问是最好的学习信号。</p>
+  </div>
+
+  <div class="next-up">
+    <p class="next-title">▸ 下一课:<a href="0003-timeout-control.html">0003 · 超时控制:别让 await 等到天荒地老 →</a></p>
+    <p>经典模式第一战:<strong>超时控制</strong>。手写 TCS+Timer 的完整演化、.NET 6 官方捷径
+    <code>WaitAsync</code> 的取舍、以及"超时后底层操作怎么办"的取消传播。温习材料:<a href="../reference/tcs-速查卡.html">TCS 速查卡</a>已同步更新竞态决策。</p>
+  </div>
+
+  <hr class="footrule">
+  <footer class="course-foot">
+    <span>dotnet-Task异步学习 · 第 0002 课 · 主推阅读:<a href="https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.taskcompletionsource-1" target="_blank">TaskCompletionSource API 参考 — Microsoft Learn</a></span>
+    <span><a href="0001-task-iou-and-tcs.html">上一课</a> · <a href="0003-timeout-control.html">下一课 →</a> · <a href="index.html">目录</a> · <a href="../reference/tcs-速查卡.html">速查卡</a></span>
+  </footer>
+
+</div>
+<script src="../assets/quiz.js"></script>
+<script>
+  // ── 隔日检索热身(复习 0001)──
+  TeachQuiz.render(document.getElementById('warmup'), [
+    {
+      q: '【复习】生产者(Producer)的职责是?',
+      options: ['承诺结果,时机到就销账', '阻塞线程,直到结果出现', '缓存结果,供后续来读取', '调度续延,安排线程执行'],
+      answer: 0,
+      explain: '生产者握着 TCS,负责在恰当时机 Set* 销账;它从不阻塞、不缓存、不调度续延。'
+    },
+    {
+      q: '【复习】对已完成的欠条再次 SetResult,后果是?',
+      options: ['抛出无效操作类型异常', '覆盖掉先前设置的结果', '被静默忽略无任何影响', '令欠条回退到初始状态'],
+      answer: 0,
+      explain: '抛 InvalidOperationException——本课会讲:这正是"断言"语义,该炸的时候要炸。'
+    },
+    {
+      q: '【复习】"Task.Run 包回调"是坏主意,因为?',
+      options: ['用一条线程睡觉白等回调', '回调在错误的线程执行了', '无法捕获回调抛出的异常', '会占用双倍的内存和句柄'],
+      answer: 0,
+      explain: 'Task ≠ 线程;用线程干等回调浪费资源。TCS 桥接零线程零阻塞。'
+    },
+    {
+      q: '【复习】同一张欠条能被几个人 await?',
+      options: ['任意多个,拿到的是同一张', '只能一个,await 会消耗它', '最多两个,生产与消费者', '取决于线程池的最大容量'],
+      answer: 0,
+      explain: 'tcs.Task 永远是同一实例,Task 终态不可变,所以可以安全广播给任意多消费者。'
+    }
+  ]);
+
+  // ── 本课检索练习 ──
+  TeachQuiz.render(document.getElementById('quiz'), [
+    {
+      q: '确定只有一条路径能完成欠条时,首选?',
+      options: ['Set*,让意外尽早地显形', 'TrySet,无论如何都安全', '加锁之后再 SetResult 一次', '先判断状态再决定用哪个'],
+      answer: 0,
+      explain: '无竞态场景用 Set*:万一二次完成,那是 bug,必须炸出来。全用 TrySet* 会吞掉逻辑错误。'
+    },
+    {
+      q: 'TrySetResult 返回 false,意味着?',
+      options: ['欠条已被别的路径抢先销账', '参数不合法导致调用失败', '内部发生了严重的异常了', 'Task 已被强制垃圾回收了'],
+      answer: 0,
+      explain: 'false = 已有赢家(比如超时兜底先到)。这是竞态中的正常分支,静默放弃即可。'
+    },
+    {
+      q: '默认情况下,续延(await 后的代码)在哪跑?',
+      options: ['直接内联在完成者线程上', '总是排队到线程池里执行', '固定回到主线程上面执行', '新建一条专用线程去执行'],
+      answer: 0,
+      explain: 'Set* 的调用线程"顺路"执行续延——省一次调度,但意味着完成者线程被消费者代码劫持的可能。'
+    },
+    {
+      q: '持锁调用 SetResult 的最大风险是?',
+      options: ['续延内联进锁区引发重入', '锁会被自动释放导致错乱', 'SetResult 在锁内必然失败', '垃圾回收器无法回收欠条'],
+      answer: 0,
+      explain: '续延在你的锁内执行,若其调用链再取同一把锁即死锁。解法:RunContinuationsAsynchronously。'
+    }
+  ]);
+</script>
+</body>
+</html>

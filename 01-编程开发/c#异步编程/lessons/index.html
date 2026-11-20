@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>C# 异步编程 · 课程目录</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+  .toc { list-style: none; margin: 2rem 0 0; padding: 0; }
+  .toc li { border-top: 1px solid var(--rule); }
+  .toc li:last-child { border-bottom: 1px solid var(--rule); }
+  .toc a { display: block; padding: 0.85rem 0.3rem; }
+  .toc a:hover { background: var(--code-bg); text-decoration: none; }
+  .toc .num {
+    font-family: var(--sans);
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .toc .t { display: block; font-size: 1.08rem; font-weight: 600; margin-top: 0.15rem; color: var(--ink); }
+  .toc .d { display: block; font-size: 0.9rem; color: var(--muted); margin-top: 0.15rem; }
+  .toc li.ref a:hover { background: none; }
+</style>
+</head>
+<body>
+<main>
+  <header class="lesson-head">
+    <div class="kicker">C# Async/Await · Course Index</div>
+    <h1>C# 异步编程
+      <span class="subtitle">九课，从「await 不是等线程」的心智模型，一路下钻到状态机、SynchronizationContext、IValueTaskSource 与异步流。建议按顺序学，每课约 20–30 分钟。</span>
+    </h1>
+  </header>
+
+  <ol class="toc">
+    <li><a href="0001-async-is-not-multithreading.html">
+      <span class="num">Lesson 0001 · 心智模型</span>
+      <span class="t">async 不是多线程</span>
+      <span class="d">await 是「注册续延」，不是「开新线程等结果」。理解一切异步的承重墙。</span>
+    </a></li>
+    <li><a href="0002-the-async-state-machine.html">
+      <span class="num">Lesson 0002 · 编译器层</span>
+      <span class="t">编译器把 async 方法变成了状态机</span>
+      <span class="d">MoveNext、Builder、await 处的「挂起与恢复」到底长什么样。</span>
+    </a></li>
+    <li><a href="0003-synchronization-context-and-deadlock.html">
+      <span class="num">Lesson 0003 · 运行时</span>
+      <span class="t">续延跑在哪：SynchronizationContext 与死锁</span>
+      <span class="d">.Result 卡死 UI 的根源，以及 ConfigureAwait 的真实作用。</span>
+    </a></li>
+    <li><a href="0004-exceptions-async-void-cancellation.html">
+      <span class="num">Lesson 0004 · 实战雷区</span>
+      <span class="t">异常去哪儿了：async void、fire-and-forget 与取消</span>
+      <span class="d">异常如何沿 Task 传播、async void 为什么会崩进程、取消怎么传到底。</span>
+    </a></li>
+    <li><a href="0005-task-family-and-thread-pool.html">
+      <span class="num">Lesson 0005 · 运行时</span>
+      <span class="t">Task 家族与线程池</span>
+      <span class="d">Task / Task&lt;T&gt; / ValueTask 怎么选，Task.Run 的代价与线程池饥饿。</span>
+    </a></li>
+    <li><a href="0006-ivaluetasksource.html">
+      <span class="num">Lesson 0006 · 运行时内部</span>
+      <span class="t">IValueTaskSource：让异步完成也零分配</span>
+      <span class="d">ValueTask 复用完成的底层机制，高性能库代码的写法与风险。</span>
+    </a></li>
+    <li><a href="0007-async-streams-iasyncenumerable.html">
+      <span class="num">Lesson 0007 · 现代 C#</span>
+      <span class="t">异步流（IAsyncEnumerable）</span>
+      <span class="d">await foreach、逐项消费、背压——串口/设备持续上报数据的正确姿势。</span>
+    </a></li>
+    <li><a href="0008-executioncontext-and-asynclocal.html">
+      <span class="num">Lesson 0008 · 运行时内部</span>
+      <span class="t">ExecutionContext 与 AsyncLocal</span>
+      <span class="d">上下文如何随续延流动，日志 TraceId 为什么能跨 await 保持。</span>
+    </a></li>
+    <li><a href="0009-practical-decision-checklist.html">
+      <span class="num">Lesson 0009 · 收尾</span>
+      <span class="t">实战决策清单</span>
+      <span class="d">把八课收束成写代码、评审、排障时直接可用的判断规则。</span>
+    </a></li>
+    <li class="ref"><a href="../reference/glossary.html">
+      <span class="num">Reference</span>
+      <span class="t">词汇表</span>
+      <span class="d">续延、状态机、承诺任务……全课程统一术语。</span>
+    </a></li>
+  </ol>
+
+  <footer class="lesson-foot">
+    <p>学到哪一课卡住了，<strong>直接问我</strong>——我是你的老师，随时可以展开任何一课的任何细节。</p>
+  </footer>
+</main>
+</body>
+</html>

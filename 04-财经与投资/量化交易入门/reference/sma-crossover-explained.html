@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>R5 · 双均线算法详解（SMA 交叉）</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <p class="eyebrow">量化交易入门 · 参考文档 R5</p>
+  <h1>双均线算法详解（SMA 交叉）</h1>
+  <p class="lead">第 1 课模拟器里的"双均线 50/200"到底在算什么？这张卡从一根均线讲起，用 3 日/5 日均线手算一次金叉和一次死叉，最后说清它为什么<strong>不是</strong>一台印钞机。</p>
+  <p class="subtitle">更新：2026-11-08 · 关联：<a href="../lessons/0001-why-backtests-die-to-fees.html">第 1 课</a> · <a href="../lessons/0003-sma-crossover-and-lookahead-bias.html">第 3 课</a> · <a href="glossary.html">术语表 R1</a></p>
+
+  <h2>一、一根均线：把噪声抹平</h2>
+  <p><strong>SMA</strong>（Simple Moving Average，简单移动平均）就是"最近 N 天收盘价的算术平均"：</p>
+  <div class="insight"><p><strong>SMA<sub>N</sub>(第 t 天) = (第 t 天收盘价 + 第 t−1 天收盘价 + … + 第 t−N+1 天收盘价) ÷ N</strong></p></div>
+  <p>它回答一个问题：<strong>最近 N 天，市场平均成本大概是多少？</strong>单看某一天的价格会被噪声骗，均线把最近 N 天抹平，趋势的方向就更容易看出来。</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>天</th><th>收盘价</th><th>SMA3 的计算</th><th>SMA3</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>10.0</td><td>数据不足</td><td>—</td></tr>
+      <tr><td>2</td><td>12.0</td><td>数据不足</td><td>—</td></tr>
+      <tr><td>3</td><td>11.0</td><td>(10.0 + 12.0 + 11.0) ÷ 3</td><td>11.00</td></tr>
+      <tr><td>4</td><td>13.0</td><td>(12.0 + 11.0 + 13.0) ÷ 3</td><td>12.00</td></tr>
+      <tr><td>5</td><td>14.0</td><td>(11.0 + 13.0 + 14.0) ÷ 3</td><td>12.67</td></tr>
+    </tbody>
+  </table></div>
+  <p>注意两件事：① 每来一天新数据，窗口就"往前滑一格"，所以叫<strong>移动</strong>平均；② 均线永远落后于价格——价格已经涨了，均线要等几天才跟上。这个<strong>滞后</strong>是后面所有优缺点的根源。</p>
+
+  <h2>二、两条均线：快线与慢线</h2>
+  <p>把两条不同周期的均线放在一起，就有了"双均线"：</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>名称</th><th>第 1 课模拟器</th><th>性格</th><th>作用</th></tr></thead>
+    <tbody>
+      <tr><td><strong>快线</strong></td><td>SMA50（50 个交易日 ≈ 2.5 个月）</td><td>反应快，噪声多</td><td>捕捉中短期趋势</td></tr>
+      <tr><td><strong>慢线</strong></td><td>SMA200（200 个交易日 ≈ 10 个月）</td><td>反应慢，噪声少</td><td>代表长期趋势方向</td></tr>
+    </tbody>
+  </table></div>
+  <p>规则只有两句：</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>状态</th><th>条件</th><th>动作</th></tr></thead>
+    <tbody>
+      <tr><td><strong>金叉</strong></td><td>快线从下方<strong>穿越</strong>到慢线上方</td><td>买入 / 持仓</td></tr>
+      <tr><td><strong>死叉</strong></td><td>快线从上方<strong>穿越</strong>到慢线下方</td><td>卖出 / 空仓</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">关键词是"穿越"（cross），不是"快线高于慢线"本身。快线已经在慢线上方待了三个月，不叫金叉；只有<strong>从下往上穿过</strong>的那一天，才是新的金叉信号。第 1 课模拟器的代码就是每天比较两条均线的大小，只在"目标仓位变化"时记一次交易。</p>
+
+  <h2>三、手算一次金叉和一次死叉</h2>
+  <p>50/200 的数字太大，手算不现实。下面用 <strong>3 日均线（快线）和 5 日均线（慢线）</strong>代替——机制完全一样，只是窗口短、数字小。假设某标的连续 12 天的收盘价如下：</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>天</th><th>收盘价</th><th>SMA3（快）</th><th>SMA5（慢）</th><th>快慢关系</th><th>策略状态</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>10.0</td><td>—</td><td>—</td><td>—</td><td>空仓</td></tr>
+      <tr><td>2</td><td>9.6</td><td>—</td><td>—</td><td>—</td><td>空仓</td></tr>
+      <tr><td>3</td><td>9.2</td><td>9.60</td><td>—</td><td>—</td><td>空仓</td></tr>
+      <tr><td>4</td><td>8.8</td><td>9.20</td><td>—</td><td>—</td><td>空仓</td></tr>
+      <tr><td>5</td><td>9.0</td><td>9.00</td><td>9.32</td><td>快 &lt; 慢</td><td>空仓</td></tr>
+      <tr><td>6</td><td>9.6</td><td>9.13</td><td>9.24</td><td>快 &lt; 慢</td><td>空仓</td></tr>
+      <tr><td><strong>7</strong></td><td><strong>10.4</strong></td><td><strong>9.67</strong></td><td><strong>9.40</strong></td><td><strong>快 &gt; 慢</strong></td><td><strong>金叉 → 持仓</strong></td></tr>
+      <tr><td>8</td><td>11.0</td><td>10.33</td><td>9.76</td><td>快 &gt; 慢</td><td>持仓</td></tr>
+      <tr><td>9</td><td>10.2</td><td>10.53</td><td>10.04</td><td>快 &gt; 慢</td><td>持仓</td></tr>
+      <tr><td>10</td><td>9.8</td><td>10.33</td><td>10.20</td><td>快 &gt; 慢</td><td>持仓</td></tr>
+      <tr><td><strong>11</strong></td><td><strong>9.2</strong></td><td><strong>9.73</strong></td><td><strong>10.12</strong></td><td><strong>快 &lt; 慢</strong></td><td><strong>死叉 → 空仓</strong></td></tr>
+      <tr><td>12</td><td>8.8</td><td>9.27</td><td>9.60</td><td>快 &lt; 慢</td><td>空仓</td></tr>
+    </tbody>
+  </table></div>
+  <p>把关键的两天拎出来看：</p>
+  <ul>
+    <li><strong>第 6 天</strong>：快线 9.13，慢线 9.24 → 快线还在慢线下方，空仓。</li>
+    <li><strong>第 7 天</strong>：快线 9.67，慢线 9.40 → 快线<strong>上穿</strong>慢线，金叉，状态从 0 变 1，记一次交易。</li>
+    <li><strong>第 10 天</strong>：快线 10.33，慢线 10.20 → 仍在慢线上方，继续持仓。</li>
+    <li><strong>第 11 天</strong>：快线 9.73，慢线 10.12 → 快线<strong>下穿</strong>慢线，死叉，状态从 1 变 0，再记一次交易。</li>
+  </ul>
+  <div class="warning"><p><strong>别急着说"金叉买入就能赚"。</strong>如果按信号当日收盘价成交，这笔交易是第 7 天 10.4 买入、第 11 天 9.2 卖出——<strong>亏了约 11.5%</strong>，还没算手续费。这已经是偏乐观的当日成交假设；如果按诚实档次日成交，结果会变——可能更好也可能更差，但至少不再是未来函数（第 3 课会专门演示）。这不是例子编坏了，而是双均线的真实性格：它<strong>滞后</strong>，经常在趋势中后段才确认，等死叉出现时，利润已经回吐甚至倒亏。这就是"震荡市反复打脸"的来源。</p></div>
+  <p>换个行情，它也可能刚好吃到一大段趋势。双均线不保证每笔赚钱，它只是把"趋势跟随"写成了无歧义的规则——长期是否正期望，要靠大量样本回测，而不是看一次金叉。</p>
+
+  <h2>四、对应到第 1 课模拟器的代码</h2>
+  <p>模拟器里真正跑的就是下面几行（<code>backtest-sim.js</code>）：</p>
+  <p class="code-title">backtest-sim.js — 双均线的核心逻辑</p>
+  <pre><code>function sma(arr, n, end) {
+  var s = 0;
+  for (var i = end - n + 1; i &lt;= end; i++) s += arr[i];
+  return s / n;
+}
+
+function runSmaCross(px, fast, slow) {
+  var pos = [], trades = 0, cur = 0;
+  for (var d = 0; d &lt; px.length; d++) {
+    if (d &lt; slow - 1) { pos.push(0); continue; }   // 慢线还没攒够数据
+    var want = sma(px, fast, d) &gt; sma(px, slow, d) ? 1 : 0;
+    if (want !== cur) { trades++; cur = want; }    // 目标仓位变化 = 一次交易
+    pos.push(cur);
+  }
+  return { pos: pos, trades: trades };
+}</code></pre>
+  <p>逐行翻译成人话：</p>
+  <ul>
+    <li><code>sma(px, 50, d)</code>：从第 d 天往前数 50 个收盘价，求平均。</li>
+    <li><code>want = 快线 &gt; 慢线 ? 1 : 0</code>：目标仓位只有两个状态——持仓（1）或空仓（0）。</li>
+    <li><code>want !== cur</code>：只有"目标"和"当前"不同时才动作，并记一次交易。<strong>每天比较均线不算交易，仓位变化才算。</strong></li>
+    <li><code>d &lt; slow - 1</code>：慢线需要 200 天才有值，所以前 199 天强制空仓；模拟器的 <code>warmup: 200</code> 再把这段暖机期从对比窗口里切掉。</li>
+  </ul>
+  <p>模拟器还有一层"信号执行延迟"：<code>delay = 1</code> 表示第 d 天产生的信号，第 d+1 天才生效（诚实档）；<code>delay = 0</code> 表示当天收盘信号当天成交（作弊档，用了未来信息）。第 3 课会专门让你对比这两档。</p>
+  <p>最后，<code>equityOf</code> 里每次仓位变化扣一次 <code>costPerSide</code>——所以<strong>交易次数越多，成本扣得越多</strong>。这就是第 1 课的全部重点：双均线的利润 = 信号优势 − 换手成本。</p>
+
+  <h2>五、为什么是 50/200？为什么它不是"好策略"？</h2>
+  <ul>
+    <li><strong>50/200 只是惯例，不是魔法数字。</strong>50 个交易日约 2.5 个月，200 个约 10 个月；一个偏中短期，一个偏长期。换成 20/60 或 5/20，结果会变——但"哪个参数好就留哪个"正是第 4 课要抓的过拟合。</li>
+    <li><strong>滞后。</strong>慢线要 200 天才能算出来，趋势走了一大段它才转头。金叉时价格往往已经不便宜，死叉时往往已经跌了不少。</li>
+    <li><strong>震荡市假信号。</strong>价格横盘时，快线会反复上穿下穿慢线，每次都是一次买卖、一次成本。趋势策略在震荡市"反复打脸"，说的就是这个。</li>
+    <li><strong>成本敏感。</strong>一次金叉买入 + 一次死叉卖出 = 一个往返。按单边 0.3% 算，一个往返约 0.6%；十次往返就是 6% 的拖累。第 1 课模拟器让你把成本从 0 调到 0.3%，就是让你亲眼看到这笔税。</li>
+    <li><strong>它更适合当"趋势过滤器"。</strong>实务里常把双均线和其他规则组合：均线只决定"允不允许做多"，具体买什么、买多少、何时止损，另有规则。把它单独当印钞机，就是把它当成了它不是的东西。</li>
+  </ul>
+
+  <h2>六、自测（先答，再看答案）</h2>
+  <p>① 收盘价为 10、12、14，SMA3 是多少？② 金叉和死叉的定义各是什么？③ 为什么双均线要等 200 个交易日才能真正开始？④ 为什么成本对双均线伤害大，对买入持有却几乎没影响？</p>
+  <button class="reveal-btn" data-reveal="recall">写完再对照</button>
+  <div class="answer" id="recall" hidden>
+    <p>① (10+12+14)÷3 = 12。② 金叉：快线从下方穿越慢线；死叉：快线从上方穿越慢线。③ SMA200 需要 200 个收盘价才能算出第一个值；在此之前快慢关系未定义，所以模拟器把这段暖机期排除（<code>warmup</code>）。④ 双均线每次交叉都买卖一次，成本按交易次数累积；买入持有只交易一次，成本只扣一次。</p>
+  </div>
+
+  <h2>七、下一步</h2>
+  <p><strong>本卡主源推荐</strong>：掘金量化社区《<a href="https://bbs.myquant.cn/thread/85407">动量和均值回归：双均线"缠绕"策略</a>》——中文，正面讨论双均线的滞后与假信号，并给出一个改进思路；读完再回来看本卡第五节的"为什么它不是好策略"，会更具体。</p>
+  <p><strong>动手</strong>：回到 <a href="../lessons/0001-why-backtests-die-to-fees.html">第 1 课模拟器</a>，把成本从 0 调到 0.3%，看双均线的年化和交易次数怎么变；然后到 <a href="../lessons/0003-sma-crossover-and-lookahead-bias.html">第 3 课</a> 用掘金 C# 亲手实现同一套 50/200 规则。</p>
+  <p class="note"><strong>有疑问随时问老师。</strong>比如"为什么金叉时快线是 9.67，我却按 10.4 买入？"——这是信号价与成交价的区别，也是第 3 课"未来函数"的入口。把问题直接发过来。</p>
+
+  <nav class="lesson-nav">
+    <a href="glossary.html">术语表（R1）</a>
+    <a href="myquant-csharp-cheatsheet.html">掘金 C# 速查（R4）</a>
+    <a href="../lessons/0001-why-backtests-die-to-fees.html">第 1 课：成本如何杀死策略</a>
+    <a href="../lessons/0003-sma-crossover-and-lookahead-bias.html">第 3 课：双均线与作弊现场</a>
+  </nav>
+</main>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/course-nav.js"></script>
+</body>
+</html>

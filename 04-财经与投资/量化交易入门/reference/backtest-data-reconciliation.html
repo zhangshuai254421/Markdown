@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>R6 · 回测数据对不上排查清单</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <p class="eyebrow">量化交易入门 · 参考文档 R6</p>
+  <h1>回测数据对不上排查清单</h1>
+  <p class="lead">你自己的引擎 vs 掘金，同一天价格不一样、回测结果也不一样？先别怀疑代码——九成是<strong>口径</strong>不同。按下面五步排查，每一步都有明确的验证动作。</p>
+  <p class="subtitle">更新：2026-11-12 · 关联：<a href="../lessons/0005-real-cndata-akshare.html">第 5 课</a> · <a href="../lessons/0007-own-engine-part1.html">第 7 课</a> · <a href="glossary.html">术语表 R1</a></p>
+
+  <h2>第 0 步：先分清"价格对不上"还是"结果对不上"</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>现象</th><th>先查什么</th></tr></thead>
+    <tbody>
+      <tr><td>同一天的收盘价不一样</td><td>复权基准、列序、数据源（第 1-2 步）</td></tr>
+      <tr><td>价格差不多，但收益/交易次数差很多</td><td>成交时序、仓位、手续费、100 股取整（第 3-4 步）</td></tr>
+      <tr><td>两边连"哪天买卖"都不一样</td><td>复权因子是否分段变化（分红）、暖机期、信号定义（第 1、3 步）</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>第 1 步：对齐复权基准（最常见的元凶）</h2>
+  <p>"前复权"不是一张固定的历史表，它取决于<strong>以哪一天为基准</strong>：</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>数据/平台</th><th>前复权基准</th><th>含义</th></tr></thead>
+    <tbody>
+      <tr><td><strong>掘金回测</strong> <code>ADJUST_PREV</code></td><td><strong>回测结束日</strong> <code>backtest_end_time</code></td><td>定点前复权：<code>P[t] × A[t] / A[end]</code>。改回测结束日，整段历史价格会变。</td></tr>
+      <tr><td><strong>AKShare</strong> <code>adjust="qfq"</code></td><td><strong>下载时的最新交易日</strong></td><td>以当前价为锚；每次分红除息后，整段历史价格会被重新计算。</td></tr>
+    </tbody>
+  </table></div>
+  <h3>510300 的复权对账表</h3>
+  <p>下面的数字可以直接拿来核对（不复权收盘来自交易所日线，qfq 列为 2026-11 从 AKShare 下载）：</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>日期</th><th>不复权收盘</th><th>AKShare qfq</th><th>差额</th><th>差额来自</th></tr></thead>
+    <tbody>
+      <tr><td>2015-01-05</td><td>3.688</td><td>2.889</td><td>0.799</td><td>2015-2026 全部 12 次分红</td></tr>
+      <tr><td>2022-01-18</td><td>4.881</td><td>4.462</td><td>0.419</td><td>2022-2026 五次分红</td></tr>
+      <tr><td>2024-01-17</td><td>3.292</td><td>3.012</td><td>0.280</td><td>2024-2026 三次分红</td></tr>
+      <tr><td>2024-12-31</td><td>4.022</td><td>3.811</td><td>0.211</td><td>2025-2026 两次分红</td></tr>
+    </tbody>
+  </table></div>
+  <p>AKShare 的 qfq 是"加法"：<code>qfq = 不复权收盘 − 该日期之后、下载日之前的所有分红</code>。掘金回测的 <code>ADJUST_PREV</code> 是定点前复权，锚点是<strong>回测结束日</strong>：2024-12-31 的锚点不会扣 2025/2026 的 0.211，所以同一天通常比 AKShare qfq 高 0.211（掘金用复权因子乘法，可能再差几分钱）。</p>
+  <div class="warning"><p><strong>"未复权也不一样"先查这三件事：</strong>① 程序实际读取的 CSV 里，2024-12-31 收盘是 <strong>4.022</strong>（不复权）还是 <strong>3.811</strong>（qfq）？如果还是 3.811，你读的是旧 qfq 文件，不是新下载的不复权文件。② 同花顺是否真的切到了"不复权"（右键 → 不复权 / F6）？如果它显示 3.811，它还在前复权。③ 掘金是否用了 <code>ADJUST_NONE</code>？如果它用 <code>ADJUST_PREV</code>，2024-12-31 是 4.022，但 2015-01-05 会变成约 3.10，不是 3.688。</p></div>
+  <p class="note">如果三方都确认是"不复权"后仍有差异，且差异只有 0.001-0.01，那是数据商/收盘价取整的微小差异；如果差异是 0.2 左右，说明还有一方在用 qfq。用 2024-12-31 这一行做试金石最快。</p>
+  <p class="note"><strong>把掘金结束日改到 2026 后仍和 AKShare 不一样？先看差异形状：</strong>① 全区间差一个常数（如 0.123）= 掘金漏了某次分红，或锚点在除息日之前；② 越往前差得越大（几分钱到几毛）= 掘金用复权因子乘法、AKShare 用加法，或两家分红因子不同；③ 差 0.2/0.8 级别 = 一方还是 raw、另一方是 qfq。如果锚点都在 2026-01-19 之后，剩余差异应该只有几分钱；差 0.1 以上优先查锚点、分红因子、<code>bar.close</code> 是否复权。</p>
+  <p class="note">如果你在策略里用 <code>history</code>/<code>history_n</code> 取数，记得把 <code>adjust_end_time</code> 设成与 <code>backtest_end_time</code> 一致；默认是"当前时间"，在回测里会造成同一根 K 线两套复权价。</p>
+  <p class="note">改了代码里的回测结束日却没变化？掘金终端的"回测参数"如果没勾选"采用策略代码设置的回测参数"，会用终端面板的值覆盖 <code>SetBacktestConfig</code>；先看回测报告的实际起止日期。</p>
+  <div class="insight"><p><strong>验证动作</strong>：① 把掘金改成 <code>ADJUST_NONE</code>，AKShare 用 <code>adjust=""</code>，对比同一天的<strong>不复权收盘价</strong>——如果基本一致，说明数据源没问题，差异来自复权；② 把两边的 qfq 收盘价逐日相除，若比值在一段区间内恒定，就是基准日不同；若比值在分红日跳变，就是复权因子在起作用；③ 查一下标的在回测结束日之后有没有分红。</p></div>
+  <div class="warning"><p><strong>结论</strong>：这不是掘金算错了，也不是 AKShare 造假，而是"定点前复权"与"最新日前复权"的差别。要么让两边用同一个基准，要么<strong>不要直接比绝对价格</strong>——比归一化净值、日收益率或交易日期。</p></div>
+
+  <h2>第 2 步：核对 CSV 列序（第 7 课的坑）</h2>
+  <p>AKShare 的 ETF 日线列序是：<strong>日期, 开盘, 收盘, 最高, 最低, 成交量, 成交额, 振幅, 涨跌幅, 涨跌额, 换手率</strong>。注意<strong>收盘在最高/最低前面</strong>，不是常见的 OHLC 顺序。</p>
+  <div class="warning"><p>如果你按 <code>Open=f[1], High=f[2], Low=f[3], Close=f[4]</code> 读，<code>f[2]</code> 其实是<strong>收盘</strong>、<code>f[4]</code> 其实是<strong>最低</strong>——你的"收盘价"会变成"最低价"，回测结果当然完全不一样。正确的映射是 <code>Open=f[1], Close=f[2], High=f[3], Low=f[4]</code>。第 7 课的代码已按此修正；如果你跑的是旧版，重跑。</p></div>
+  <p><strong>验证动作</strong>：在读取 CSV 前先打印第一行：</p>
+  <pre><code>Console.WriteLine(lines.First());
+// 预期：日期,开盘,收盘,最高,最低,成交量,...</code></pre>
+
+  <h2>第 3 步：核对成交时序与仓位</h2>
+  <ul>
+    <li><strong>信号 vs 成交</strong>：掘金 <code>OnBar</code> 里用当日收盘算信号；回测撮合模式决定成交在"下一根 K 线开盘"（诚实）还是"当前 K 线收盘"（等于未来函数）。你自建引擎是"昨收算信号、今开成交"——和"下一根开盘"是同构的。</li>
+    <li><strong>100% 仓位</strong>：<code>OrderTargetPercent(..., 1.0, ...)</code> 在扣手续费时容易"资金不足"被拒单。用 <code>0.95</code> 留 5% 现金；拒单后如果你的代码还更新了状态，就再也不会重试。</li>
+    <li><strong>100 股整数倍</strong>：掘金按 100 股取整；第 7 课的自建引擎只做了整数股取整（<code>Math.Floor(cash / fill)</code>），没有按 100 股取整。资金 10 万、价格 4 元时，这个差异不大，但足以让收益差出几个基点。</li>
+    <li><strong>暖机期</strong>：两边都需要 200 根 K 线；确认第一笔交易发生在同一天。掘金回测从 2015-01-01 开始，200 个交易日后才可能有信号。</li>
+  </ul>
+
+  <h2>第 4 步：核对成本</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>成本项</th><th>第 7 课自建引擎</th><th>掘金回测</th><th>怎么对齐</th></tr></thead>
+    <tbody>
+      <tr><td>佣金</td><td><code>FeeRate = 0.00025</code>，买卖各一次</td><td><code>commissionRatio = 0.00025</code></td><td>已一致；注意最低 5 元是否触发</td></tr>
+      <tr><td>印花税</td><td>未建模（510300 ETF 卖出无印花税）</td><td>股票/ETF 规则不同</td><td>用 ETF 对比时可不考虑；个股要加 0.05%</td></tr>
+      <tr><td>滑点</td><td>未建模</td><td><code>slippageRatio = 0</code></td><td>两边都设 0，先比"纯信号"</td></tr>
+      <tr><td>成交价</td><td>今开</td><td>下一根 K 线开盘（默认）</td><td>确认终端回测参数的撮合模式</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>第 5 步：用正确的方法对比</h2>
+  <p>不要拿两段不同复权基准的<strong>绝对价格</strong>逐日相减。用下面三种比法，任选其一：</p>
+  <ol>
+    <li><strong>归一化净值</strong>：两边都从 1.0 开始，画净值曲线，比形状和回撤。</li>
+    <li><strong>日收益率</strong>：逐日算 <code>P[t]/P[t-1] - 1</code>，比收益序列；复权的常数比例会被消掉。</li>
+    <li><strong>交易清单</strong>：比第一笔/最后一笔交易日期、交易次数、每次买卖的方向——这比比价格更能暴露逻辑错误。</li>
+  </ol>
+  <div class="insight"><p><strong>一个数学事实</strong>：如果两段价格只差一个<strong>常数比例</strong>，那么 SMA50 和 SMA200 会同时被放大同样的倍数，<code>fast &gt; slow</code> 的判断结果不变，金叉/死叉日期应当完全一致。若你的信号日期都不一样，优先怀疑：列序读错、复权因子在区间内跳变（分红）、或暖机期没对齐。</p></div>
+
+  <h2>最短对账流程（照着做）</h2>
+  <ol>
+    <li>打印 CSV 第一行，确认列序是 <code>日期,开盘,收盘,最高,最低,...</code>。</li>
+    <li>把掘金改成 <code>ADJUST_NONE</code>，AKShare 用 <code>adjust=""</code>，对比 3 个日期的收盘价——先确认"原始数据"一致。</li>
+    <li>两边都改回前复权，确认差异只是一个比例；查回测结束日之后有没有分红。</li>
+    <li>把掘金仓位从 <code>1.0</code> 改成 <code>0.95</code>，看回测报告里的开仓次数是否从 0 变成正常值。</li>
+    <li>最后比归一化净值、日收益、交易日期，而不是绝对价格。</li>
+  </ol>
+
+  <h2>附：和同花顺对账的 7 个问题</h2>
+  <p>同花顺的回测参数在新建策略的<strong>右侧面板</strong>（回测时间、初始资金、滑点、手续费、股票池）；K 线默认是<strong>不复权</strong>，回测前要确认是否勾选前复权。和它对比时，先问清楚这 7 件事：</p>
+  <ol>
+    <li><strong>参数</strong>：同花顺的"双均线"模板默认可能是 5/20、10/30，不一定是 50/200。</li>
+    <li><strong>标的与区间</strong>：是不是同一只 510300、同样的起止日期？</li>
+    <li><strong>复权</strong>：同花顺 K 线默认不复权；回测用的是不复权还是前复权？前复权基准是哪天？</li>
+    <li><strong>成交价</strong>：信号日收盘成交（未来函数）还是次日开盘成交？</li>
+    <li><strong>成本</strong>：佣金、最低 5 元、滑点、印花税（ETF 应为 0）各是多少？</li>
+    <li><strong>仓位</strong>：满仓还是 95%？是否按 100 股取整？</li>
+    <li><strong>交易清单</strong>：两边交易次数、首末交易日期是否一致？先比清单，再比收益。</li>
+  </ol>
+  <p class="note">同花顺的"总收益"差 10+ 个百分点时，先别调策略——按上面 7 项逐条对齐，通常能定位到 1-2 项。最常见的是：参数不同、复权口径不同、成交价用了当日收盘、成本默认值不同。</p>
+
+  <h2>下一步</h2>
+  <p><strong>本卡主源推荐</strong>：掘金量化社区《<a href="https://bbs.myquant.cn/thread/2167">读取历史数据复权问题</a>》——讨论 <code>adjust_end_time</code> 与回测基准日不一致导致的回测失真；配合掘金官方 FAQ"为什么回测时推送的复权价格和行情软件上看到的不一样"阅读。</p>
+  <p><strong>动手</strong>：回到 <a href="../lessons/0007-own-engine-part1.html">第 7 课</a>，按"最短对账流程"跑一遍；把三个日期的"不复权收盘价 + 前复权收盘价"记在笔记里，再和掘金对照。</p>
+  <p class="note"><strong>有疑问随时问老师。</strong>把两边的三个数字（日期、掘金收盘、你的 CSV 收盘）发过来，我可以直接帮你判断是复权基准、列序还是成本问题。</p>
+
+  <nav class="lesson-nav">
+    <a href="glossary.html">术语表（R1）</a>
+    <a href="sma-crossover-explained.html">双均线详解（R5）</a>
+    <a href="../lessons/0005-real-cndata-akshare.html">第 5 课：真实 A 股数据</a>
+    <a href="../lessons/0007-own-engine-part1.html">第 7 课：自建 C# 引擎</a>
+  </nav>
+</main>
+<script src="../assets/course-nav.js"></script>
+</body>
+</html>

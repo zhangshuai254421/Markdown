@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>0009 · Task 组合器:WhenAll / WhenAny / Delay / Unwrap</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">DOTNET · TASK SYSTEM · 第 0009 课</p>
+  <h1>Task 组合器:WhenAll / WhenAny / Delay / Unwrap</h1>
+  <div class="meta">
+    <span class="chip">⏱ 预计 25 分钟</span>
+    <span class="chip">前置:第 0003 / 0008 课</span>
+    <span class="chip">交付:一次驾驭一批欠条——并发聚合与竞速</span>
+  </div>
+
+  <p class="lede">前八课你一直在跟<strong>单张</strong>欠条打交道。真实系统里,活都是成批的:
+  并发拉三个数据源、竞速五个镜像、给任何等待配一个节拍器。<strong>组合器</strong>就是把
+  一批欠条合成一张欠条的批量操作——合成出来的仍是欠条:可 await、可挂超时、可传人,
+  前八课的一切机制原样适用。<span class="tag tag-interview">面试高频</span>
+  <span class="tag tag-source">源码视角</span></p>
+
+  <!-- ═══════════ 0. 隔日检索 ═══════════ -->
+  <h2>〇、隔日检索<span class="muted" style="font-size:.85rem">(先测后学:0008 还剩多少?)</span></h2>
+  <div id="warmup"></div>
+
+  <!-- ═══════════ 1. 串行陷阱 ═══════════ -->
+  <h2>一、从一张到一批:先看最常见的假并发</h2>
+
+  <div class="code-label">串行 vs 并发 · 一字之差,三倍时差</div>
+<pre><code><span class="cmt">// × 串行:总耗时 = 100 + 100 + 100 = 300ms</span>
+<span class="kw">var</span> a = <span class="kw">await</span> GetAAsync();   <span class="cmt">// 等完才发起下一个</span>
+<span class="kw">var</span> b = <span class="kw">await</span> GetBAsync();
+<span class="kw">var</span> c = <span class="kw">await</span> GetCAsync();
+
+<span class="cmt">// ✓ 并发:先发起,后聚合——总耗时 ≈ max(100,100,100) = 100ms</span>
+Task&lt;<span class="kw">string</span>&gt; ta = GetAAsync();   <span class="cmt">// 三张欠条同时放出去</span>
+Task&lt;<span class="kw">string</span>&gt; tb = GetBAsync();
+Task&lt;<span class="kw">string</span>&gt; tc = GetCAsync();
+<span class="kw">string</span>[] r = <span class="kw">await</span> Task.WhenAll(ta, tb, tc);   <span class="cmt">// 合成一张再等</span></code></pre>
+
+  <div class="callout trap">
+    <p class="callout-title">口诀:先发起,后聚合</p>
+    <p>假并发的根源是把 <code>await</code> 写进了发起的节奏里——每 <code>await</code> 一次就
+    站着等一张。<code>WhenAll</code> 本身不发起任何任务,<strong>它只是等待</strong>;
+    并发发生在一个个欠条被放出去的瞬间。</p>
+  </div>
+
+  <table>
+    <thead><tr><th>组合器</th><th>合成欠条何时完成</th><th>一句话用途</th></tr></thead>
+    <tbody>
+      <tr><td><code>Task.WhenAll</code></td><td>全部结束(含故障)才结算</td><td>并发聚合全部结果</td></tr>
+      <tr><td><code>Task.WhenAny</code></td><td>第一张结束(含故障)即结算</td><td>超时、竞速、任一即可</td></tr>
+      <tr><td><code>Task.Delay</code></td><td>时间到(可被令牌打断)</td><td>节拍器、退避、超时伴跑</td></tr>
+      <tr><td><code>Unwrap()</code></td><td>把嵌套欠条拍平成一层</td><td>拆 <code>Task&lt;Task&lt;T&gt;&gt;</code></td></tr>
+    </tbody>
+  </table>
+
+  <!-- ═══════════ 2. WhenAll ═══════════ -->
+  <h2>二、WhenAll:三个事实</h2>
+
+  <p><span class="tag tag-interview">面试高频</span>会用的人多,说准的人少:</p>
+
+  <ol>
+    <li><strong>结果顺序 = 传入顺序</strong>。<code>r[0]</code> 对应第一张欠条——不是谁先完成谁在前。
+    结果定位不靠完成时序,靠位置约定。</li>
+    <li><strong>异常聚合。</strong>多张同时故障时,await 处只重抛<strong>第一个</strong>异常;
+    全部异常打包在 <code>task.Exception</code>(AggregateException)里。要逐个处理得自己拆包(0010 展开)。</li>
+    <li><strong>失败不传染,也不提前结束。</strong>某张欠条故障,其余照跑;合成欠条要等
+    <strong>所有</strong>欠条终态才结算。想要"一败即停",得自己配 CancellationToken(见当堂实验室场景 2)。</li>
+  </ol>
+
+  <p class="muted">权威语义:<a href="https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.task.whenall" target="_blank">Task.WhenAll API — Microsoft Learn</a>;
+  规范级出处是 <a href="https://learn.microsoft.com/en-us/dotnet/standard/asynchronous-programming-patterns/task-based-asynchronous-pattern-tap" target="_blank">TAP 规范</a>(组合器一节)。</p>
+
+  <!-- ═══════════ 3. WhenAny ═══════════ -->
+  <h2>三、WhenAny:竞速与超时(0003 的地基,今天兑现)</h2>
+
+  <p>两个事实,一个陷阱:</p>
+
+  <ol>
+    <li><strong>"第一张完成"包括故障与取消。</strong>合成欠条在任一张到达终态的瞬间结算——
+    那张可能是坏消息。<strong>完成 ≠ 成功</strong>,取值前先验明正身。</li>
+    <li><strong>其余欠条不会停。</strong>结算只代表"不用等了",不代表"其余取消"——
+    不收尾,它们就白跑一路(0008:每一个都是资源)。</li>
+  </ol>
+
+  <div class="code-label">竞速模板 · 谁先回用谁,其余即撤</div>
+<pre><code><span class="kw">using var</span> cts = <span class="kw">new</span> CancellationTokenSource();
+Task&lt;<span class="kw">string</span>&gt;[] mirrors = urls
+    .Select(u =&gt; _http.GetStringAsync(u, cts.Token))   <span class="cmt">// 全部带着令牌出发</span>
+    .ToArray();
+
+Task finished = <span class="kw">await</span> Task.WhenAny(mirrors);           <span class="cmt">// 第一张终态即回</span>
+cts.Cancel();                                          <span class="cmt">// 撤回其余(0003:超时≠取消的反向运用)</span>
+
+<span class="kw">string</span> winner = <span class="kw">await</span> (Task&lt;<span class="kw">string</span>&gt;)finished;          <span class="cmt">// 取胜者结果(或重抛其异常)</span></code></pre>
+
+  <div class="callout">
+    <p class="callout-title">连回 0003</p>
+    <p>超时模式 <code>WhenAny(work, Task.Delay(timeout))</code> 就是这个模板的特例:
+    Delay 扮演"陪跑者"。0003 讲过它的坑(弃等 ≠ 取消、Delay 欠条泄漏)——今天你看到的是
+    同一枚硬币的另一面:WhenAny 之后,<strong>收尾永远是你的义务</strong>。</p>
+  </div>
+
+  <!-- ═══════════ 4. Delay 与 Unwrap ═══════════ -->
+  <h2>四、Delay 与 Unwrap:两个小件</h2>
+
+  <p><strong>Delay:时间驱动的欠条。</strong>用 0008 的判决尺一秒判明它与 <code>Thread.Sleep</code>
+  的区别:Sleep <strong>占一个工人干等</strong>;Delay 是真异步,<strong>零线程</strong>。
+  用途:轮询节拍、重试退避(每次 Delay 加倍)、给 WhenAny 当超时陪跑;第二个参数传
+  <code>CancellationToken</code> 可被提前打断。</p>
+
+  <p><strong>Unwrap:嵌套欠条拍平器。</strong>嵌套从哪来?两个工厂行为不同:</p>
+
+  <div class="code-label">经典事故:StartNew 不解包</div>
+<pre><code><span class="cmt">// Task.Run:重载"内置" Unwrap → 拿到 Task&lt;string&gt;(0008 埋的伏笔)</span>
+Task&lt;<span class="kw">string</span>&gt; t1 = Task.Run(<span class="kw">async</span> () =&gt; <span class="kw">await</span> GetAsync());
+
+<span class="cmt">// Task.Factory.StartNew:历史遗留,不解包 → 拿到 Task&lt;Task&lt;string&gt;&gt;!</span>
+Task&lt;Task&lt;<span class="kw">string</span>&gt;&gt; t2 = Task.Factory.StartNew(<span class="kw">async</span> () =&gt; GetAsync());
+
+<span class="kw">await</span> t2;              <span class="cmt">// × 只完成了"外层"——内层欠条还悬着!</span>
+<span class="kw">await</span> t2.Unwrap();     <span class="cmt">// ✓ 拍平成 Task&lt;string&gt;,才是真欠条</span></code></pre>
+
+  <p class="muted">两个工厂的完整分野:<a href="https://devblogs.microsoft.com/dotnet/task-run-vs-task-factory-startnew/" target="_blank">Task.Run vs Task.Factory.StartNew — Stephen Toub</a>。
+  一句话:现代代码用 <code>Task.Run</code>;见到 <code>StartNew</code> 包 async 委托,先找嵌套。</p>
+
+  <!-- ═══════════ 5. 实验室 ═══════════ -->
+  <h2>五、当堂实验室:四种场景的账本</h2>
+
+  <p>依次播放(时间按比例压缩)。盯住<strong>徽章</strong>(合成欠条何时结算)和
+  <strong>结算后仍在生长的时间条</strong>(其余欠条的命运):</p>
+
+  <div id="lab"></div>
+  <script src="../assets/combinator-lab.js"></script>
+  <script>
+    CombinatorLab.render(document.getElementById('lab'), {
+      title: 'Task 组合器实验室',
+      scenarios: [
+        {
+          name: '① WhenAll · 正常并发',
+          mode: 'WhenAll',
+          summary: '总耗时 = max(1200, 2000, 1600) = 2000ms,而非相加 4800ms——"先发起后聚合"的复利。结果按传入顺序 [A, B, C]。',
+          tasks: [
+            { name: 'A', ms: 1200, fail: false },
+            { name: 'B', ms: 2000, fail: false },
+            { name: 'C', ms: 1600, fail: false }
+          ]
+        },
+        {
+          name: '② WhenAll · 遇故障',
+          mode: 'WhenAll',
+          summary: 'B 在 700ms 就故障,但合成欠条等到 2400ms 全部结束才结算——失败不传染、不提前结束;await 处重抛第一个异常,全部藏在 AggregateException。',
+          tasks: [
+            { name: 'A', ms: 1000, fail: false },
+            { name: 'B', ms: 700,  fail: true },
+            { name: 'C', ms: 2400, fail: false }
+          ]
+        },
+        {
+          name: '③ WhenAny · 竞速',
+          mode: 'WhenAny',
+          summary: '合成欠条在 600ms 即结算(B 胜),A 与 C 继续跑到各自结束——生产代码此刻就该 Cancel 其余(竞速模板的收尾义务)。',
+          tasks: [
+            { name: 'A', ms: 1200, fail: false },
+            { name: 'B', ms: 600,  fail: false },
+            { name: 'C', ms: 2000, fail: false }
+          ]
+        },
+        {
+          name: '④ WhenAny · 胜者是故障',
+          mode: 'WhenAny',
+          summary: '第一张"完成"的是故障的 A——完成 ≠ 成功!await 胜者会重抛它的异常;先验明正身,再取值。',
+          tasks: [
+            { name: 'A', ms: 500,  fail: true },
+            { name: 'B', ms: 1500, fail: false }
+          ]
+        }
+      ]
+    });
+  </script>
+
+  <div class="callout">
+    <p class="callout-title">四个场景,四条账</p>
+    <p>①并发值 max 不值和;②故障不传染但要等全部;③结算不等于其余停止;④完成的可能是坏消息。
+    这四条就是 WhenAll/WhenAny 的全部行为边界——面试考的从不超出这四条。</p>
+  </div>
+
+  <!-- ═══════════ 6. 检索练习 ═══════════ -->
+  <h2>六、检索练习<span class="muted" style="font-size:.85rem">(不看上文,凭记忆答)</span></h2>
+  <div id="quiz"></div>
+
+  <!-- ═══════════ 7. 复习钩子 ═══════════ -->
+  <h2>七、明天的回忆任务<span class="muted" style="font-size:.85rem">(30 秒,不翻书)</span></h2>
+  <details class="qa">
+    <summary>① 假并发的根源与口诀?</summary>
+    把 await 写进发起节奏 = 每次站着等一张。口诀:先发起,后聚合;WhenAll 只是等待,不发起。
+  </details>
+  <details class="qa">
+    <summary>② WhenAll 三事实?</summary>
+    结果按传入顺序;异常聚合成 AggregateException(await 只重抛第一个);失败不传染、等全部结束才结算。
+  </details>
+  <details class="qa">
+    <summary>③ WhenAny 的"完成 ≠ 成功"与收尾义务?</summary>
+    第一张终态(含故障/取消)即结算;await 胜者可能重抛异常,先判断再取值;其余欠条要主动 Cancel 或收尾。
+  </details>
+
+  <!-- ═══════════ 尾部 ═══════════ -->
+  <div class="callout ask no-print">
+    <p class="callout-title">卡住了?随时问你的老师</p>
+    <p>"WhenAll 混入取消态的任务,合成欠条算故障还是取消?""竞速里想限制失败重试次数怎么编排?"
+    "StartNew 还有什么坑值得知道?"——回 Claude Code 直接问,组合器的边角正是面试拉开差距的地方。</p>
+  </div>
+
+  <div class="next-up">
+    <p class="next-title">▸ 下一课:<a href="0010-exception-handling-panorama.html">0010 · 异常处理全景:AggregateException 与 await 的解包 →</a></p>
+    <p>WhenAll 把异常打包成 <code>AggregateException</code>,await 又只重抛第一个——
+    异常世界的两套规则将在下一课系统展开:打包/解包/保存重抛(ExceptionDispatchInfo)、
+    <code>WhenAllException</code> 的正确拆法。复习工具:
+    <a href="../reference/combinators-速查卡.html">组合器速查卡</a>(新增)。</p>
+  </div>
+
+  <hr class="footrule">
+  <footer class="course-foot">
+    <span>dotnet-Task异步学习 · 第 0009 课 · 主推阅读:<a href="https://learn.microsoft.com/en-us/dotnet/standard/asynchronous-programming-patterns/task-based-asynchronous-pattern-tap" target="_blank">TAP 规范 · 组合器部分</a></span>
+    <span><a href="0008-threadpool-taskrun-valuetask.html">上一课</a> · <a href="index.html">目录</a> · <a href="../reference/timeout-速查卡.html">超时卡</a> · <a href="../reference/combinators-速查卡.html">组合器卡</a></span>
+  </footer>
+
+</div>
+<script src="../assets/quiz.js"></script>
+<script>
+  // ── 隔日检索热身(复习 0008)──
+  TeachQuiz.render(document.getElementById('warmup'), [
+    {
+      q: '【复习】判决尺第一问问的是?',
+      options: ['真正干活的是谁', '工人还剩下几个', '队列积压了多少', '该不该开新线程'],
+      answer: 0,
+      explain: 'CPU → Task.Run 挪走(UI 场景);外部设备 → await,零线程。'
+    },
+    {
+      q: '【复习】Task.Run 包同步 IO 的代价?',
+      options: ['占工人干等慢性失血', '自动切换到专用线程', '能把等待时间缩短半', '只多付一次内存拷贝'],
+      answer: 0,
+      explain: '工人被派去"干等"——占着不干活,池子慢性放血。'
+    },
+    {
+      q: '【复习】ASP.NET Core 服务端里,Task.Run?',
+      options: ['不该用,请求已是工人', '该多用,能平摊计算压力', '只在控制器动作里必须', '只在无返回值场合必须'],
+      answer: 0,
+      explain: '请求本就跑在池工人上:挪个位置还多付调度开销。'
+    },
+    {
+      q: '【复习】ValueTask 的核心纪律?',
+      options: ['只能被 await 一次消费', '可以反复 await 取结果', '任何场景都优先于 Task', '必须配合 Task.Run 使用'],
+      answer: 0,
+      explain: '只 await 一次、完成前不混用、仅热路径;一般 API 用 Task。'
+    }
+  ]);
+
+  // ── 本课检索练习 ──
+  TeachQuiz.render(document.getElementById('quiz'), [
+    {
+      q: 'WhenAll 返回的结果数组,顺序由谁决定?',
+      options: ['传入顺序一一对应', '完成先后实时排位', '任务名称排序输出', '由线程池随机安排'],
+      answer: 0,
+      explain: 'r[i] 对应第 i 张传入欠条——定位靠位置约定,不靠完成时序。'
+    },
+    {
+      q: 'WhenAll 中某张欠条故障,其余任务?',
+      options: ['继续跑完异常聚合', '立刻取消全部任务', '跳过失败返回部分', '重新执行失败任务'],
+      answer: 0,
+      explain: '失败不传染、不提前结束;合成欠条等全部终态才结算,异常打包进 AggregateException。'
+    },
+    {
+      q: 'WhenAny 返回"第一张完成",包括?',
+      options: ['失败取消也算完成', '仅成功完成的欠条', '仅最先发起的那张', '仅耗时最短的那张'],
+      answer: 0,
+      explain: '任一终态即结算——完成 ≠ 成功,取值前先验明正身。'
+    },
+    {
+      q: 'Task.Factory.StartNew(async () => …) 返回的是?',
+      options: ['嵌套欠条需再解包', '已自动解包的一层', '编译器报错不接受', '同步执行完毕的任务'],
+      answer: 0,
+      explain: 'StartNew 不解包 → Task<Task<T>>;await 只完成外层。用 .Unwrap() 或改用 Task.Run。'
+    }
+  ]);
+</script>
+</body>
+</html>

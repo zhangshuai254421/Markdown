@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>0001 · Task 是一张欠条:TCS 初见</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">DOTNET · TASK SYSTEM · 第 0001 课</p>
+  <h1>Task 是一张欠条:亲手握住"销账权"</h1>
+  <div class="meta">
+    <span class="chip">⏱ 预计 20 分钟</span>
+    <span class="chip">前置:会用 async/await 即可</span>
+    <span class="chip">交付:欠条心智模型 + 回调转 Task 模板</span>
+  </div>
+
+  <p class="lede">你写过几千次 <code>await</code>。但停下来想一个问题:<strong>Task 到底是什么?</strong>
+  它不是线程,不是"正在跑的任务",甚至本身不执行任何代码。它只是一张<strong>欠条</strong>(IOU)——
+  一张写着"未来某个时刻,会有一个结果"的凭据。而 <code>TaskCompletionSource</code>(下称 TCS),
+  就是让你<strong>亲手写下并销掉这张欠条</strong>的那支笔。</p>
+
+  <!-- ═══════════ 1. 欠条模型 ═══════════ -->
+  <h2>一、欠条的两半</h2>
+
+  <p>每张 Task 欠条都有两半,分属两个角色:</p>
+
+  <div class="iou">
+    <div class="iou-node">
+      <span class="n-title">生产者 Producer</span>
+      <span class="n-sub">出票人:承诺"结果会来",并在结果到来时调用 Set* 销账</span>
+    </div>
+    <div class="iou-arrow">SetResult()<br>完成欠条</div>
+    <div class="iou-node" style="border-style:dashed">
+      <span class="n-title">Task 欠条</span>
+      <span class="n-sub">一张凭据:完成前"什么都没有",完成后携带结果/异常/取消</span>
+    </div>
+    <div class="iou-arrow">await<br>登记续延</div>
+    <div class="iou-node">
+      <span class="n-title">消费者 Consumer</span>
+      <span class="n-sub">持票人:await 欠条,完成后恢复执行(即"续延")</span>
+    </div>
+  </div>
+
+  <p>关键认知有三个,先记住,后面的模拟器会逐一验证:</p>
+  <p>① <em>欠条完成前,里面什么都没有</em>——没有值、没有线程、没有"正在计算的东西"。<br>
+  ② <em>同一张欠条可以给很多人持有了等待</em>(多个 awaiter),但销账只能有一次。<br>
+  ③ <em>谁销账,await 后面的代码默认就在谁的线程上继续跑</em>。</p>
+
+  <p class="muted">依据:官方 TAP 规范将 Task 定义为"一个将来可用的操作的占位符"——
+  <a href="https://learn.microsoft.com/en-us/dotnet/standard/asynchronous-programming-patterns/task-based-asynchronous-pattern-tap" target="_blank">Task-based Asynchronous Pattern(Microsoft Learn)</a>。</p>
+
+  <!-- ═══════════ 2. 四种出票人 ═══════════ -->
+  <h2>二、Task 从哪来?——四种"出票人"</h2>
+
+  <p>你每天见到的 Task,都来自下面四条产线。区别只在:<strong>谁替你握着销账权</strong>。</p>
+
+  <table>
+    <thead>
+      <tr><th>出票方式</th><th>销账人是谁</th><th>典型场景</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>async</code> 方法</td>
+        <td>编译器生成的状态机(替你出票)</td>
+        <td>你自己的业务逻辑</td>
+      </tr>
+      <tr>
+        <td><code>Task.Run(...)</code></td>
+        <td>线程池工人干完活后出票</td>
+        <td>CPU 密集计算</td>
+      </tr>
+      <tr>
+        <td>BCL 的 IO 类(<code>HttpClient</code>、<code>FileStream</code>…)</td>
+        <td>操作系统完成通知后出票</td>
+        <td>网络、磁盘等 IO</td>
+      </tr>
+      <tr>
+        <td><strong><code>TaskCompletionSource</code></strong></td>
+        <td><strong>你自己</strong>,在任意时机、任意线程</td>
+        <td>包装回调 API、超时控制、事件桥接</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>看清这张表,一句话就立起来了:<em>async/await 和 Task.Run 都只是"出票"的便利封装;
+  TCS 才是出票权本身。</em>你以前觉得 TCS 高级,只是因为前三种都替你把笔拿好了。</p>
+
+  <div class="callout">
+    <p class="callout-title"><span class="tag tag-source">源码视角</span>为什么每个框架里都有 TCS</p>
+    <p>SignalR 等待连接建立、ASP.NET Core 等待请求生命周期事件、gRPC 等待流关闭——这些场景的共同点是:
+    <strong>"完成"这个事件由外部世界触发,框架必须亲手控制欠条何时销账</strong>。
+    前三种出票方式都做不到"由我决定何时完成",只有 TCS 可以。
+    你可以现在就验证:在任意反编译工具里搜 <code>TaskCompletionSource</code>,数不过来。</p>
+  </div>
+
+  <!-- ═══════════ 3. TCS 五件套 ═══════════ -->
+  <h2>三、TCS 初见:五件套</h2>
+
+  <div class="code-label">最小可运行示例 · Console</div>
+<pre><code>var tcs = new TaskCompletionSource&lt;string&gt;();
+
+// 消费者:await 这张欠条(此刻没有任何线程被阻塞)
+var printTask = Task.Run(async () =&gt;
+{
+    var result = await tcs.Task;          // 暂停,让出线程
+    Console.WriteLine($"收到: {result}"); // ← 这行是"续延"
+});
+
+Console.WriteLine("欠条已开出,还没销账…");
+
+tcs.SetResult("欠条已还");                 // ← 生产者销账,续延立刻恢复
+
+await printTask;</code></pre>
+
+  <p>五件套全貌(本课只需认识,第 0002 课逐个深挖):</p>
+
+  <table>
+    <thead><tr><th>成员</th><th>作用</th><th>一句话关键细节</th></tr></thead>
+    <tbody>
+      <tr><td><code>.Task</code></td><td>取出欠条</td><td>读一百次都是<strong>同一个</strong> Task,可交给任意多人 await</td></tr>
+      <tr><td><code>SetResult(v)</code></td><td>成功销账</td><td>只能调一次;重复调用抛 <code>InvalidOperationException</code></td></tr>
+      <tr><td><code>SetException(ex)</code></td><td>记坏账</td><td>await 处会<strong>重新抛出</strong>这个异常,而不是返回默认值</td></tr>
+      <tr><td><code>SetCanceled()</code></td><td>注销</td><td>await 处抛 <code>TaskCanceledException</code></td></tr>
+      <tr><td><code>TrySet*(...)</code></td><td>安全版销账</td><td>返回 <code>bool</code> 不抛异常;竞态场景(如已有超时兜底)用它</td></tr>
+    </tbody>
+  </table>
+
+  <p class="muted">API 依据:<a href="https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.taskcompletionsource-1" target="_blank">TaskCompletionSource&lt;TResult&gt;(Microsoft Learn)</a>。顺带一提:.NET 5+ 还有非泛型版 <code>TaskCompletionSource</code>,专门产无值欠条 <code>Task</code>。</p>
+
+  <!-- ═══════════ 4. 模拟器 ═══════════ -->
+  <h2>四、动手玩:验证三个关键认知</h2>
+
+  <p>下面是一个可交互模拟器,左边是生产者,右边是消费者。请按顺序做三个实验:</p>
+  <p><strong>实验 1</strong>:直接点绿色按钮 <code>SetResult</code> → 观察 Task 状态和消费者何时"活过来"。<br>
+  <strong>实验 2</strong>:重置后点红色按钮 <code>SetException</code> → 观察异常如何送到 await 处。<br>
+  <strong>实验 3</strong>:重置、完成一次后,再点 <code>再 Set 一次</code> → 记住那个异常的名字。</p>
+
+  <div id="sim"></div>
+  <script src="../assets/tcs-simulator.js"></script>
+  <script>
+    TcsSimulator.render(document.getElementById('sim'), {
+      resultCall: 'tcs.SetResult(36.5)',
+      resultEcho: '36.5',
+      exceptionCall: 'tcs.SetException(ex)',
+      exceptionName: 'TimeoutException',
+      exceptionEcho: 'TimeoutException: 设备未响应'
+    });
+  </script>
+
+  <div class="callout">
+    <p class="callout-title">实验后对照答案</p>
+    <p>① 完成前消费者<strong>不占任何线程</strong>——await 暂停时,线程早回线程池干别的活了("异步等待"的精髓)。<br>
+    ② 异常销账时,await 处<strong>重新抛出</strong>原异常——欠条上记的是坏账,不是默认值。<br>
+    ③ 二次销账抛 <code>InvalidOperationException</code>——欠条只能销一次,这是 TCS 的铁律。</p>
+  </div>
+
+  <!-- ═══════════ 5. 实战模板 ═══════════ -->
+  <h2>五、实战模板:把回调 API 变成 awaitable Task</h2>
+
+  <p><span class="tag tag-interview">面试高频</span>这是 TCS 最重要的实战模式,也是源码里出现频率最高的用法。
+  场景:老式硬件 SDK(很多消息中间件、串口 SDK 至今如此)只有回调 API:</p>
+
+  <div class="code-label">改造前 · 只有回调的老 SDK</div>
+<pre><code><span class="cmt">// 结果只能通过回调送出,调用方被迫嵌套、分散、难以组合</span>
+public class LegacyTemperatureSensor
+{
+    public void ReadTemperature(
+        Action&lt;double&gt; onSuccess,
+        Action&lt;Exception&gt; onError)
+        =&gt; /* 内部发起硬件读取,结果走回调 */;
+}</code></pre>
+
+  <div class="code-label">改造后 · TCS 桥接,调用端回归自然 async/await</div>
+<pre><code>public class TemperatureSensorBridge
+{
+    private readonly LegacyTemperatureSensor _sensor = new();
+
+    public Task&lt;double&gt; ReadTemperatureAsync()
+    {
+        var tcs = new TaskCompletionSource&lt;double&gt;();  <span class="hl"> // ① 开一张空白欠条</span>
+
+        _sensor.ReadTemperature(
+            onSuccess: value =&gt; tcs.SetResult(value),  <span class="hl"> // ② 成功回调 → 销账</span>
+            onError:   ex    =&gt; tcs.SetException(ex)); <span class="hl"> // ③ 失败回调 → 记坏账</span>
+
+        return tcs.Task;                               <span class="hl"> // ④ 欠条交出去,任何人可 await</span>
+    }
+}
+
+// 调用端:从此和普通异步方法毫无区别
+double temp = await bridge.ReadTemperatureAsync();
+Console.WriteLine($"当前温度 {temp}℃");</code></pre>
+
+  <p>注意 ①:欠条开出来之后、回调到达之前,<strong>整个系统没有任何一条线程在等待或睡眠</strong>。
+  等待的成本是零——这正是欠条模型与"开线程干等"的本质区别。</p>
+
+  <div class="callout warn">
+    <p class="callout-title"><span class="tag tag-interview">面试高频</span>为什么不直接 Task.Run 包一层?</p>
+    <p>有人会写 <code>Task.Run(() =&gt; { 手动等回调完成 })</code>——这是用一条线程池线程去<strong>睡觉等回调</strong>,
+    白白占用资源,还引入同步等待的死锁风险。TCS 方案零线程、零阻塞。
+    面试被问"Task 和线程什么关系"时,这句就是标准答案的核心:
+    <em>Task 是对未来结果的凭据,不是线程;一个 Task 的完成可以完全不占用任何线程。</em>
+    深度解释见 Stephen Toub 的 <a href="https://devblogs.microsoft.com/dotnet/how-async-await-really-works/" target="_blank">Async/Await FAQ</a>。</p>
+  </div>
+
+  <div class="callout trap">
+    <p class="callout-title">提前埋一个坑位(第 0003 课引爆)</p>
+    <p>上面的模板有个隐患:如果硬件永远不回调,这张欠条就<strong>永远悬挂</strong>,
+    调用方 await 到天荒地老,连携带的引用都释放不掉。解法是超时兜底——
+    .NET 6+ 一行 <code>task.WaitAsync(TimeSpan)</code>,或手写 TCS+Timer。这是下一阶段的主菜。</p>
+  </div>
+
+  <!-- ═══════════ 6. 检索练习 ═══════════ -->
+  <h2>六、检索练习<span class="muted" style="font-size:.85rem">(不看上文,凭记忆答)</span></h2>
+  <div id="quiz"></div>
+  <script src="../assets/quiz.js"></script>
+  <script>
+    TeachQuiz.render(document.getElementById('quiz'), [
+      {
+        q: 'Task 最准确的心智模型是?',
+        options: ['一张等待出票人销账的欠条', '一个正在运行中的线程引用', '一段自动并行执行的程序码', '一个装着未来结果的小盒子'],
+        answer: 0,
+        explain: 'Task 本身不执行任何代码,它只是"未来会有结果"的凭据。"小盒子"的迷惑性在于:完成之前盒子里什么都没有,是"未来才有",不是"现在装着"。'
+      },
+      {
+        q: '对同一个 tcs 调用两次 SetResult,会发生?',
+        options: ['第二次调用直接抛出异常', '第二次调用覆盖旧的结果', '第二次调用被静默地忽略', '第二次调用返回 false 值'],
+        answer: 0,
+        explain: 'Set* 系列重复调用抛 InvalidOperationException;返回 false 的是 TrySet* 系列(不抛异常的安全版)。两者别混。'
+      },
+      {
+        q: 'await 恢复时,后续代码默认在哪个线程执行?',
+        options: ['调用 SetResult 的那个线程', '一个新建的专用后台线程', '线程池中任意一个空闲线程', '主线程也就是 UI 的线程'],
+        answer: 0,
+        explain: '默认"内联"在完成者线程上继续。例外:await 捕获了 SynchronizationContext/UI 上下文时会另作调度——这是第 0007 课的主角。'
+      },
+      {
+        q: 'tcs.Task 属性被读取 100 次,会?',
+        options: ['每次都返回同一个 Task 对象', '每次读取都创建全新的 Task', '只有第一次读取能拿到对象', '完成后读取会返回空对象'],
+        answer: 0,
+        explain: '.Task 永远是同一个实例。所以一张欠条可以同时交给任意多个消费者 await——"广播完成"模式的基础。'
+      }
+    ]);
+  </script>
+
+  <!-- ═══════════ 7. 复习钩子 ═══════════ -->
+  <h2>七、明天的回忆任务<span class="muted" style="font-size:.85rem">(30 秒,不翻书)</span></h2>
+  <p>明天任何空闲时刻(通勤、泡茶),凭记忆回答这三个问题,再回来对答案:</p>
+  <details class="qa">
+    <summary>① 欠条的两半分别是谁?各自一句话职责?</summary>
+    生产者:承诺结果会来,负责 Set* 销账。消费者:await 欠条,完成后续延恢复。
+  </details>
+  <details class="qa">
+    <summary>② TCS 五件套的名字?</summary>
+    .Task、SetResult、SetException、SetCanceled、TrySet*(安全版)。
+  </details>
+  <details class="qa">
+    <summary>③ 为什么"Task.Run 包回调"是坏主意?</summary>
+    它让一条线程池线程睡觉干等回调;TCS 零线程零阻塞。Task ≠ 线程。
+  </details>
+
+  <!-- ═══════════ 尾部 ═══════════ -->
+  <div class="callout ask no-print">
+    <p class="callout-title">卡住了?随时问你的老师</p>
+    <p>任何"为什么"都值得问——比如"为什么 await 能暂停又恢复""SetResult 内部发生了什么"。
+    回到 Claude Code 直接问即可,这正是教学流程的一部分。</p>
+  </div>
+
+  <div class="next-up">
+    <p class="next-title">▸ 下一课:<a href="0002-tcs-set-vs-try-and-continuations.html">0002 · TCS 三板斧:销账的姿势与续延的去向 →</a></p>
+    <p>TCS 三板斧深挖:Set* 与 Try* 的竞态抉择、单次完成语义的实现内幕、以及改变续延执行位置的 <code>RunContinuationsAsynchronously</code>。先把本课的速查卡过一眼:<a href="../reference/tcs-速查卡.html">TaskCompletionSource 速查卡</a>。</p>
+  </div>
+
+  <hr class="footrule">
+  <footer class="course-foot">
+    <span>dotnet-Task异步学习 · 第 0001 课 · 主推阅读:<a href="https://devblogs.microsoft.com/dotnet/how-async-await-really-works/" target="_blank">How async/await really works — Stephen Toub</a></span>
+    <span><a href="index.html">课程目录</a> · <a href="../reference/tcs-速查卡.html">速查卡</a> · <span class="muted">MISSION.md 驱动本课程</span></span>
+  </footer>
+
+</div>
+</body>
+</html>

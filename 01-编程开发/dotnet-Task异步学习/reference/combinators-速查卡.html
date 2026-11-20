@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Task 组合器速查卡</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">REFERENCE · 速查卡 · 可打印</p>
+  <h1>Task 组合器速查卡</h1>
+  <div class="meta">
+    <span class="chip">来源:第 0009 课</span>
+    <span class="chip">主推阅读:<a href="https://learn.microsoft.com/en-us/dotnet/standard/asynchronous-programming-patterns/task-based-asynchronous-pattern-tap" target="_blank">TAP 规范 · 组合器</a></span>
+  </div>
+
+  <p class="lede">一句话:组合器把一批欠条<strong>合成一张欠条</strong>——
+  合成产物仍是欠条:可 await、可挂超时、可传人。口诀:<strong>先发起,后聚合</strong>。</p>
+
+  <h2>一、四组合器总表</h2>
+  <table>
+    <thead><tr><th>组合器</th><th>合成欠条何时结算</th><th>结果</th><th>异常</th><th>典型用途</th></tr></thead>
+    <tbody>
+      <tr><td><code>Task.WhenAll</code></td><td>全部终态才结算</td><td>数组,按<strong>传入顺序</strong></td><td>聚合成 AggregateException;await 重抛第一个</td><td>并发聚合全部结果</td></tr>
+      <tr><td><code>Task.WhenAny</code></td><td>第一张终态即结算</td><td>先完成的那张(嵌套一层)</td><td>结算不含异常;胜者可能故障</td><td>超时、竞速、任一即可</td></tr>
+      <tr><td><code>Task.Delay</code></td><td>时间到(令牌可打断)</td><td>无结果</td><td>令牌取消 → Canceled</td><td>节拍、退避、超时陪跑</td></tr>
+      <tr><td><code>Unwrap()</code></td><td>随内层欠条</td><td>拍平一层</td><td>透传内层</td><td>拆 <code>Task&lt;Task&lt;T&gt;&gt;</code></td></tr>
+    </tbody>
+  </table>
+
+  <h2>二、WhenAll 三事实 + 串行陷阱</h2>
+  <table>
+    <tbody>
+      <tr><td>①</td><td>结果顺序 = 传入顺序(定位靠位置,不靠完成时序)</td></tr>
+      <tr><td>②</td><td>异常聚合:await 只重抛第一个;全部在 <code>task.Exception</code> 里待拆(0010)</td></tr>
+      <tr><td>③</td><td>失败不传染、不提前结束;要"一败即停"须自己配 CancellationToken</td></tr>
+    </tbody>
+  </table>
+<pre><code><span class="cmt">// × 串行(总耗时相加)         // ✓ 并发(总耗时 ≈ max)</span>
+<span class="kw">var</span> a = <span class="kw">await</span> GetAAsync();      <span class="kw">var</span> ta = GetAAsync();
+<span class="kw">var</span> b = <span class="kw">await</span> GetBAsync();      <span class="kw">var</span> tb = GetBAsync();
+<span class="kw">var</span> c = <span class="kw">await</span> GetCAsync();      <span class="kw">var</span> tc = GetCAsync();
+                                <span class="kw">var</span> r  = <span class="kw">await</span> Task.WhenAll(ta, tb, tc);</code></pre>
+
+  <h2>三、WhenAny 竞速模板 + 两个陷阱</h2>
+<pre><code><span class="kw">using var</span> cts = <span class="kw">new</span> CancellationTokenSource();
+Task&lt;<span class="kw">string</span>&gt;[] mirrors = urls.Select(u =&gt; _http.GetStringAsync(u, cts.Token)).ToArray();
+Task finished = <span class="kw">await</span> Task.WhenAny(mirrors);
+cts.Cancel();                                    <span class="cmt">// 收尾:撤回其余</span>
+<span class="kw">string</span> winner = <span class="kw">await</span> (Task&lt;<span class="kw">string</span>&gt;)finished;    <span class="cmt">// 或重抛胜者异常</span></code></pre>
+  <div class="callout warn">
+    <p class="callout-title">陷阱两枚</p>
+    <p>① <strong>完成 ≠ 成功</strong>:第一张终态含故障/取消;await 胜者前先验明正身。<br>
+    ② <strong>结算 ≠ 其余停止</strong>:不 Cancel/收尾,其余欠条白跑一路(0008:每个都是资源)。
+    0003 的 <code>WhenAny(work, Task.Delay(t))</code> 超时模式即本模板特例。</p>
+  </div>
+
+  <h2>四、Delay vs Sleep · 嵌套欠条来源</h2>
+  <table>
+    <thead><tr><th></th><th>Task.Delay</th><th>Thread.Sleep</th></tr></thead>
+    <tbody>
+      <tr><td>线程占用</td><td><strong>零线程</strong>(真异步)</td><td>占工人干等(0008 判决尺)</td></tr>
+      <tr><td>可打断</td><td>传 CancellationToken 可提前取消</td><td>不可</td></tr>
+      <tr><td>用途</td><td>节拍、退避、超时陪跑</td><td>仅极特殊同步场景</td></tr>
+    </tbody>
+  </table>
+  <table>
+    <thead><tr><th>工厂</th><th>async 委托的返回</th><th>结论</th></tr></thead>
+    <tbody>
+      <tr><td><code>Task.Run</code></td><td>内置解包 → <code>Task&lt;T&gt;</code></td><td>✓ 现代默认(0008)</td></tr>
+      <tr><td><code>Task.Factory.StartNew</code></td><td><strong>不解包</strong> → <code>Task&lt;Task&lt;T&gt;&gt;</code></td><td>× 经典事故;修复:<code>.Unwrap()</code></td></tr>
+    </tbody>
+  </table>
+
+  <h2>五、选型决策</h2>
+  <table>
+    <tbody>
+      <tr><td>要全部结果</td><td>→ <code>WhenAll</code>(记住三事实)</td></tr>
+      <tr><td>要最快一个 / 超时兜底</td><td>→ <code>WhenAny</code> + 令牌收尾</td></tr>
+      <tr><td>要节拍 / 退避 / 陪跑</td><td>→ <code>Task.Delay</code>(勿用 Sleep)</td></tr>
+      <tr><td>见到嵌套欠条</td><td>→ <code>.Unwrap()</code> 或换 <code>Task.Run</code></td></tr>
+      <tr><td>要"一败即停"的并发</td><td>→ WhenAll + 共享 CTS:任一故障即 Cancel 其余(故障后检查其余状态)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>六、术语表增量</h2>
+  <table>
+    <tbody>
+      <tr><td><strong>组合器 combinator</strong></td><td>把一批欠条合成一张的批量操作;产物仍是欠条</td></tr>
+      <tr><td><strong>AggregateException</strong></td><td>异常容器:WhenAll 的打包格式;<code>InnerExceptions</code> 可枚举(0010 展开)</td></tr>
+      <tr><td><strong>竞速 racing</strong></td><td>多路并发取最先;必须配收尾(取消其余)</td></tr>
+      <tr><td><strong>退避 backoff</strong></td><td>重试间隔递增(常 ×2 + Delay);配组合器可做指数退避</td></tr>
+      <tr><td><strong>嵌套欠条</strong></td><td><code>Task&lt;Task&lt;T&gt;&gt;</code>:外层完成 ≠ 内层完成;StartNew 的历史遗留</td></tr>
+    </tbody>
+  </table>
+
+  <h2>七、面试自测五问</h2>
+  <details class="qa">
+    <summary>① 先 await 再发起下一个,错在哪?</summary>
+    那是串行:总耗时相加。并发 = 先把欠条全部放出去,再 WhenAll 聚合;WhenAll 本身不发起任务。
+  </details>
+  <details class="qa">
+    <summary>② WhenAll 五个任务各抛一个异常,await 抛几个?</summary>
+    重抛第一个;其余四个在合成欠条的 AggregateException.InnerExceptions 里。要全部处理需拆包。
+  </details>
+  <details class="qa">
+    <summary>③ WhenAny 之后其余欠条的状态?</summary>
+    仍在运行。结算只是"不再等待";不收尾就浪费资源——竞速模板里 cts.Cancel() 是标准动作。
+  </details>
+  <details class="qa">
+    <summary>④ Task.Delay(Timeout.Infinite, ct) 常用来干嘛?</summary>
+    构造"永不自己完成、只听令牌"的哨兵欠条——与 WhenAny 配合做纯取消等待。
+  </details>
+  <details class="qa">
+    <summary>⑤ StartNew 包 async 委托的事故机理?</summary>
+    StartNew 返回外层 Task&lt;Task&lt;T&gt;&gt;;await 只完成外层(内层还悬着)。Run 重载内置 Unwrap,故现代代码用 Run。
+  </details>
+  <p class="muted">混合取消+故障时 WhenAll 终态的边角规则值得动手验证——或直接问老师。</p>
+
+  <hr class="footrule">
+  <footer class="course-foot">
+    <span>dotnet-Task异步学习 · 速查卡 · 配套课程:<a href="../lessons/0009-task-combinators.html">第 0009 课</a></span>
+    <span><a href="../lessons/index.html">课程目录</a> · <a href="timeout-速查卡.html">超时卡</a> · <a href="threadpool-taskrun-速查卡.html">线程池卡</a> · <a href="tcs-速查卡.html">TCS 卡</a></span>
+  </footer>
+
+</div>
+</body>
+</html>

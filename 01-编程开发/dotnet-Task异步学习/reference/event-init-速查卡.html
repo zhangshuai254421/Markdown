@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>事件等待与异步初始化速查卡</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">REFERENCE · 0003 · 可打印</p>
+  <h1>事件等待与异步初始化速查卡</h1>
+  <div class="meta">
+    <span class="chip">口诀:先订阅,后检查;到达即退订;销账用 Try</span>
+  </div>
+
+  <!-- 模式一 -->
+  <h2>模式一:事件 → Task(生产版,含取消)</h2>
+<pre><code>public static Task WaitForConnectedAsync(
+    MessageClient client, CancellationToken ct = default)
+{
+    var tcs = new TaskCompletionSource(
+        TaskCreationOptions.RunContinuationsAsynchronously);
+
+    void OnConnected(object? s, EventArgs e)
+    {
+        client.Connected -= OnConnected;        <span class="cmt">// 到达即退订</span>
+        tcs.TrySetResult();                     <span class="cmt">// 竞速语义</span>
+    }
+
+    client.Connected += OnConnected;            <span class="cmt">// ① 先订阅</span>
+
+    if (client.IsConnected)                     <span class="cmt">// ② 后检查(兜底)</span>
+    {
+        OnConnected(client, EventArgs.Empty);   <span class="cmt">// 复用清理逻辑</span>
+        return tcs.Task;
+    }
+
+    if (ct.CanBeCanceled)                       <span class="cmt">// ③ 取消 → 退订 + 注销欠条</span>
+        ct.Register(() =&gt;
+        {
+            client.Connected -= OnConnected;    <span class="cmt">// 取消也要退订!否则照旧泄漏</span>
+            tcs.TrySetCanceled(ct);
+        }, useSynchronizationContext: false);
+
+    return tcs.Task;
+}</code></pre>
+
+  <table>
+    <thead><tr><th>四步骨架</th><th>防的是什么</th></tr></thead>
+    <tbody>
+      <tr><td>① 先订阅</td><td>事件在"检查→订阅"之间触发,无人接住 → 永久悬挂</td></tr>
+      <tr><td>② 后检查</td><td>事件早已发生过的场景</td></tr>
+      <tr><td>到达即退订</td><td>长寿事件源 + lambda 捕获 tcs → 引用链泄漏</td></tr>
+      <tr><td>销账用 Try</td><td>"已连接"分支与事件分支、取消分支竞速</td></tr>
+    </tbody>
+  </table>
+
+  <!-- 模式二 -->
+  <h2>模式二:单飞异步初始化(single-flight)</h2>
+<pre><code>private TaskCompletionSource&lt;MessageClient&gt;? _initTcs;
+
+public Task&lt;MessageClient&gt; GetClientAsync()
+{
+    if (_initTcs is null)
+    {
+        var tcs = new TaskCompletionSource&lt;MessageClient&gt;(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        if (Interlocked.CompareExchange(ref _initTcs, tcs, null) is null)
+            _ = InitializeAsync(tcs);           <span class="cmt">// 唯一启动者</span>
+    }
+    return _initTcs.Task;                        <span class="cmt">// 所有人 await 同一张欠条</span>
+}
+
+private async Task InitializeAsync(TaskCompletionSource&lt;MessageClient&gt; tcs)
+{
+    try
+    {
+        tcs.SetResult(await CreateAndConnectAsync());   <span class="cmt">// 唯一完成路径 → Set*</span>
+    }
+    catch (Exception ex)
+    {
+        tcs.SetException(ex);                    <span class="cmt">// 失败也广播</span>
+        _initTcs = null;                         <span class="cmt">// 允许下次重试,不缓存失败</span>
+    }
+}</code></pre>
+
+  <h2>亲戚与取舍</h2>
+  <table>
+    <tbody>
+      <tr><td><code>Lazy&lt;Task&lt;T&gt;&gt;</code></td><td>最简;但失败会被 <code>Lazy</code> 缓存(默认),无重试语义</td></tr>
+      <tr><td>手写单飞 TCS(本课)</td><td>失败重试、无依赖;每行可知其所以然</td></tr>
+      <tr><td><code>Microsoft.VisualStudio.Threading.AsyncLazy</code></td><td>VS/Roslyn 标准件;带 JoinableTaskFactory 上下文集成</td></tr>
+      <tr><td>ASP.NET Core <code>IHostedService</code></td><td>初始化属于应用生命周期时,交给框架,启动顺序由 Host 管理</td></tr>
+    </tbody>
+  </table>
+
+  <!-- 术语补充 -->
+  <h2>术语表补充</h2>
+  <table>
+    <tbody>
+      <tr><td><strong>单飞 single-flight</strong></td><td>并发触发时只允许一个执行者启动,其余汇入同一结果</td></tr>
+      <tr><td><strong>广播</strong></td><td>一张欠条被任意多消费者 await(欠条终态不可变所赐)</td></tr>
+      <tr><td><strong>EAP</strong></td><td>事件式异步模式(Event-based Asynchronous Pattern),TCS 是把它包成 Task 的官方桥</td></tr>
+      <tr><td><strong>useSynchronizationContext: false</strong></td><td>令牌回调不回投递到捕获的上下文,库代码里的惯例防死锁</td></tr>
+    </tbody>
+  </table>
+
+  <hr class="footrule">
+  <footer class="course-foot">
+    <span>权威依据:<a href="https://learn.microsoft.com/en-us/dotnet/standard/asynchronous-programming-patterns/task-based-asynchronous-pattern-tap" target="_blank">TAP 规范</a> · <a href="https://blog.stephencleary.com/2012/08/asynchronous-lazy-initialization.html" target="_blank">Cleary · AsyncLazy</a></span>
+    <span>由<a href="../lessons/0004-event-to-task-and-async-init.html">第 0004 课</a>讲授</span>
+  </footer>
+
+</div>
+</body>
+</html>

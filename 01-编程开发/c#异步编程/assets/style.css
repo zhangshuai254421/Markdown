@@ -231,11 +231,38 @@ pre code {
 
 .lesson-foot .primary-source { color: var(--ink); }
 
-.next-link {
-  display: inline-block;
-  margin-top: 1rem;
+/* ---- Lesson navigation (← 上一课 · 课程目录 · 下一课 →) ---------------- */
+.lesson-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 1.4rem;
   font-family: var(--sans);
+  font-size: 0.85rem;
+}
+
+.lesson-nav a {
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--code-bg);
+  white-space: nowrap;
+}
+
+.lesson-nav a:hover { border-color: var(--accent); text-decoration: none; }
+
+.lesson-nav .nav-prev,
+.lesson-nav .nav-index { color: var(--muted); }
+
+.lesson-nav .nav-index { font-weight: 400; }
+
+.lesson-nav .nav-next {
+  color: var(--accent);
   font-weight: 600;
+  background: var(--accent-soft);
+  border-color: var(--accent);
 }
 
 /* ---- Tables ------------------------------------------------------------ */
@@ -269,4 +296,5 @@ th {
   .quiz-option, .quiz-btn { border-color: #999; }
   a { color: var(--ink); }
   pre { page-break-inside: avoid; }
+  .lesson-nav { display: none; }
 }

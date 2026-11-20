@@ -1,0 +1,447 @@
+/* ============================================================
+   共享样式表 — 量化交易入门
+   结构复用自「地产下行与日本镜鉴」工作区；强调色改为青紫，
+   并追加图表/统计卡（dataviz 规范）样式。
+   所有课程与参考文档都链接这一个文件。
+   打印友好：@media print 去阴影、展开答案。
+   ============================================================ */
+
+:root {
+  color-scheme: light;
+  --ink: #172033;
+  --ink-soft: #42506b;
+  --ink-faint: #6b7891;
+  --line: #dce2ee;
+  --line-soft: #eaeef6;
+  --bg: #f7f8fb;
+  --card: #ffffff;
+  --accent: #5b4fc4;
+  --accent-soft: #f0eeff;
+  --warn: #b06a12;
+  --warn-bg: #fdf6e9;
+  --good: #1f7a4d;
+  --bad: #b3261e;
+  /* dataviz 图表角色色（参考色板，light 模式） */
+  --surface-1: #fcfcfb;
+  --series-1: #2a78d6;   /* 策略（蓝） */
+  --series-2: #eb6834;   /* 基准（橙） */
+  --grid-hairline: #e1e0d9;
+  --axis-baseline: #c3c2b7;
+  --axis-label: #898781;
+  --font-body: "Source Serif 4", Georgia, "Songti SC", "SimSun", serif;
+  --font-ui: "Segoe UI", "Microsoft YaHei", -apple-system, sans-serif;
+  --font-mono: "Cascadia Code", Consolas, "SF Mono", monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  line-height: 1.75;
+  font-family: var(--font-ui);
+  font-size: 17px;
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+main {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 48px 24px 96px;
+}
+
+/* ---------- 排版 ---------- */
+
+h1 {
+  font-size: 2.15rem;
+  line-height: 1.25;
+  margin: 0 0 12px;
+  letter-spacing: -0.01em;
+}
+
+h2 {
+  margin-top: 52px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+  font-size: 1.35rem;
+  letter-spacing: -0.005em;
+}
+
+h3 { margin-top: 32px; font-size: 1.08rem; }
+
+p { margin: 1em 0; }
+
+.eyebrow {
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  font-size: .74rem;
+  font-family: var(--font-ui);
+}
+
+.lead {
+  font-size: 1.14rem;
+  color: var(--ink-soft);
+  margin-bottom: 2em;
+}
+
+.subtitle { color: var(--ink-faint); font-size: .92rem; margin-top: 0; }
+
+ul, ol { padding-left: 1.4em; }
+li { margin: .45em 0; }
+
+strong { font-weight: 650; }
+
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:hover { text-decoration-thickness: 2px; }
+
+code {
+  font-family: var(--font-mono);
+  font-size: .88em;
+  background: var(--accent-soft);
+  padding: .12em .38em;
+  border-radius: 4px;
+}
+
+/* ---------- 代码块（第 2 课起用于 C# 代码） ---------- */
+
+pre {
+  font-family: var(--font-mono);
+  font-size: .84rem;
+  line-height: 1.65;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin: 22px 0;
+  overflow-x: auto;
+  tab-size: 4;
+}
+pre code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+.code-title {
+  font-family: var(--font-mono);
+  font-size: .76rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+  color: var(--ink-faint);
+  margin: 22px 0 -14px;
+}
+.code-title + pre { margin-top: 20px; }
+
+hr { border: 0; border-top: 1px solid var(--line); margin: 44px 0; }
+
+/* ---------- 卡片与提示框 ---------- */
+
+.card,
+.exercise,
+.answer,
+.note {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px 22px;
+  margin: 22px 0;
+  box-shadow: 0 1px 2px #1a285008;
+}
+
+.card > :first-child,
+.exercise > :first-child,
+.note > :first-child { margin-top: 0; }
+.card > :last-child,
+.exercise > :last-child,
+.note > :last-child { margin-bottom: 0; }
+
+.key, .warning, .insight {
+  border-left: 4px solid var(--accent);
+  padding-left: 18px;
+  margin: 22px 0;
+}
+.warning {
+  border-left-color: var(--warn);
+  background: var(--warn-bg);
+  border-radius: 0 8px 8px 0;
+  padding: 14px 20px;
+}
+.insight {
+  border-left-color: var(--good);
+  background: #f2faf6;
+  border-radius: 0 8px 8px 0;
+  padding: 14px 20px;
+}
+
+.note { background: #fbfcfe; font-size: .95rem; }
+
+/* ---------- 数据来源标注 ---------- */
+
+.src {
+  display: inline-block;
+  font-family: var(--font-ui);
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  padding: .1em .45em;
+  border-radius: 4px;
+  vertical-align: .1em;
+  white-space: nowrap;
+}
+.src.official { background: #e3f0ff; color: #14508f; }
+.src.third    { background: #f0ecff; color: #5a3fa8; }
+.src.opinion  { background: #fdeeea; color: #a63a1c; }
+
+/* ---------- 表格 ---------- */
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  background: var(--card);
+  margin: 22px 0;
+  font-size: .93rem;
+}
+th, td {
+  padding: 9px 12px;
+  text-align: left;
+  border: 1px solid var(--line);
+  vertical-align: top;
+}
+th { background: var(--accent-soft); font-weight: 650; }
+tbody tr:nth-child(even) { background: #fafbfe; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.table-wrap { overflow-x: auto; }
+
+/* ---------- 回测模拟器（配合 assets/backtest-sim.js） ---------- */
+
+.sim {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px 22px 20px;
+  margin: 22px 0;
+}
+.sim-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.sim-controls label { font-size: .92rem; color: var(--ink-soft); }
+.sim-controls select, .sim-controls button {
+  font: inherit;
+  font-size: .92rem;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--ink);
+}
+.sim-controls button { cursor: pointer; background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.sim-controls button:hover { background: var(--accent); color: #fff; }
+
+.sim-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  font-size: .88rem;
+  color: var(--ink-soft);
+  margin: 0 0 8px;
+}
+.sim-legend .swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  margin-right: 7px;
+  vertical-align: -2px;
+}
+.sim-legend .t1 .swatch { background: var(--series-1); }
+.sim-legend .t2 .swatch { background: var(--series-2); }
+
+.sim-chart-wrap { position: relative; background: var(--surface-1); border: 1px solid var(--line); border-radius: 8px; }
+.sim-chart-wrap canvas { display: block; width: 100%; height: auto; touch-action: none; }
+
+.sim-tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px #1a285014;
+  padding: 8px 12px;
+  font-size: .84rem;
+  line-height: 1.5;
+  color: var(--ink);
+  display: none;
+  white-space: nowrap;
+  z-index: 2;
+}
+.sim-tooltip .d { color: var(--ink-faint); font-family: var(--font-mono); font-size: .8rem; }
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+.stat-tile {
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+.stat-tile .k {
+  font-size: .72rem;
+  letter-spacing: .06em;
+  color: var(--axis-label);
+  margin: 0 0 2px;
+}
+.stat-tile .v {
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.stat-tile .s { font-size: .78rem; color: var(--ink-faint); margin: 0; }
+
+/* ---------- 测验组件（配合 assets/quiz.js） ---------- */
+
+.quiz { margin: 22px 0; }
+.quiz-question { font-weight: 650; margin-bottom: 12px; }
+.opt {
+  display: block;
+  width: 100%;
+  text-align: left;
+  margin: 8px 0;
+  padding: 11px 15px;
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  font: inherit;
+  font-size: .97rem;
+  cursor: pointer;
+  transition: border-color .12s, background .12s;
+}
+.opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+.opt:disabled { cursor: default; }
+.opt.correct { border-color: var(--good); background: #edf8f2; font-weight: 650; }
+.opt.wrong { border-color: var(--bad); background: #fdeeed; }
+.opt .mark { float: right; font-weight: 700; }
+.opt.correct .mark { color: var(--good); }
+.opt.wrong .mark { color: var(--bad); }
+
+.feedback {
+  margin-top: 12px;
+  padding: 12px 16px;
+  border-radius: 9px;
+  font-size: .95rem;
+  background: var(--accent-soft);
+}
+.feedback.good { background: #edf8f2; }
+.feedback.bad { background: #fdeeed; }
+
+.reveal-btn {
+  background: var(--accent);
+  color: #fff;
+  border: 0;
+  border-radius: 8px;
+  padding: 9px 16px;
+  font: inherit;
+  font-size: .93rem;
+  cursor: pointer;
+}
+.reveal-btn:hover { background: #443a9e; }
+.answer[hidden] { display: none; }
+
+/* ---------- 页脚导航 ---------- */
+
+.lesson-nav {
+  margin-top: 64px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+  font-size: .92rem;
+  color: var(--ink-faint);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+
+/* ---------- 课程目录 ---------- */
+
+.course-toc {
+  margin: 0 0 32px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  font-family: var(--font-ui);
+}
+.course-toc summary {
+  cursor: pointer;
+  padding: 12px 16px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.course-toc summary::marker { color: var(--accent); }
+.course-toc .toc-meta {
+  font-weight: 400;
+  color: var(--ink-faint);
+  font-size: .8rem;
+  margin-left: 8px;
+}
+.course-toc .toc-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 28px;
+  padding: 4px 18px 16px;
+  border-top: 1px solid var(--line-soft);
+}
+.course-toc h3 {
+  margin: 12px 0 6px;
+  font-size: .78rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.course-toc ol, .course-toc ul { margin: 0; padding-left: 1.35em; }
+.course-toc .toc-lessons { list-style: none; padding-left: 0; }
+.course-toc li { margin: 3px 0; font-size: .88rem; line-height: 1.5; }
+.course-toc a { color: var(--ink-soft); text-decoration: none; }
+.course-toc a:hover { color: var(--accent); text-decoration: underline; }
+.course-toc a.toc-current { color: var(--accent); font-weight: 700; }
+.course-toc a.toc-current::after {
+  content: " · 当前";
+  font-size: .78em;
+  color: var(--ink-faint);
+}
+.course-toc .toc-planned { color: var(--ink-faint); opacity: .78; }
+.course-toc .toc-foot { margin: 12px 0 0; font-size: .85rem; }
+
+/* 策略家族表：第一列不换行，避免"小市值"折行 */
+.strategy-families th:first-child,
+.strategy-families td:first-child { white-space: nowrap; }
+@media (max-width: 640px) {
+  .course-toc .toc-grid { grid-template-columns: 1fr; }
+}
+
+/* ---------- 打印 ---------- */
+
+@media print {
+  :root { --bg: #fff; }
+  body { background: #fff; font-size: 11pt; }
+  main { max-width: none; padding: 0; }
+  .card, .exercise, .answer, .note, .sim { box-shadow: none; break-inside: avoid; }
+  .reveal-btn, .opt, .sim-controls button { display: none; }
+  .course-toc { display: none; }
+  .answer[hidden] { display: block !important; }
+  .answer::before { content: "参考答案："; font-weight: 700; }
+  h2 { break-after: avoid; }
+  table, .sim { break-inside: avoid; }
+  a { color: inherit; text-decoration: none; }
+  a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 8pt; color: #666; }
+}

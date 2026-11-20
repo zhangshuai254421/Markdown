@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>R1 · 面试反问速查卡</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <p class="eyebrow">技术面试与反向调研 · 参考文档 R1</p>
+  <h1>面试反问速查卡</h1>
+  <p class="lead">面试最后 5 分钟用。<strong>先挑 2-3 个，不要全问。</strong>每个问题都按“问 → 听 → 追问”使用；你要的不是一份标准答案，而是对方愿不愿意、能不能说出具体事实。</p>
+  <p class="subtitle">更新：2026-11-20 · 关联：<a href="../lessons/0001-ask-for-evidence.html">说明页</a> · <a href="../MISSION.md">学习使命</a> · <a href="../RESOURCES.md">资源清单</a></p>
+  <p class="note"><strong>只想看清单？</strong>打开 <a href="interview-memo.html">R2 · 求职者面试反问备忘录</a>（可勾选、可打印）。</p>
+
+  <h2>怎么用这张卡</h2>
+  <ol>
+    <li><strong>面试前：</strong>从技术 / 工作 / 生存三张地图各挑 1 个，按面试官角色删掉不合适的，只留 2-3 个。</li>
+    <li><strong>面试中：</strong>先问一句，然后闭嘴听。对方答得越具体，越不用追问；答得越概括，越要追“最近一次”。</li>
+    <li><strong>面试后：</strong>10 分钟内写原话、打分。别等回家再回忆，记忆会自动美化。</li>
+  </ol>
+
+  <h2>一、万能公式</h2>
+  <div class="insight">
+    <p><strong>时间锚点 + 具体事件 + 追问结果。</strong>如果只能记住一句：<strong>“最近一次……是怎么……的？后来呢？”</strong></p>
+  </div>
+  <div class="table-wrap"><table class="swap-table">
+    <thead><tr><th>封闭题（容易得到空话）</th><th>证据题（逼出具体事实）</th><th>你想验证什么</th></tr></thead>
+    <tbody>
+      <tr><td>你们有测试吗？</td><td>最近一次测试没拦住的问题是什么？</td><td>测试是否真的在拦问题</td></tr>
+      <tr><td>你们做代码评审吗？</td><td>上一次评审里，你提过的最重要的意见是什么？</td><td>评审是走流程还是真讨论</td></tr>
+      <tr><td>你们加班多吗？</td><td>上个季度最忙的一周，大家大概几点走？</td><td>加班是例外还是常态</td></tr>
+      <tr><td>你们技术债多吗？</td><td>最近一次专门还技术债是什么时候？做了什么？</td><td>技术债是否被看见、有偿还机制</td></tr>
+      <tr><td>你们部署频繁吗？</td><td>最近一次发布是周几？从合并到上线花了多久？</td><td>发布流程与压力</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">证据题不是“更委婉”，而是“更难被空话回答”。礼貌和具体不冲突：把“有没有”换成“上一次……”，语气反而更自然。</p>
+
+  <h2>二、12 个高信号问题</h2>
+  <p>每格先问左边，听到概括再追中间，最后用右边判断。问题不必全问；一轮挑 2-3 个就够。</p>
+
+  <h3>技术真相（问工程师 / 技术面）</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>问法</th><th>追问</th><th>听什么</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>1.</strong> 最近一次线上故障是怎么发现的？后来改了什么？</td>
+        <td>谁处理的？有复盘吗？同样问题再发生会怎样？</td>
+        <td><strong>危险：</strong>想不起来 / 说没有线上故障。<br><strong>好：</strong>能说出时间、发现方式（监控 / 用户 / 测试）、处理过程、后续改动。</td>
+      </tr>
+      <tr>
+        <td><strong>2.</strong> 一个改动从提交到上线，必须过哪些检查？</td>
+        <td>上一次是哪一步拦住了问题？哪一步最常失败？</td>
+        <td><strong>危险：</strong>没有固定流程 / 直接改服务器。<br><strong>好：</strong>能说出评审、自动化测试、构建、发布步骤，并有最近拦截例子。</td>
+      </tr>
+      <tr>
+        <td><strong>3.</strong> 上一次代码评审里，你提过的最重要的意见是什么？</td>
+        <td>评审一般看多久？会拦下合并吗？</td>
+        <td><strong>危险：</strong>走形式 / 只看格式 / 不怎么评审。<br><strong>好：</strong>具体的设计、边界、风险问题，说明评审真在讨论。</td>
+      </tr>
+      <tr>
+        <td><strong>4.</strong> 最近一次专门还技术债是什么时候？做了什么？</td>
+        <td>如果不还，会先在哪里出问题？</td>
+        <td><strong>危险：</strong>没有技术债 / 都是祖传代码不敢动。<br><strong>好：</strong>能指出具体模块、依赖和业务约束，说明团队知道债在哪。</td>
+      </tr>
+    </tbody>
+  </table></div>
+
+  <h3>工作真相（问直属主管）</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>问法</th><th>追问</th><th>听什么</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>5.</strong> 上一个赶进度的项目，你们妥协了什么？</td>
+        <td>后来补了吗？谁做的取舍决定？</td>
+        <td><strong>危险：</strong>从不妥协 / 都按计划完成。<br><strong>好：</strong>承认取舍（测试、文档、重构），说明补偿或遗留风险。</td>
+      </tr>
+      <tr>
+        <td><strong>6.</strong> 上个季度最忙的一周，大家大概几点走？</td>
+        <td>这种情况一年大概几次？忙完有调休 / 补偿吗？</td>
+        <td><strong>危险：</strong>经常 / 习惯了 / 说成文化。<br><strong>好：</strong>能给出频率和原因，承认忙季存在，也有恢复安排。</td>
+      </tr>
+      <tr>
+        <td><strong>7.</strong> 需求是谁排的？工程师对排期有异议时，通常怎么处理？</td>
+        <td>能举一个最近被工程师推回去的例子吗？</td>
+        <td><strong>危险：</strong>老板说了算 / 没有异议。<br><strong>好：</strong>能说出优先级机制、推回案例和结果。</td>
+      </tr>
+      <tr>
+        <td><strong>8.</strong> 如果我入职，前三个月你希望我解决什么问题？</td>
+        <td>怎么判断我做对了？有哪些文档 / 人能帮我上手？</td>
+        <td><strong>危险：</strong>先熟悉业务 / 没有明确目标。<br><strong>好：</strong>具体目标、可衡量结果、onboarding 安排。</td>
+      </tr>
+    </tbody>
+  </table></div>
+
+  <h3>生存真相（问主管 / HR / 终面）</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>问法</th><th>追问</th><th>听什么</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>9.</strong> 这个岗位为什么开放？是新增还是替补？</td>
+        <td>如果是替补，方便说说前任离开的原因吗？团队流动大吗？</td>
+        <td><strong>危险：</strong>含糊 / 正常流动 / 不愿说。<br><strong>好：</strong>能说明业务原因或离职背景，不回避。</td>
+      </tr>
+      <tr>
+        <td><strong>10.</strong> 团队现在最头疼的问题是什么？</td>
+        <td>这个问题存在多久了？谁在负责？正在怎么解决？</td>
+        <td><strong>危险：</strong>没有问题 / 都是小问题。<br><strong>好：</strong>具体问题、影响、正在做的尝试。</td>
+      </tr>
+      <tr>
+        <td><strong>11.</strong> 团队里待得最久的人是谁？这位同事为什么留下？</td>
+        <td>团队平均待多久？最近一年走了谁？</td>
+        <td><strong>危险：</strong>都是新人 / 答不上来。<br><strong>好：</strong>具体的人、年限、留下的原因，说明团队有留存。</td>
+      </tr>
+      <tr>
+        <td><strong>12.</strong> 公司 / 业务未来一年最大的挑战是什么？</td>
+        <td>这个岗位和它有什么关系？如果没解决，团队会怎样？</td>
+        <td><strong>危险：</strong>没有挑战 / 都是机会。<br><strong>好：</strong>真实挑战、应对计划、岗位角色。</td>
+      </tr>
+    </tbody>
+  </table></div>
+  <p class="note"><strong>公式是默认，不是唯一。</strong>少数具体的目标题（如“前三个月你希望我完成什么”）也有效，因为它们要求具体承诺；但“你怎么看 X”这类观点题最容易得到客套话。另有一个进阶问法：“如果只能删掉一个模块，你最想删哪个？为什么没删？”——它用具体假设逼出真实约束，适合在建立信任后问。</p>
+
+  <h2>三、按面试官角色选</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>面试官</th><th>优先问</th><th>暂时别问</th></tr></thead>
+    <tbody>
+      <tr><td><strong>技术面</strong>（未来同事）</td><td>技术真相 1-4；团队日常</td><td>薪资、假期、公司战略</td></tr>
+      <tr><td><strong>直属主管</strong></td><td>工作真相 5-8；生存真相 9-10</td><td>太细的技术实现</td></tr>
+      <tr><td><strong>HR / 终面</strong></td><td>生存真相 9-12；流程、薪酬、试用期</td><td>技术细节、团队八卦</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">同一个问题可以问两个面试官。不是不信谁，而是看答案是否对得上；互相矛盾往往比“答得不好”更有信息量。</p>
+
+  <h2>四、红旗与绿旗</h2>
+  <div class="flags">
+    <div class="flag good">
+      <h3>绿旗</h3>
+      <ul>
+        <li>能坦然说“这块我们做得不好，正在……”</li>
+        <li>能说出最近一次故障 / 事故的处理和后续改动</li>
+        <li>对技术债、排期取舍有具体例子</li>
+        <li>面试官也认真问你问题，像双向选择</li>
+        <li>团队里有待了 3 年以上的人，并能说出为什么留下</li>
+      </ul>
+    </div>
+    <div class="flag bad">
+      <h3>红旗</h3>
+      <ul>
+        <li>所有回答都是形容词，举不出最近的具体例子</li>
+        <li>不同面试官对同一问题说法矛盾</li>
+        <li>“我们测试很全”却说不清上一次测试拦住了什么</li>
+        <li>把长期加班说成“奋斗者文化”，没有调休 / 补偿</li>
+        <li>岗位长期开放、前任频繁更换、离职原因含糊</li>
+      </ul>
+    </div>
+  </div>
+  <p class="note">单个信号不能定罪，看模式、做交叉验证。面试官也可能受保密约束，不能透露细节；要区分“不愿说”和“不能说”。匿名评价（脉脉、看准、Glassdoor）可以当外部线索，但样本偏差很大，别当判决书。</p>
+
+  <h2>五、面试后 10 分钟评分表</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>维度</th><th>1 分</th><th>3 分</th><th>5 分</th><th>你的分</th></tr></thead>
+    <tbody>
+      <tr><td><strong>具体性</strong></td><td>全是形容词</td><td>有一两个例子</td><td>时间 / 人物 / 后续齐全</td><td></td></tr>
+      <tr><td><strong>一致性</strong></td><td>多人说法矛盾</td><td>大致一致</td><td>互相补充且不矛盾</td><td></td></tr>
+      <tr><td><strong>坦诚度</strong></td><td>回避问题</td><td>只谈优点</td><td>主动谈问题与取舍</td><td></td></tr>
+      <tr><td><strong>技术基线</strong></td><td>无测试 / 无评审 / 无 bug 库</td><td>有流程但说不清</td><td>能说出流程与最近事件</td><td></td></tr>
+      <tr><td><strong>人的状态</strong></td><td>长期加班 / 高流动</td><td>偶尔加班</td><td>节奏可持续</td><td></td></tr>
+    </tbody>
+  </table></div>
+  <p class="note"><strong>25 分制。</strong>分数是记录工具，不是判决：低于 15 分先看哪一维拉低；高于 20 分也别忽略红旗。最重要的是旁边写下对方的原话。</p>
+
+  <h2>六、开场白与追问句</h2>
+  <div class="script">
+    <p><strong>开场（先说明意图 + 数量）：</strong></p>
+    <p>“我想了解一下团队平时怎么工作，方便问两个具体的问题吗？”</p>
+    <p>“如果方便的话，我想请教一个最近的实际例子……”</p>
+  </div>
+  <p><strong>追问句库：</strong></p>
+  <ul>
+    <li>“能举一个最近的例子吗？”</li>
+    <li>“后来呢？”</li>
+    <li>“当时是谁做的决定？”</li>
+    <li>“如果同样的情况再发生，你们会怎么做？”</li>
+    <li>“这个问题你们现在有改进计划吗？”</li>
+    <li>“还有什么是你觉得我作为候选人应该知道的？”</li>
+  </ul>
+  <p><strong>收尾大问题：</strong>“这份工作 / 团队 / 公司最好和最坏的方面是什么？”——来自 reverse-interview 的 catch-all，通常能逼出前面没说的真话。</p>
+
+  <h2>七、来源</h2>
+  <ul>
+    <li><a href="https://jvns.ca/blog/2013/12/30/questions-im-asking-in-interviews/">Julia Evans, “Questions I'm asking in interviews”</a>——工程实践 / 管理风格 / 生活质量问题清单。</li>
+    <li><a href="https://www.joelonsoftware.com/2000/08/09/the-joel-test-12-steps-to-better-code/">Joel Spolsky, “The Joel Test: 12 Steps to Better Code”</a>——12 条工程基线。</li>
+    <li><a href="https://github.com/viraptor/reverse-interview">viraptor/reverse-interview</a> 及其<a href="https://github.com/yifeikong/reverse-interview-zh">简体中文版</a>——反向面试问题库。</li>
+    <li><a href="https://www.momtestbook.com/">Rob Fitzpatrick, “The Mom Test”</a>——问过去具体事件，不问未来观点。</li>
+    <li><a href="https://www.shrm.org/mena/topics-tools/news/hr-magazine/interviewing-basics">SHRM, “Interviewing Basics”</a>——行为面试：过去行为预测未来行为。</li>
+  </ul>
+  <p class="note"><strong>有疑问随时问老师。</strong>这张卡可以按你的岗位继续裁剪；把 JD 或实际面试回答发给我，我帮你补问题、判断红旗。</p>
+
+  <nav class="lesson-nav">
+    <a href="../lessons/0001-ask-for-evidence.html">说明：用证据题问出团队真相</a>
+    <a href="../MISSION.md">学习使命</a>
+    <a href="../RESOURCES.md">资源清单</a>
+    <a href="https://jvns.ca/blog/2013/12/30/questions-im-asking-in-interviews/">主源：Julia Evans</a>
+  </nav>
+</main>
+</body>
+</html>

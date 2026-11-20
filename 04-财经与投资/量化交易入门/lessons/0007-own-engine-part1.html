@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>第7课 · 自建C#回测引擎（上）：核心循环</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <p class="eyebrow">量化交易入门 · 第 7 课 / 12</p>
+  <h1>自建 C# 回测引擎（上）：核心循环</h1>
+  <p class="lead">掘金是别人的引擎。本课开始你拥有自己的：一个约 60 行的<strong>最小可行回测引擎</strong>。目标不是替代掘金，而是打开黑箱——第 8 课要建模的 A 股物理定律（T+1、涨跌停、印花税），掘金已经替你实现，但只有自己写一遍，你才有能力读懂并质疑它的报告。</p>
+
+  <h2>为什么值得自建</h2>
+  <ol>
+    <li><strong>懂内部</strong>：成交、持仓、净值如何产生，你将一行行亲眼看见——以后读任何平台报告都不再神秘。</li>
+    <li><strong>A 股物理</strong>：T+1、涨跌停不能成交、印花税单边——掘金已经实现，但对你是不透明的；自己写一遍，才能验证平台报告、做定制规则。</li>
+    <li><strong>不被黑箱绑架</strong>：<span class="src opinion">作者观点</span>用黑箱引擎做关键决策，等于让不明代码替你签合同。</li>
+  </ol>
+
+  <h2>引擎的骨架</h2>
+  <pre><code>   CSV数据 ──&gt; DataReader ──&gt; [ 事件循环: 逐根K线 ] ──&gt; 统计输出
+                                │
+              ┌─────────────────┼─────────────────┐
+              v                 v                 v
+           Strategy          Broker          Portfolio
+          (产生信号)      (按规则撮合)     (现金/持仓/净值)</code></pre>
+  <p>事件循环一次迭代 = <strong>一根 K 线走完全流程</strong>：喂新价格 → 更新持仓市值 → 接收策略信号 → 撮合成交 → 记账。这个结构与掘金的 <code>OnBar</code> 完全同构——你已经会用它，只是那时引擎藏在平台后面。</p>
+
+  <h2>最小可行引擎</h2>
+  <p>新建 .NET 控制台项目（<code>dotnet new console</code>），把第 5 课的 CSV 复制进项目。完整代码如下——注意<strong>诚实执行的实现位置</strong>：信号基于 <em>昨收</em>，成交在<strong>今开</strong>（时刻上晚于信号，杜绝未来函数）：</p>
+  <p class="code-title">Program.cs — 双均线 50/200，信号次日开盘成交</p>
+  <pre><code>using System.Globalization;
+using System.Text;
+
+// ---------- 数据 ----------
+var lines = File.ReadAllLines("hs300etf_daily.csv").Skip(1);
+var bars = lines
+    .Select(l =&gt; l.Split(','))
+    .Select(f =&gt; new Bar(
+        Date:  DateTime.Parse(f[0], CultureInfo.InvariantCulture),
+        Open:  Parse(f[1]), Close: Parse(f[2]),
+        High:  Parse(f[3]), Low:   Parse(f[4])))
+    .OrderBy(b =&gt; b.Date)
+    .ToList();
+
+static double Parse(string s) =&gt; double.Parse(s, CultureInfo.InvariantCulture);
+
+// ---------- 策略：SMA50/200，输出每日目标仓位 ----------
+static int Signal(IReadOnlyList&lt;Bar&gt; bars, int i)     // 用截至昨收的数据
+{
+    if (i &lt; 200) return 0;
+    double smaFast(int end, int n) { double s = 0; for (int k = end - n; k &lt; end; k++) s += bars[k].Close; return s / n; }
+    return smaFast(i, 50) &gt; smaFast(i, 200) ? 1 : 0;   // i 指向"昨天"，不含今
+}
+
+// ---------- Broker + Portfolio ----------
+double cash = 100_000, shares = 0;
+const double FeeRate = 0.00025;                        // 佣金万2.5（A股无强制单边税差在此简化）
+var equity = new List&lt;double&gt;();
+int prevSignal = 0;
+
+// ---------- 事件循环 ----------
+for (int t = 200; t &lt; bars.Count; t++)
+{
+    int signal = Signal(bars, t);                      // 昨收算出的信号
+    var today = bars[t];
+
+    if (signal != prevSignal)                          // 状态翻转 → 今日开盘成交
+    {
+        double fill = today.Open;                      // 今开成交：晚于信号时点
+        if (signal == 1 &amp;&amp; shares == 0)
+        {   shares = Math.Floor(cash * (1 - FeeRate) / fill); cash -= shares * fill * (1 + FeeRate); }
+        else if (signal == 0 &amp;&amp; shares &gt; 0)
+        {   cash += shares * fill * (1 - FeeRate); shares = 0; }
+        prevSignal = signal;
+    }
+    equity.Add(cash + shares * today.Close);           // 每日收盘记净值
+}
+
+// ---------- 统计 ----------
+double total = equity[^1] / equity[0] - 1;
+double years = (bars.Count - 200) / 252.0;
+double cagr = Math.Pow(equity[^1] / equity[0], 1 / years) - 1;
+double peak = 0, maxdd = 0;
+foreach (var v in equity) { peak = Math.Max(peak, v); maxdd = Math.Max(maxdd, 1 - v / peak); }
+
+Console.OutputEncoding = Encoding.UTF8;
+Console.WriteLine($"总收益 {total:P1} | 年化 {cagr:P1} | 最大回撤 {maxdd:P1}");
+Console.WriteLine($"区间 {bars[200].Date:yyyy-MM} ~ {bars[^1].Date:yyyy-MM}，共 {bars.Count - 200} 个交易日");
+
+record Bar(DateTime Date, double Open, double High, double Low, double Close);</code></pre>
+  <p class="note"><strong>列序是这里最容易踩的坑：</strong>AKShare 的 ETF 日线列序是 <strong>日期, 开盘, 收盘, 最高, 最低, …</strong>——收盘在最高/最低前面，不是常见的 OHLC 顺序。上面的映射已按这个顺序写好；如果你换成股票接口或其他数据源，先 <code>Console.WriteLine(lines.First())</code> 核对表头再改列号。把收盘价读成最低价，回测会给你一份完全不同的成绩单。<span class="src official">参考</span>掘金 C# 策略里的 <code>OnBar</code> 回调就是同一个骨架——你第 2-3 课写的策略，本质上也是"引擎喂一根 K 线、策略回一个动作"。</p>
+  <p class="note">和掘金的结果对不上？先看 <a href="../reference/backtest-data-reconciliation.html">R6 · 回测数据对不上排查清单</a>——"定点前复权 vs 最新日前复权"和 AKShare 列序是前两个必查项。</p>
+  <p class="note">对账时先比<strong>交易清单</strong>：在引擎里用 <code>List&lt;Trade&gt;</code> 记录每笔的“信号日 / 成交日 / 方向 / 成交价 / 数量 / 费用”，再和平台的成交记录逐笔对照——比只看总收益更快定位问题。</p>
+
+  <h2>TDD：先手算，再让引擎通过</h2>
+  <p>你在 TddLab 练的红绿循环在这里原样适用——<strong>引擎是沉默的骗子</strong>，bug 不会抛异常，只会给你一个貌似合理的净值。所以先写一个 3 根 K 线的手算用例：</p>
+  <div class="exercise">
+    <p><strong>动手（约 40 分钟）：</strong></p>
+    <ol>
+      <li>跑通引擎，记下总收益/年化/回撤。</li>
+      <li><strong>交叉验证</strong>：把同一份数据、同一区间喂给第 3 课的掘金双均线（510300），两边数量级应一致。先过 <a href="../reference/backtest-data-reconciliation.html">R6 对账清单</a>：掘金回测的 <code>ADJUST_PREV</code> 是以<strong>回测结束日</strong>为基准的定点前复权，AKShare qfq 是以<strong>最新日</strong>为基准——同一天价格不同是正常的；先比不复权或归一化净值，再把佣金/滑点调成一致。</li>
+      <li><strong>手算用例</strong>：构造 3 根假 K 线（开盘=收盘），手算期望净值与交易笔数，写成一个单元测试让引擎通过——测试不过就是引擎有 bug 或你手算错了，两者都要查。</li>
+      <li>思考题：把 <code>Signal(bars, t)</code> 里的 <code>i &lt; end</code> 范围改成包含 <code>t</code>（今天），会发生什么？——你刚刚造出了第 3 课模拟器里的"作弊档"，在 C# 里再认识它一遍。</li>
+    </ol>
+  </div>
+
+  <div class="warning"><p><strong>本课的诚实边界</strong>：本引擎刻意简化了 A 股的多数物理规则（涨跌停、T+1、印花税单边、最低佣金 5 元都没建模）。它现在是"简化物理"——按 T+0、可做空、无涨跌停撮合（这套规则更像美股，课上戏称"美股物理"）。第 8 课逐条装上 A 股定律，再拿掘金的报告做对照。</p></div>
+
+  <h2>检验一下</h2>
+  <div class="quiz" data-answer="a"
+       data-explain-good="对。事件循环的节拍就是K线：一根K线上走完 读数→信号→撮合→记账 全流程，与掘金的 OnBar 同构。"
+       data-explain-bad="不对。节拍不是策略也不是委托——回测引擎按时间驱动，一个节拍=一根K线的完整流程。">
+    <p class="quiz-question">事件循环的一次迭代处理什么？</p>
+    <button class="opt" data-key="a">一根K线全流程走完</button>
+    <button class="opt" data-key="b">一个策略全部历史啊</button>
+    <button class="opt" data-key="c">一笔委托的撮合过程</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <div class="quiz" data-answer="c"
+       data-explain-good="对。Portfolio 维护现金与持仓，净值=现金+持仓市值——引擎里那行 equity.Add(cash + shares*close) 就是它。"
+       data-explain-bad="不对。信号是 Strategy 的职责，数据是 DataReader 的职责；'账本'这份工作属于 Portfolio。">
+    <p class="quiz-question">引擎里 Portfolio 组件的职责？</p>
+    <button class="opt" data-key="a">生成每根K线信号</button>
+    <button class="opt" data-key="b">下载历史K线数据</button>
+    <button class="opt" data-key="c">维护现金与持仓量</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <h3>自由回忆（隔天再做一遍效果更好）</h3>
+  <p>不看上文：画出引擎五组件及数据流向；说明"诚实执行"在代码里的具体位置（哪个变量、哪行）。</p>
+  <button class="reveal-btn" data-reveal="recall">回忆后对照</button>
+  <div class="answer" id="recall" hidden>
+    <p>流向：CSV → DataReader → 事件循环(Strategy→Broker→Portfolio) → 统计。诚实执行在 <code>Signal(bars, t)</code> 只用 <code>i &lt; end</code>（昨收前）计算，而成交价取 <code>today.Open</code>（今开）——信号时点严格早于成交时点。第 8 课起，这套代码就是你的主场。</p>
+  </div>
+
+  <h2>下一步</h2>
+  <p><strong>本课主源推荐</strong>：Ernest Chan《量化交易：自己动手做算法交易》回测章节——个人自建引擎的经典论述（<a href="https://waylandz.com/quant-book/%E9%87%8F%E5%8C%96%E6%8E%A8%E8%8D%90%E4%B9%A6%E5%8D%95">书单定位</a>）。</p>
+  <p><strong>下一课预告</strong>：第 8 课《自建 C# 回测引擎（下）：A 股物理定律》——T+1、涨跌停、印花税、禁止做空，逐条写进引擎；把结果与掘金报告对照；并见证一个"美股成立、A 股失效"的策略当场倒下。</p>
+
+  <div class="note"><p><strong>卡住了？随时问老师。</strong>CSV 列序对不上、编译错误、"为什么 shares 要 Floor"——贴代码来问。跑出结果后把三个数字带给老师。</p></div>
+
+  <nav class="lesson-nav">
+    <a href="0006-benchmark-and-sharpe.html">第 6 课：基准与夏普</a>
+    <a href="0005-real-cndata-akshare.html">第 5 课：A股数据</a>
+    <a href="../reference/glossary.html">术语表（R1）</a>
+    <a href="../reference/backtest-data-reconciliation.html">数据对账（R6）</a>
+    <a href="0008-cndata-physics-engine.html">下一课：A股物理定律</a>
+  </nav>
+</main>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/course-nav.js"></script>
+</body>
+</html>

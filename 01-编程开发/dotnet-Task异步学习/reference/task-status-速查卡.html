@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Task 状态速查卡</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">REFERENCE · 0004 · 可打印</p>
+  <h1>Task 状态速查卡</h1>
+  <div class="meta">
+    <span class="chip">三区:出生(静止)→ 运行(活着)→ 终态(不可变)</span>
+  </div>
+
+  <!-- 全状态表 -->
+  <h2>八种状态全表</h2>
+  <table>
+    <thead><tr><th>区</th><th>TaskStatus</th><th>含义</th><th>怎么离开</th></tr></thead>
+    <tbody>
+      <tr><td>出生</td><td><code>Created</code></td><td>手动 new 后、Start 前的静止态</td><td><code>Start()</code> → WaitingToRun</td></tr>
+      <tr><td>运行</td><td><code>WaitingForActivation</code></td><td>等完成信号;TCS 欠条的默认态</td><td>完成信号 → 终态</td></tr>
+      <tr><td>运行</td><td><code>WaitingToRun</code></td><td>已入线程池队列,未被工人取走</td><td>工人取走 → Running</td></tr>
+      <tr><td>运行</td><td><code>Running</code></td><td>正在某线程上执行</td><td>执行结束 → 终态</td></tr>
+      <tr><td>运行</td><td><code>WaitingForChildrenToComplete</code></td><td>父任务等 attached 子任务</td><td>子任务完成 → 终态</td></tr>
+      <tr><td>终态</td><td><code>RanToCompletion</code></td><td>成功;唯一令 <code>IsCompletedSuccessfully</code> 为 true</td><td>不可变</td></tr>
+      <tr><td>终态</td><td><code>Faulted</code></td><td>异常;await 处重抛</td><td>不可变</td></tr>
+      <tr><td>终态</td><td><code>Canceled</code></td><td>取消;await 处抛 TaskCanceledException</td><td>不可变</td></tr>
+    </tbody>
+  </table>
+
+  <!-- 属性映射 -->
+  <h2>属性映射</h2>
+  <table>
+    <thead><tr><th>属性</th><th>true 的条件</th><th>易错点</th></tr></thead>
+    <tbody>
+      <tr><td><code>IsCompleted</code></td><td>任一终态</td><td>≠ 成功;Faulted 也是"完成"</td></tr>
+      <tr><td><code>IsCompletedSuccessfully</code></td><td>仅 RanToCompletion</td><td>.NET Core 2.0+;老项目用 <code>Status == RanToCompletion</code></td></tr>
+      <tr><td><code>IsFaulted</code></td><td>Faulted</td><td>异常在 <code>task.Exception</code>(AggregateException)</td></tr>
+      <tr><td><code>IsCanceled</code></td><td>Canceled</td><td>async 方法抛 OCE 也会到这</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Canceled vs Faulted -->
+  <h2>Canceled vs Faulted 分界</h2>
+<pre><code><span class="cmt">// async 方法抛 OCE → Canceled(TAP 规则;await 抛 TaskCanceledException)</span>
+throw new OperationCanceledException();
+
+<span class="cmt">// async 方法抛普通异常 → Faulted(await 重抛原异常)</span>
+throw new Exception("boom");
+
+<span class="cmt">// TCS 侧:SetCanceled() → Canceled;SetException(OCE) → Faulted</span></code></pre>
+  <p><strong>工程纪律:</strong>别拿 OCE 当普通业务异常抛;收到 TaskCanceledException 也别断定一定是别人取消。</p>
+
+  <!-- 诊断表 -->
+  <h2>生产诊断:滞留状态 → 病灶</h2>
+  <table>
+    <thead><tr><th>滞留状态</th><th>病灶</th><th>下一步</th></tr></thead>
+    <tbody>
+      <tr><td><code>WaitingForActivation</code> 太久</td><td>没人销账:完成路径缺失 / 事件先于订阅溜走</td><td>审查完成路径与订阅顺序(0004)</td></tr>
+      <tr><td><code>WaitingToRun</code> 堆积</td><td>线程池排队爆满(饥饿)</td><td>查 <code>ThreadPool</code> 计数(0008)</td></tr>
+      <tr><td><code>Running</code> 卡死</td><td>死循环 / 同步阻塞占用工人</td><td>抓 dump 看线程栈(0007/0008)</td></tr>
+    </tbody>
+  </table>
+<pre><code><span class="cmt">// 一行诊断日志</span>
+_logger.LogInformation("task = {Status}", task.Status);</code></pre>
+
+  <!-- 术语补充 -->
+  <h2>术语表补充</h2>
+  <table>
+    <tbody>
+      <tr><td><strong>终态不可变</strong></td><td>三终态进入即不变;欠条广播安全与 Try\* 竞速语义的根基</td></tr>
+      <tr><td><strong>OCE</strong></td><td>OperationCanceledException;async 方法抛出 → 任务进 Canceled</td></tr>
+      <tr><td><strong>饥饿 starvation</strong></td><td>线程池工人不足,任务滞留 WaitingToRun 的现象</td></tr>
+      <tr><td><strong>attached 子任务</strong></td><td>附加到父任务的子任务;父任务等它完成后才进终态</td></tr>
+    </tbody>
+  </table>
+
+  <hr class="footrule">
+  <footer class="course-foot">
+    <span>权威依据:<a href="https://learn.microsoft.com/en-us/dotnet/api/system.threading.tasks.taskstatus" target="_blank">TaskStatus 枚举</a> · <a href="https://learn.microsoft.com/en-us/dotnet/standard/asynchronous-programming-patterns/task-based-asynchronous-pattern-tap" target="_blank">TAP 规范</a></span>
+    <span>由<a href="../lessons/0005-task-states-and-lifecycle.html">第 0005 课</a>讲授</span>
+  </footer>
+
+</div>
+</body>
+</html>

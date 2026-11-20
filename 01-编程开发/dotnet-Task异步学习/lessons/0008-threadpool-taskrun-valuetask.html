@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>0008 · 线程池调度与 Task.Run 的边界(附 ValueTask 初识)</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">DOTNET · TASK SYSTEM · 第 0008 课</p>
+  <h1>线程池调度与 Task.Run 的边界<span class="muted" style="font-size:1.2rem">(附 ValueTask 初识)</span></h1>
+  <div class="meta">
+    <span class="chip">⏱ 预计 25 分钟</span>
+    <span class="chip">前置:第 0005 / 0007 课</span>
+    <span class="chip">交付:一把判决尺——这活该不该丢线程池</span>
+  </div>
+
+  <p class="lede">0005 预告过:<code>WaitingToRun</code> 堆积 = 线程池饥饿;0007 欠过一笔账:
+  sync-over-async "烧两个线程"。今天连本带利一起算清。<strong>线程池是为"短平快的 CPU 活"
+  设计的经济系统</strong>——理解它的记账方式,"什么时候该 <code>Task.Run</code>"就不再靠感觉,
+  而是一把判决尺。<span class="tag tag-interview">面试高频</span>
+  <span class="tag tag-source">源码视角</span></p>
+
+  <!-- ═══════════ 0. 隔日检索 ═══════════ -->
+  <h2>〇、隔日检索<span class="muted" style="font-size:.85rem">(先测后学:0007 还剩多少?)</span></h2>
+  <div id="warmup"></div>
+
+  <!-- ═══════════ 1. 线程池 ═══════════ -->
+  <h2>一、线程池:一队工人,两个队列</h2>
+
+  <p>线程很贵:约 1MB 级栈内存、内核对象、调度开销。于是运行时养了一队<strong>可复用的工人线程</strong>
+  (worker threads),配一个调度系统,这就是线程池。结构一句话:</p>
+
+  <table>
+    <thead><tr><th>部件</th><th>职责</th></tr></thead>
+    <tbody>
+      <tr><td>全局队列</td><td><code>Task.Run</code>(非池线程发起)排进这里 → 欠条状态 <code>WaitingToRun</code>(0005)</td></tr>
+      <tr><td>本地队列</td><td>池线程里再 <code>Task.Run</code>/子任务,排进该工人的本地队列(快;还有"偷活"机制,细节问老师)</td></tr>
+      <tr><td>工人循环</td><td>取任务 → 执行(<code>Running</code>)→ 完成 → 取下一个,永不主动下班</td></tr>
+      <tr><td>补充机制</td><td>工人全忙时,<strong>缓慢</strong>注入新线程(约每半秒一个,受 <code>SetMinThreads</code> 影响)——记住这个速度,下面要用</td></tr>
+    </tbody>
+  </table>
+
+  <p>结构表来自官方文档(<a href="https://learn.microsoft.com/en-us/dotnet/standard/threading/the-managed-thread-pool" target="_blank">托管线程池 — Microsoft Learn</a>)。
+  关键在第 4 行:<strong>补充慢,消耗快,饥饿就发生了</strong>。工人被"干等"型任务占住 →
+  队列越排越长 → 新线程半秒一个地救场,杯水车薪 → 全池变慢。
+  0005 状态图里 <code>WaitingToRun</code> 堆积的病灶,机械原因在此。</p>
+
+  <div class="callout">
+    <p class="callout-title">由此推出线程池的经济模型</p>
+    <p>整个系统建立在"每个活很快干完、立刻还工人"的假设上。凡是<strong>占着工人不还</strong>的用法
+  ——干等 IO、同步阻塞、死循环——都是在放这个经济系统的血。</p>
+  </div>
+
+  <!-- ═══════════ 2. 判决尺 ═══════════ -->
+  <h2>二、判决尺:先问"干活的是谁"</h2>
+
+  <p>拿到一个任务,第一问不是"要不要 <code>Task.Run</code>",而是:</p>
+
+  <table>
+    <thead><tr><th>活的本性</th><th>真正干活的</th><th>正确姿势</th><th>错误姿势的代价</th></tr></thead>
+    <tbody>
+      <tr><td><strong>CPU-bound</strong>(压缩、序列化、图像、算数)</td><td>本机 CPU</td><td>UI 应用里 <code>Task.Run</code> 挪走,防卡界面</td><td>直接在 UI 线程算 → 界面冻结</td></tr>
+      <tr><td><strong>IO-bound</strong>(网络、磁盘、DB、定时)</td><td><strong>外部设备/远端</strong></td><td>真异步 API,<code>await</code>——<strong>0 线程</strong>(0001 起的全部机制为此而生)</td><td><code>Task.Run</code> 包同步 IO → 占工人干等,慢性放血</td></tr>
+    </tbody>
+  </table>
+
+  <div class="code-label">判决尺落成代码 · 三不纪律</div>
+<pre><code><span class="cmt">// × 不 1:Task.Run 包同步 IO(工人被派去"干等网络")</span>
+<span class="kw">var</span> html = <span class="kw">await</span> Task.Run(() =&gt; _httpClient.GetStringAsync(url).Result); <span class="cmt">// 更糟:见下</span>
+
+<span class="cmt">// ✓ 正确:真异步,零线程</span>
+<span class="kw">var</span> html = <span class="kw">await</span> _httpClient.GetStringAsync(url);
+
+<span class="cmt">// × 不 2:库里替调用方决定并发(Task.Run 的调用权在应用层)</span>
+<span class="cmt">// ✓ 不 3 服务端:ASP.NET Core 里请求本来就跑在池工人上,Task.Run = 把活挪个位置还多付开销</span></code></pre>
+
+  <div class="callout trap">
+    <p class="callout-title">0007 欠的账:sync-over-async 到底烧几个工人?</p>
+    <p><code>Task.Run(() =&gt; FooAsync().Result).Result</code> 这一行:
+    外层 <code>.Result</code> 阻塞<strong>工人 A</strong>;内层委托在<strong>工人 B</strong> 上跑,
+    随即也被 <code>.Result</code> 阻塞。<strong>两个工人换一件活,且 A 纯属陪绑</strong>。
+    无上下文环境不死锁(0007 讲过),但池子被双倍放血——迁移期过渡可以,长期必删。</p>
+  </div>
+
+  <p class="muted">判决尺与"库/应用/服务端"三层 etiquette 的权威出处:
+  <a href="https://blog.stephencleary.com/2013/11/taskrun-etiquette-and-proper-usage.html" target="_blank">Task.Run Etiquette — Stephen Cleary</a>。</p>
+
+  <!-- ═══════════ 3. 模拟器 ═══════════ -->
+  <h2>三、亲眼看饥饿:三种姿势的账本</h2>
+
+  <p>依次播放三个场景(同一池子,4 名工人)。盯住两处:<strong>红色工人</strong>(干等型占用)
+  和<strong>队列</strong>(积压):</p>
+
+  <div id="pool"></div>
+  <script src="../assets/pool-simulator.js"></script>
+  <script>
+    PoolSimulator.render(document.getElementById('pool'), {
+      title: '线程池饥饿模拟器',
+      workerCount: 4,
+      scenarios: [
+        {
+          name: 'A · 真异步 IO(await)',
+          summary: '6 件 IO 全程 0 工人占用——干活的是网卡与远端,工人始终空闲接客。这就是 await 的经济学。',
+          jobs: [
+            { at: 1, len: 0, block: false, label: 'IO·1' },
+            { at: 2, len: 0, block: false, label: 'IO·2' },
+            { at: 3, len: 0, block: false, label: 'IO·3' },
+            { at: 4, len: 0, block: false, label: 'IO·4' },
+            { at: 5, len: 0, block: false, label: 'IO·5' },
+            { at: 6, len: 0, block: false, label: 'IO·6' }
+          ]
+        },
+        {
+          name: 'B · Task.Run 包同步 IO',
+          summary: '工人被干等型任务占满、队列持续积压——真实世界里,这就是全站所有 Task.Run 一起变慢(0005 的 WaitingToRun 堆积)。',
+          jobs: [
+            { at: 1, len: 5, block: true, label: '等·1' },
+            { at: 2, len: 5, block: true, label: '等·2' },
+            { at: 3, len: 5, block: true, label: '等·3' },
+            { at: 4, len: 5, block: true, label: '等·4' },
+            { at: 5, len: 5, block: true, label: '等·5' },
+            { at: 6, len: 5, block: true, label: '等·6' }
+          ]
+        },
+        {
+          name: 'C · 正常 CPU 活(本职)',
+          summary: '占工人但在真干活,队列有节奏地清空——这才是线程池设计时想服务的客户。',
+          jobs: [
+            { at: 1, len: 2, block: false, label: 'CPU·1' },
+            { at: 2, len: 2, block: false, label: 'CPU·2' },
+            { at: 3, len: 2, block: false, label: 'CPU·3' },
+            { at: 4, len: 2, block: false, label: 'CPU·4' },
+            { at: 5, len: 2, block: false, label: 'CPU·5' },
+            { at: 6, len: 2, block: false, label: 'CPU·6' },
+            { at: 7, len: 2, block: false, label: 'CPU·7' },
+            { at: 8, len: 2, block: false, label: 'CPU·8' }
+          ]
+        }
+      ]
+    });
+  </script>
+
+  <div class="callout">
+    <p class="callout-title">对照出的诊断链(接 0005)</p>
+    <p>生产日志看到 <code>WaitingToRun</code> 堆积 → 下一步找<strong>被占死的工人</strong>
+    (<code>Running</code> 卡住/干等)→ 十有八九揪出一个"包着 IO 的 <code>Task.Run</code>"
+    或一处 sync-over-async。状态地图 → 线程池 → 代码姿势,三步闭环,这就是"解决工作实际问题"。</p>
+  </div>
+
+  <!-- ═══════════ 4. ValueTask ═══════════ -->
+  <h2>四、ValueTask 初识:热路径的第二种欠条</h2>
+
+  <p><span class="tag tag-source">源码视角</span>0006 讲过快速路径:欠条早已完成时,await 几乎免费——
+  但"几乎"里还剩一笔:<code>Builder.Task</code> 那个 Task 对象本身,每次调用仍要分配。
+  高频调用(每秒几十万次的缓存读、协议解析)里,这笔账开始显眼。
+  <code>ValueTask&lt;T&gt;</code> 是答案:</p>
+
+  <table>
+    <thead><tr><th></th><th>Task / Task&lt;T&gt;</th><th>ValueTask&lt;T&gt;</th></tr></thead>
+    <tbody>
+      <tr><td>本体</td><td>class,每次分配</td><td><strong>struct,栈上</strong></td></tr>
+      <tr><td>同步完成路径</td><td>仍分配一个 Task(0006 快速路径)</td><td><strong>直接包结果,零分配</strong></td></tr>
+      <tr><td>异步完成时</td><td>正常路径</td><td>内部退化为包着一个 Task(不亏)</td></tr>
+      <tr><td>消费规则</td><td>随便 await</td><td><strong>只能 await 一次</strong></td></tr>
+      <tr><td>默认选择</td><td>✓ 安全默认</td><td>仅热路径</td></tr>
+    </tbody>
+  </table>
+
+  <div class="code-label">ValueTask 的标准形态:先查同步,未命中才异步</div>
+<pre><code><span class="kw">private readonly</span> ConcurrentDictionary&lt;<span class="kw">string</span>, <span class="kw">byte</span>[]&gt; _cache = <span class="kw">new</span>();
+
+<span class="kw">public</span> ValueTask&lt;<span class="kw">byte</span>[]&gt; GetDataAsync(<span class="kw">string</span> key, CancellationToken ct)
+{
+    <span class="kw">if</span> (_cache.TryGetValue(key, out <span class="kw">var</span> hit))
+        <span class="kw">return new</span> ValueTask&lt;<span class="kw">byte</span>[]&gt;(hit);            <span class="cmt">// 命中:零分配直接还结果</span>
+
+    <span class="kw">return new</span> ValueTask&lt;<span class="kw">byte</span>[]&gt;(LoadCoreAsync(key, ct));  <span class="cmt">// 未命中:包住普通异步</span>
+}
+
+<span class="kw">private async</span> Task&lt;<span class="kw">byte</span>[]&gt; LoadCoreAsync(<span class="kw">string</span> key, CancellationToken ct)
+    =&gt; <span class="kw">await</span> _http.GetByteArrayAsync(GetUrl(key), ct);   <span class="cmt">// 真异步 IO:零线程(判决尺!)</span></code></pre>
+
+  <div class="callout warn">
+    <p class="callout-title">ValueTask 三条使用纪律(违反 = 未定义行为级 bug)</p>
+    <p>① <strong>只能 await 一次</strong>——不能存下来反复消费、不能并发 await;<br>
+    ② <strong>完成前不混用</strong>——不要 await 之前又去 <code>AsTask()</code> 拆开两头用;<br>
+    ③ <strong>只有"高频 + 常常同步完成"才值得</strong>——一般 API 用 <code>Task</code>,
+    它对调用方的宽容度(多次消费、WhenAll 组合)是真正的价值。<br>
+    权威长文:<a href="https://devblogs.microsoft.com/dotnet/understanding-the-whys-whats-and-whens-of-valuetask/" target="_blank">Understanding ValueTask — Stephen Toub</a>。
+    看到库返回 ValueTask,读出的潜台词是:"这是热路径,请遵守纪律。"</p>
+  </div>
+
+  <!-- ═══════════ 5. 检索练习 ═══════════ -->
+  <h2>五、检索练习<span class="muted" style="font-size:.85rem">(不看上文,凭记忆答)</span></h2>
+  <div id="quiz"></div>
+
+  <!-- ═══════════ 6. 复习钩子 ═══════════ -->
+  <h2>六、明天的回忆任务<span class="muted" style="font-size:.85rem">(30 秒,不翻书)</span></h2>
+  <details class="qa">
+    <summary>① 判决尺的第一问是什么?两种答案各引向哪个姿势?</summary>
+    "真正干活的是谁?"CPU → Task.Run 挪走(UI 场景);外部设备 → 真异步 await,零线程。
+  </details>
+  <details class="qa">
+    <summary>② Task.Run 的三不?</summary>
+    不包同步 IO;库代码不替调用方决定并发;ASP.NET Core 服务端不用(调用者已是工人)。
+  </details>
+  <details class="qa">
+    <summary>③ ValueTask 三纪律?</summary>
+    只 await 一次;完成前不混用(AsTask 两头);仅高频+常同步完成的热路径,一般用 Task。
+  </details>
+
+  <!-- ═══════════ 尾部 ═══════════ -->
+  <div class="callout ask no-print">
+    <p class="callout-title">卡住了?随时问你的老师</p>
+    <p>"我们服务半夜偶发全站变慢,像不像饥饿?怎么抓现行?""work stealing 是怎么回事?"
+    "本地队列和全局队列什么任务走哪个?"——回 Claude Code 直接问,
+    带上你们服务的线程池监控截图更好。</p>
+  </div>
+
+  <div class="next-up">
+    <p class="next-title">▸ 下一课:<a href="0009-task-combinators.html">0009 · Task 组合器:WhenAll / WhenAny / Delay / Unwrap →</a></p>
+    <p>单张欠条你已经吃透;接下来学<strong>一次驾驭一批</strong>:并发聚合成一张、
+    任何一张先完成就响应(0003 超时模式的地基)、以及 0008 提过一嘴的
+    <code>Task.Run</code> 解包(Unwrap)真相。复习工具:
+    <a href="../reference/threadpool-taskrun-速查卡.html">线程池与 Task.Run 速查卡</a>(新增)。</p>
+  </div>
+
+  <hr class="footrule">
+  <footer class="course-foot">
+    <span>dotnet-Task异步学习 · 第 0008 课 · 主推阅读:<a href="https://blog.stephencleary.com/2013/11/taskrun-etiquette-and-proper-usage.html" target="_blank">Task.Run Etiquette — Stephen Cleary</a></span>
+    <span><a href="0007-synccontext-and-deadlock.html">上一课</a> · <a href="index.html">目录</a> · <a href="../reference/task-status-速查卡.html">状态卡</a> · <a href="../reference/threadpool-taskrun-速查卡.html">线程池卡</a></span>
+  </footer>
+
+</div>
+<script src="../assets/quiz.js"></script>
+<script>
+  // ── 隔日检索热身(复习 0007)──
+  TeachQuiz.render(document.getElementById('warmup'), [
+    {
+      q: '【复习】await 挂起时"记住现场",记的是?',
+      options: ['当前线程的同步上下文', '当前线程的线程池槽位', '当前方法的完整调用栈', '当前欠条的实时完成态'],
+      answer: 0,
+      explain: '捕获 SynchronizationContext.Current;恢复时非空则 Post,null 则内联。'
+    },
+    {
+      q: '【复习】经典 UI 死锁里,UI 线程卡死在哪一步?',
+      options: ['同步阻塞等结果的调用', '网络请求的远程等待中', '消息队列的泵循环内部', '续延的内联执行过程里'],
+      answer: 0,
+      explain: '.Result 同步阻塞 → 不再泵消息 → 续延永远排队,环闭合。'
+    },
+    {
+      q: '【复习】类库代码里 await 的惯例写法?',
+      options: ['一律 ConfigureAwait(false)', '一律 ConfigureAwait(true)', '全部用 Task.Run 包裹执行', '只在返回前再等一次任务'],
+      answer: 0,
+      explain: '库不依赖调用方上下文:根除死锁,省一次 Post;UI 事件处理器是例外。'
+    },
+    {
+      q: '【复习】ConfigureAwait(false) 之后,HttpContext.Current 会?',
+      options: ['在classic ASP.NET丢失', '自动跟随续延迁移走', '被框架缓存等待恢复', '在所有环境都保留着'],
+      answer: 0,
+      explain: '上下文与请求绑定——丢了快递员就丢了包裹(0007 速查卡的危险点)。'
+    }
+  ]);
+
+  // ── 本课检索练习 ──
+  TeachQuiz.render(document.getElementById('quiz'), [
+    {
+      q: '判决尺第一问之后,网络请求属于?',
+      options: ['外部设备干活零线程', '本机处理器全速算活', '必须占着工人等完成', '线程池拒绝接收的活'],
+      answer: 0,
+      explain: 'IO-bound:真正干活的是远端/设备,await 挂起零线程占用——欠条机制为此而生。'
+    },
+    {
+      q: 'Task.Run 包同步 IO 的真实代价?',
+      options: ['占工人干等慢性失血', '自动切换到专用线程', '能把等待时间缩短半', '只多付一次内存拷贝'],
+      answer: 0,
+      explain: '工人被派去"干等网络"——占着不干活,池子慢性放血,全站变慢。'
+    },
+    {
+      q: 'ASP.NET Core 服务端里,Task.Run 的正确态度?',
+      options: ['不该用,请求已是工人', '该多用,能平摊计算压力', '只在控制器动作里必须', '只在无返回值场合必须'],
+      answer: 0,
+      explain: '请求本来就跑在池工人上:Task.Run = 把活挪个位置还多付调度开销(Cleary etiquette)。'
+    },
+    {
+      q: 'ValueTask 的核心使用纪律是?',
+      options: ['只能被 await 一次消费', '可以反复 await 取结果', '任何场景都优先于 Task', '必须配合 Task.Run 使用'],
+      answer: 0,
+      explain: '只 await 一次、完成前不混用、仅热路径。违反会拿到未定义行为级的 bug。'
+    }
+  ]);
+</script>
+</body>
+</html>

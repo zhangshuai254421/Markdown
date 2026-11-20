@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>第9课 · 止损与仓位：错了会伤多深</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <p class="eyebrow">量化交易入门 · 第 9 课 / 12</p>
+  <h1>止损与仓位：错了会伤多深</h1>
+  <p class="lead">策略回答"什么时候进出"，<strong>仓位回答"错了会伤多深"</strong>——后者才是活下来的那一半。本课把止损写成你熟悉的状态机出边，再用两条公式（2% 规则、凯利公式）把"该买多少"从拍脑袋变成算术。</p>
+
+  <h2>止损：状态机的一条出边</h2>
+  <p>把持仓看作三状态状态机：空仓 →（金叉买入）→ 持有 →（死叉卖出 <em>或</em> 止损）→ 空仓。止损就是从"持有"出发的一条<strong>无条件出边</strong>：价格跌破买入价 ×(1−8%)，立刻卖出，不讨论。</p>
+  <div class="insight"><p><strong>为什么必须机械</strong>：《炒股的智慧》反复强调，亏损中的交易者不值得信任——侥幸心理在浮亏 8% 时达到峰值，恰好是最该离场的时刻。机械止损的意义不是"8% 是 magic number"，而是<strong>把纪律从事后意志力搬进事前规则</strong>。这正是量化对你的吸引力所在：你擅长让规则替你扛住情绪。</p></div>
+  <div class="warning"><p><strong>A 股物理会咬你的止损一口</strong>：T+1 意味着今天买入、明天跳空跌停开盘，你的 8% 止损实际以 −10% 甚至更低成交。<strong>止损设定 ≠ 最大亏损</strong>，引擎必须如实模拟这一点（下面的代码已经按开盘价成交）。</p></div>
+  <p class="code-title">Program.cs — 在第 8 课事件循环开头、信号判断之前插入</p>
+  <pre><code>const double StopPct = 0.08;              // 止损线：跌破买入价 8%
+double entryPrice = 0;                    // 买入时记录（买入分支里 entryPrice = fill;）
+
+// 止损出边：先于策略信号执行，T+1 约束照常生效
+if (shares &gt; 0 &amp;&amp; today.Date &gt; lastBuyDay &amp;&amp; today.Open &lt; entryPrice * (1 - StopPct))
+{
+    double fill = today.Open;             // 跳空开盘只能按开盘价出
+    cash += shares * fill
+          - Math.Max(shares * fill * Commission, MinFee)
+          - shares * fill * StampTax;
+    shares = 0;
+    prevSignal = 0;                       // 状态机回到空仓
+}</code></pre>
+
+  <h2>2% 规则：仓位由止损距离反推</h2>
+  <p>经典公式（Van Tharp 的仓位管理思想）：仓位 = 单笔可承受亏损 ÷ 止损距离。</p>
+  <p class="code-title">仓位 = (本金 × 2%) ÷ 止损距离</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>要素</th><th>取值（例）</th></tr></thead>
+    <tbody>
+      <tr><td>本金</td><td>100,000 元</td></tr>
+      <tr><td>单笔最大可亏（2%）</td><td>2,000 元</td></tr>
+      <tr><td>止损距离</td><td>5%</td></tr>
+      <tr><td><strong>仓位</strong> = 2000 ÷ 0.05</td><td><strong>40,000 元</strong>（四成仓）</td></tr>
+    </tbody>
+  </table></div>
+  <p>注意方向：<strong>止损越近，仓位越大；止损越远，仓位越小</strong>——总风险被锁死在 2%，仓位只是它的影子。所以"止损 5% 买四成仓"不是胆量问题，是除法。</p>
+
+  <h2>凯利公式：增长与爆仓之间的最优解</h2>
+  <p>2% 规则是"防守端"的答案。进攻端的经典答案是凯利公式（Ed Thorp 把它带进股市，见 <a href="https://en.wikipedia.org/wiki/Kelly_criterion">Wikipedia: Kelly criterion</a>）：</p>
+  <p class="code-title">K = W − (1−W)/R　（W=胜率，R=盈亏比：平均盈利÷平均亏损）</p>
+  <p>手算一遍：胜率 40%、盈亏比 2（赚时平均赚 2 份、亏时平均亏 1 份——趋势策略的典型画像）：K = 0.4 − 0.6/2 = <strong>0.1，即 10% 仓位</strong>。</p>
+  <p><strong>为什么实践里用半凯利（K/2）</strong>：增长率在最优解附近是平的——半仓凯利牺牲极少的长期增长，波动却减半；而你的 W、R 是估计值，实盘里 W 被高估是常态，半凯利是"对估计误差的保险"。Thorp 本人在实战中长期使用分数凯利。</p>
+  <div class="insight"><p><strong>一条自查反射</strong>：算出你的半凯利（比如 5%）。若当前某笔仓位的风险敞口连 <strong>1/4 凯利</strong>都超过——你在下重注，不论感觉多好。把它加进 <a href="../reference/backtest-checklist.html">R2 第三关</a>的自查：仓位是否 ≤ 半凯利？</p></div>
+  <div class="warning"><p><strong>凯利的前提是你知道 W 和 R</strong>——而它们只能从回测估计。回测里 W=45%，实盘可能只有 35%。这就是凯利公式给出"数学最优"、实战却永远打折的原因：<strong>最优解建立在你最不确定的参数上</strong>。</p></div>
+
+  <h2>检验一下</h2>
+  <div class="quiz" data-answer="a"
+       data-explain-good="对。2% 规则锁死的是'单笔交易最多亏多少'；仓位大小只是这个风险额除以止损距离的影子。"
+       data-explain-bad="不对。2% 规则与账户总回撤、持仓期限都无关——它管的是每一笔交易的风险上限。">
+    <p class="quiz-question">2% 规则决定的是什么？</p>
+    <button class="opt" data-key="a">单笔亏损的上限</button>
+    <button class="opt" data-key="b">账户最大的回撤</button>
+    <button class="opt" data-key="c">持仓最长的期限</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <div class="quiz" data-answer="a"
+       data-explain-good="对。凯利 K 是'长期增长最大化'的仓位；实践用半凯利，因为参数是估的、增长曲线在峰附近是平的。"
+       data-explain-bad="不对。凯利公式不优化胜率也不设置损——它只回答一个问题：多大的仓位让长期复利增长最快。">
+    <p class="quiz-question">凯利公式 K 给出的是？</p>
+    <button class="opt" data-key="a">长期增长最优仓</button>
+    <button class="opt" data-key="b">胜率最高的参数</button>
+    <button class="opt" data-key="c">最合适的止损点</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <div class="exercise">
+    <p><strong>动手（约 30 分钟）：</strong></p>
+    <ol>
+      <li>给引擎装上 8% 止损，重跑双均线，对比安装前后：最大回撤变了多少？年化牺牲了多少？（这就是"止损的保险费"）</li>
+      <li>手算：本金 10 万、止损距离 4%，2% 规则给多少仓位？再算 W=0.45、R=1.5 的凯利与半凯利。</li>
+      <li>记录你策略回测里的 W 和 R（交易笔数够多才有意义；第 3 课说过趋势策略十年只有十几笔——样本太小，这本身就是答案的一部分）。</li>
+    </ol>
+  </div>
+
+  <h3>自由回忆（隔天再做一遍效果更好）</h3>
+  <p>不看上文：① 止损为什么必须机械、且 8% 不是 magic number？② 2% 规则公式与本课例子的数字；③ 凯利公式、半凯利的理由、你的自查反射线。</p>
+  <button class="reveal-btn" data-reveal="recall">回忆后对照</button>
+  <div class="answer" id="recall" hidden>
+    <p>① 把纪律从意志力搬进事前规则；数字本身不重要，事先固定才重要。② 仓位=(本金×2%)÷止损距离；例：2000÷0.05=4 万。③ K=W−(1−W)/R；半凯利：增长曲线峰值附近平坦、参数被高估是常态；反射：敞口不得超过半凯利（1/4 凯利=重注警报）。</p>
+  </div>
+
+  <h2>下一步</h2>
+  <p><strong>本课主源推荐</strong>：<a href="https://en.wikipedia.org/wiki/Kelly_criterion">Wikipedia: Kelly criterion</a>——重点读 "Statements"、"Bellman and Kalaba" 与 "Fractional Kelly" 相关小节；进阶读 Thorp 2008 年论文《The Kelly Criterion in Blackjack, Sports Betting, and the Stock Market》（搜标题可得）。</p>
+  <p><strong>下一课预告</strong>：第 10 课《因子入门》——为什么这样能赚？给策略一个学术名字：动量、价值、低波，以及 A 股市场的特殊脾气（短期反转强于动量）。你写的双均线将获得它的学名。</p>
+
+  <div class="note"><p><strong>卡住了？随时问老师。</strong>"我的策略 W 算出来 65% 是不是该重仓？"——这种问题务必先来问，因为答案几乎肯定是"先怀疑 W 被高估了"。</p></div>
+
+  <nav class="lesson-nav">
+    <a href="0008-cndata-physics-engine.html">第 8 课：A股物理定律</a>
+    <a href="../reference/glossary.html">术语表（R1）</a>
+    <a href="../reference/backtest-checklist.html">自查清单（R2）</a>
+    <a href="0010-factors-intro.html">下一课：因子入门</a>
+  </nav>
+</main>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/course-nav.js"></script>
+</body>
+</html>

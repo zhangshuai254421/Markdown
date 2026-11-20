@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>0011 · 源码阅读实战:SignalR 里的 TaskCompletionSource</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">DOTNET · TASK SYSTEM · 第 0011 课</p>
+  <h1>源码阅读实战:SignalR 里的 TaskCompletionSource</h1>
+  <div class="meta">
+    <span class="chip">⏱ 预计 25 分钟(含动手作业)</span>
+    <span class="chip">前置:第 0001–0010 课</span>
+    <span class="chip">交付:一套可复用的精读法 + SignalR 实战地图 + 5 道寻宝作业</span>
+  </div>
+
+  <p class="lede">你的第一个学习动机是<strong>读源码</strong>——今天兑现。不学新 API,学的是方法:
+  拿 SignalR 客户端当解剖标本,把 0001–0010 课学的每个模式在工业级代码里认出来一遍。
+  你会发现:框架作者和我们用同一套欠条,连坑都是同一批。<span class="tag tag-source">源码视角</span></p>
+
+  <!-- ═══════════ 0. 隔日检索 ═══════════ -->
+  <h2>〇、隔日检索<span class="muted" style="font-size:.85rem">(先测后学:0010 还剩多少?)</span></h2>
+  <div id="warmup"></div>
+
+  <!-- ═══════════ 1. 为什么是 SignalR ═══════════ -->
+  <h2>一、为什么拿 SignalR 开刀</h2>
+
+  <p>SignalR 客户端每调用一次服务端 Hub 方法(<code>InvokeAsync</code>),都要经历:</p>
+  <ol>
+    <li>HTTP/WebSocket 消息发出去,<strong>回复不知道什么时候来、从哪个线程来</strong>;</li>
+    <li>必须立刻给调用方一个可以 await 的东西——<strong>这不就是欠条吗</strong>;</li>
+    <li>回复到达时按编号找到对应欠条销账;超时、取消、断线各自有收场方式。</li>
+  </ol>
+  <p>这就是 0001 课"回调→Task 桥接"的工业级版本,而且是<strong>活的</strong>:
+  ASP.NET Core 官方仓库、每天被百万应用依赖的代码。</p>
+
+  <!-- ═══════════ 2. 精读三步法 ═══════════ -->
+  <h2>二、精读三步法(可复用于任何框架)</h2>
+
+  <table>
+    <thead><tr><th>步骤</th><th>动作</th><th>本课实操</th></tr></thead>
+    <tbody>
+      <tr><td><strong>① 定位</strong></td><td>GitHub 打开目标文件,<code>Ctrl+F</code> 搜符号(TCS 相关:<code>TaskCompletionSource</code> / <code>TrySet</code> / <code>RunContinuationsAsynchronously</code>)</td><td>下方链接地图的 4 个文件</td></tr>
+      <tr><td><strong>② 翻译</strong></td><td>把陌生符号翻译成自己的术语体系</td><td>invocationId = 欠条编号;字典 = 挂号处</td></tr>
+      <tr><td><strong>③ 审问</strong></td><td>三问:<strong>谁开票?谁销账?取消/超时谁管?</strong></td><td>第四节的 5 道作业题</td></tr>
+    </tbody>
+  </table>
+
+  <div class="code-label">链接地图 · 2026-10-25 逐一验证过路径</div>
+  <table>
+    <thead><tr><th>文件</th><th>角色</th><th>验证状态</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><a href="https://github.com/dotnet/aspnetcore/blob/main/src/SignalR/clients/csharp/Client.Core/src/HubConnection.cs" target="_blank">HubConnection.cs</a></td>
+        <td>客户端总指挥:发起 invoke、处理消息与断线</td>
+        <td>✓ 路径已验证</td>
+      </tr>
+      <tr>
+        <td><a href="https://github.com/dotnet/aspnetcore/blob/main/src/SignalR/clients/csharp/Client.Core/Internal/InvocationRequest.cs" target="_blank">InvocationRequest.cs</a></td>
+        <td><strong>本课主菜</strong>:一张欠条的完整封装(TCS + 取消注册)</td>
+        <td>✓ TCS + RunContinuationsAsynchronously 已验证</td>
+      </tr>
+      <tr>
+        <td><a href="https://github.com/dotnet/aspnetcore/tree/main/src/SignalR/common/Shared" target="_blank">ClientResultsManager.cs(common/Shared)</a></td>
+        <td>挂号处:字典 <code>_pendingInvocations</code> 的家</td>
+        <td>△ 符号已验证;文件在共享目录,以仓库搜索为准</td>
+      </tr>
+      <tr>
+        <td><a href="https://github.com/dotnet/runtime/blob/main/src/libraries/System.Private.CoreLib/src/System/Threading/Tasks/TaskCompletionSource.cs" target="_blank">TaskCompletionSource.cs(dotnet/runtime)</a></td>
+        <td>我们学了一整课的类型本体 + 官方注释"producer side of a Task"</td>
+        <td>△ 按 TaskCache.cs 同构路径推定,搜不到就用符号搜</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ═══════════ 3. 实战地图 ═══════════ -->
+  <h2>三、实战地图:把课程术语钉在源码上</h2>
+
+  <div class="callout">
+    <p class="callout-title">精读笔记(以链接到的当前源码为准)</p>
+    <p>行号会漂移、文件可能搬家——找不到就退回符号搜索,<strong>这本身就是精读训练的一部分</strong>。
+    下表右列是我读到的对应关系,你要做的是亲手把它们一个一个"认领"。</p>
+  </div>
+
+  <table>
+    <thead><tr><th>源码现场</th><th>课程术语</th></tr></thead>
+    <tbody>
+      <tr><td><code>new TaskCompletionSource&lt;object?&gt;(TaskCreationOptions.RunContinuationsAsynchronously)</code>(InvocationRequest)</td><td>0001 开票 + <strong>0002 坑①</strong>:防销账线程被续延同步拖住</td></tr>
+      <tr><td><code>_pendingInvocations.TryAdd(invocationId, …)</code></td><td>欠条编号 + 挂号处;Try = 重号/竞态时体面失败(0002)</td></tr>
+      <tr><td>回复消息到达 → <code>TrySet*</code>(找找看,是 Try 不是 Set)</td><td>销账纪律:超时/取消可能抢先(0002/0003)</td></tr>
+      <tr><td>断线 → 批量失败所有 pending 欠条</td><td>广播终态(0004):不能让任何欠条永挂</td></tr>
+      <tr><td>CancellationToken 注册 → <code>TrySetCanceled</code> + 摘除登记</td><td>取消分支 + 先订阅后检查(0004/0005)</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout trap">
+    <p class="callout-title">读源码最常见的误读</p>
+    <p>看到 <code>TrySetResult</code> 就问"失败时为什么不抛?"—— 错位了:Try 的返回值不是"业务成功",
+    而是<strong>"销账权是否还归我"</strong>。抢不到销账权(超时已判、欠条已销)是<strong>正常路径</strong>,
+    不是异常。把"机制层竞争"和"业务层成败"分开,源码瞬间清爽。</p>
+  </div>
+
+  <!-- ═══════════ 4. 作业 ═══════════ -->
+  <h2>四、寻宝作业<span class="muted" style="font-size:.85rem">(打开链接,亲手找答案)</span></h2>
+
+  <details class="qa">
+    <summary>① InvocationRequest 的 TCS 构造参数是什么?为什么非加不可?</summary>
+    提示:看构造函数;<code>RunContinuationsAsynchronously</code>——没有它,读循环线程销账时续延可能同步执行,
+    调用方一个慢回调就拖住整个消息泵(0002 坑①)。
+  </details>
+  <details class="qa">
+    <summary>② 回复到达时,销账用 Set 还是 Try?谁可能抢先?</summary>
+    提示:在消息处理路径搜 <code>TrySet</code>;超时/取消/断线都可能是"先判官"——竞态纪律(0002)。
+  </details>
+  <details class="qa">
+    <summary>③ _pendingInvocations 是什么类型?key 是什么?为什么必须是并发容器?</summary>
+    提示:invocationId(string)→ 欠条;开票(UI 线程/调用方)与销账(读循环线程)不同线程。
+  </details>
+  <details class="qa">
+    <summary>④ 断线时,挂号处里还没销账的欠条怎么收场?</summary>
+    提示:找 OnDisconnected / 批量失败路径——任何欠条都不许永挂(0004 广播终态)。
+  </details>
+  <details class="qa">
+    <summary>⑤ 指出一条"若无 RunContinuationsAsynchronously 就可能卡顿/死锁"的具体代码路径。</summary>
+    提示:从"读循环线程收到回复"出发,推演续延同步执行时会占用谁——找到最优的一条,讲给老师听。
+  </details>
+
+  <!-- ═══════════ 5. 迁移 ═══════════ -->
+  <h2>五、读完这篇,下一站读哪</h2>
+  <p>方法不变,三步照走:<strong>HttpConnection.cs</strong>(连接建立也是欠条)、
+  <strong>HttpClient</strong> 的响应流处理、<strong>SqlClient</strong> 的 MARS pending 操作。
+  每读一处,把新认领的符号追加进<a href="../reference/source-reading-速查卡.html">精读方法卡</a>的对照表——
+  这张卡会随着你的阅读长成你自己的"源码地图"。</p>
+
+  <!-- ═══════════ 6. 检索练习 ═══════════ -->
+  <h2>六、检索练习<span class="muted" style="font-size:.85rem">(不看上文,凭记忆答)</span></h2>
+  <div id="quiz"></div>
+
+  <!-- ═══════════ 7. 复习钩子 ═══════════ -->
+  <h2>七、明天的回忆任务<span class="muted" style="font-size:.85rem">(30 秒,不翻书)</span></h2>
+  <details class="qa">
+    <summary>① 精读三步法?</summary>
+    定位(链接 + 符号搜索)→ 翻译(符号↔自己的术语)→ 审问(三问:谁开票 / 谁销账 / 取消超时谁管)。
+  </details>
+  <details class="qa">
+    <summary>② InvocationRequest 的 TCS 构造加了什么?防什么?</summary>
+    TaskCreationOptions.RunContinuationsAsynchronously——防销账线程被调用方续延同步执行拖住(0002 坑①)。
+  </details>
+  <details class="qa">
+    <summary>③ _pendingInvocations 在体系里扮演什么?</summary>
+    挂号处:invocationId → 欠条;TryAdd 防重号;断线时批量广播失败,不许永挂。
+  </details>
+
+  <!-- ═══════════ 尾部 ═══════════ -->
+  <div class="callout ask no-print">
+    <p class="callout-title">作业答案,老师对卷</p>
+    <p>五道寻宝题做完,把你的答案贴回来,老师逐条批改;哪道找不到,
+    直接说"第 N 题卡住",老师带你定位。也可以丢过来任何你想读的源码片段。</p>
+  </div>
+
+  <div class="next-up">
+    <p class="next-title">▸ 下一课:<a href="0012-interview-special-topics.html">0012 · 面试专题:死锁、sync-over-async、Task vs Thread vs ValueTask →</a></p>
+    <p>最后一课:<strong>毕业答辩</strong>。三大高频题的 60 秒答法 + 十问快答 + 横跨 12 课的综合测验,
+    把整个课程压成面试桌上能脱口而出的东西。复习工具:
+    <a href="../reference/source-reading-速查卡.html">源码精读方法卡</a>(新增)。</p>
+  </div>
+
+  <hr class="footrule">
+  <footer class="course-foot">
+    <span>dotnet-Task异步学习 · 第 0011 课 · 主推阅读:<a href="https://github.com/dotnet/aspnetcore/blob/main/src/SignalR/clients/csharp/Client.Core/Internal/InvocationRequest.cs" target="_blank">InvocationRequest.cs — dotnet/aspnetcore</a></span>
+    <span><a href="0010-exception-handling-panorama.html">上一课</a> · <a href="index.html">目录</a> · <a href="../reference/source-reading-速查卡.html">精读卡</a></span>
+  </footer>
+
+</div>
+<script src="../assets/quiz.js"></script>
+<script>
+  // ── 隔日检索热身(复习 0010)──
+  TeachQuiz.render(document.getElementById('warmup'), [
+    {
+      q: '【复习】await 一张多异常的欠条,抛?',
+      options: ['最前面的那个异常', '聚合好的异常列表', '最后一个发生的异常', '重新打包的新异常'],
+      answer: 0,
+      explain: 'await 解包:重抛第一个真实异常;聚合壳留给 Wait/Result 与 task.Exception。'
+    },
+    {
+      q: '【复习】Result 接故障欠条,抛的形状?',
+      options: ['AggregateException', '原始异常直接抛', '取消异常的包装', '空引用异常一种'],
+      answer: 0,
+      explain: 'Wait/Result 打包;原始异常在 InnerExceptions / GetBaseException() 里。'
+    },
+    {
+      q: '【复习】EDI.Capture(ex).Throw() 的卖点?',
+      options: ['原封不动的老堆栈', '自动修复异常的类型', '把异常降级为警告', '吞掉异常不再上抛'],
+      answer: 0,
+      explain: '冻结原始堆栈,异地原样重抛——欠条体系重抛不失真的幕后功臣。'
+    },
+    {
+      q: '【复习】throw ex; 的罪状?',
+      options: ['把堆栈重置成此行', '把异常变成了新类型', '把取消误报成故障', '把异常吞下不上抛'],
+      answer: 0,
+      explain: '案发现场被改写成 catch 那一行,排障线索全毁;上抛用 throw;。'
+    }
+  ]);
+
+  // ── 本课检索练习 ──
+  TeachQuiz.render(document.getElementById('quiz'), [
+    {
+      q: '源码里见到 TCS,先审问的三件事?',
+      options: ['开票销账取消谁管', '测试覆盖率有多少', '性能数据落在哪档', '命名风格符合与否'],
+      answer: 0,
+      explain: '三问:谁开票(生产半张)?谁销账(竞态何在)?取消/超时谁管(收场路径)?'
+    },
+    {
+      q: 'SignalR 客户端的 invocationId 相当于?',
+      options: ['欠条的唯一性编号', '线程池的工人编号', '消息队列的容量值', '服务器的连接句柄'],
+      answer: 0,
+      explain: '回复按编号找欠条销账;_pendingInvocations 字典就是挂号处。'
+    },
+    {
+      q: '销账用 TrySet 而非 Set,防的是?',
+      options: ['超时取消抢先销账', '异常序列化级失败', '服务端拒绝发回应', '网络字节序不一致'],
+      answer: 0,
+      explain: '销账权可能已被超时/取消/断线判走;Try 竞而不炸(0002)。'
+    },
+    {
+      q: 'TCS 构造加 RunContinuationsAsynchronously 防?',
+      options: ['销账线程被回调拖住', '结果对象被二次包装', '欠条编号出现碰撞', '连接被服务端关闭'],
+      answer: 0,
+      explain: '强制续延离开销账线程再跑——SignalR 客户端的真实构造就是证据。'
+    }
+  ]);
+</script>
+</body>
+</html>

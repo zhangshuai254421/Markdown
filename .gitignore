@@ -24,3 +24,14 @@ Desktop.ini
 # 图片缓存
 *.jpg.meta
 *.png.meta
+
+# C# / .NET 构建产物与 IDE 文件
+bin/
+obj/
+.vs/
+packages/
+TestResults/
+*.user
+*.suo
+*.csproj.user
+*.log

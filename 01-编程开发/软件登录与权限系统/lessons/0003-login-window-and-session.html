@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 3 课 · 登录窗口与会话：登录成功之后代码怎么写</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+
+<header class="lesson-head">
+  <div class="kicker">软件登录与权限系统 · 第 3 课（纯桌面版）</div>
+  <h1>登录窗口与会话<span class="subtitle">进程内会话、失败锁定，以及多机连库时的账号集中</span></h1>
+</header>
+
+<p>第 2 课解决了「密码列怎么存」，这一课把登录流程的其余部分补齐：校验通过后程序怎么「记住」这个人、登录失败怎么处理。桌面形态的好消息是：没有网络，第 1 课地图上的第①③环节比服务端形态简单一个数量级——但有几个坑照样要绕。</p>
+
+<h2>进程内会话：一个静态对象就够</h2>
+
+<p>服务端形态需要令牌和会话表，是因为「客户端和服务端隔着网络互不信任」。桌面软件里，登录通过后程序要做的只是<strong>在内存里记住当前是谁</strong>——软件一关，会话天然消失：</p>
+
+<pre>public static class UserSession          // App 级单例——桌面形态的「会话」就这么多
+{
+    public static LocalUser? Current { get; private set; }
+    public static void Login(LocalUser user) =&gt; Current = user;
+    public static void Logout() =&gt; Current = null;
+    public static bool IsLoggedIn =&gt; Current != null;
+}
+
+// 登录窗口校验通过后：
+UserSession.Login(user);
+new MainWindow().Show();
+Close();                                  // 关登录窗</pre>
+
+<p>三条纪律：</p>
+
+<ol>
+  <li><strong>会话里只放身份，不放密码</strong>——校验完成后原密码就应当丢弃，需要再验证时（如敏感操作前）让用户重输。</li>
+  <li><strong>提供显式「切换账号/退出登录」</strong>：<code>UserSession.Logout()</code> 回登录窗口。多人共用一台工控机时这是刚需，也是审计能定位到人的前提。</li>
+  <li><strong>长时间无操作锁屏</strong>（工业现场推荐）：给主窗口挂个计时器，30 分钟无输入弹回登录窗口——对应等保「连接超时自动退出」的桌面版。</li>
+</ol>
+
+<h2>登录失败：两件小事</h2>
+
+<p>没有网络接口，「在线爆破」的前提不存在了，但登录窗口仍有两件值得做的小事：</p>
+
+<ul>
+  <li><strong>话术统一</strong>：无论账号不存在还是密码错，都提示「<strong>用户名或密码错误</strong>」。这能挡住操作员之间「帮同事试密码」式的窥探——成本为零，照做。</li>
+  <li><strong>简单锁定</strong>：连错 5 次锁 5 分钟（内存计数即可，软件重启清零也无妨）。防的不是黑客，是「试密码玩」的同事，和保障「错误密码不会被无限重试」的基本姿态：</li>
+</ul>
+
+<pre>private int _failedCount;
+private DateTime _lockedUntil = DateTime.MinValue;
+
+private void OnLogin()
+{
+    if (DateTime.Now &lt; _lockedUntil) { Show("尝试过多，请稍后再试"); return; }
+
+    if (TryVerify(inputUser.Text, inputPwd.Password)) { EnterMain(); return; }
+
+    if (++_failedCount &gt;= 5)
+    {
+        _lockedUntil = DateTime.Now.AddMinutes(5);   // 桌面简化版：内存计数即可
+        _failedCount = 0;
+    }
+    Show("用户名或密码错误");                          // 统一话术，不区分哪种错
+}</pre>
+
+<h2>多机连库：账号表放进中央数据库</h2>
+
+<p>多台电脑装同一软件、直连同一个 SQL Server 的形态：把<strong>账号表和审计表放中央数据库</strong>，密码校验代码不变（哈希在应用侧算，库里只存哈希）。收益立刻兑现：</p>
+
+<ul>
+  <li><strong>禁用一个账号、调整一个角色，全公司即时生效</strong>——不用挨台电脑改；</li>
+  <li><strong>审计记录集中</strong>在服务器的数据库里，离开各人的本机，可信度上一个台阶；</li>
+  <li><strong>顶号</strong>：登录时在账号表记一行「活跃终端」，新登录把旧终端顶下线（写一条事件让旧程序自己退出）——解决「同一账号两台电脑同时用」；</li>
+  <li><strong>数据库账号最小权限</strong>：软件连库用的数据库账号只给业务表的读写，不给建表删表权限——它被谁看到都不至于动整库。</li>
+</ul>
+
+<p>选型判断：<strong>多台电脑共用数据</strong> → 账号表集中；<strong>纯单机软件</strong> → 本地账号表（第 2 课），其余代码完全一样。</p>
+
+<div class="quiz" data-quiz='{
+  "questions": [
+    {
+      "type": "single",
+      "prompt": "桌面软件里，登录成功后的「会话」通常是什么？",
+      "options": ["进程内CurrentUser", "数据库会话表一行", "写进配置文件"],
+      "answer": 0,
+      "explanation": "没有网络互不信任的问题，一个 App 级静态对象就是会话的全部——软件一关天然登出。会话表是服务端形态的东西；配置文件存的是数据，不是会话。"
+    },
+    {
+      "type": "single",
+      "prompt": "登录失败的错误提示应该？",
+      "options": ["统一模糊话术", "明确哪项错了", "区分账号与密码错"],
+      "answer": 0,
+      "explanation": "统一为「用户名或密码错误」。挡住「帮同事试密码」式的窥探，成本为零。"
+    },
+    {
+      "type": "single",
+      "prompt": "登录窗口连续输错 5 次密码，合理的处理是？",
+      "options": ["暂时锁定五分钟", "永久禁用该账号", "不做任何处理"],
+      "answer": 0,
+      "explanation": "简单锁定（内存计数即可）防止无限重试，又不至于让人永久进不了系统。永久禁用需要人工解锁通道，纯桌面场景通常不值当；不做处理则连基本姿态都没有。"
+    },
+    {
+      "type": "multiple",
+      "prompt": "多台电脑直连同一个数据库时，哪些做法正确？（多选）",
+      "options": [
+        "账号表集中管理",
+        "新登录顶掉旧终端",
+        "数据库账号最小权限",
+        "账号各机各存一份"
+      ],
+      "answer": [0, 1, 2],
+      "explanation": "账号集中让禁用/调权全公司即时生效，审计集中可信；顶号解决一账号多开；数据库账号只给业务表读写。每机各存一份会导致账号状态永远对不齐。"
+    }
+  ]
+}'></div>
+
+<h2>课后作业：把登录流程写下来</h2>
+
+<ol>
+  <li><strong>画流程</strong>：按本课结构写出你家软件的登录流程：校验（第 2 课方案）→ UserSession → 主窗口；失败锁定和无操作锁屏（工业现场建议 30 分钟）要不要。</li>
+  <li><strong>定模式</strong>：本地账号表（单机）还是中央账号表（多机连库）？理由一句话。</li>
+  <li><strong>带回现状</strong>：现在的登录失败是什么提示？有没有切换账号功能？——第 5 课做审计时，账号唯一性是前提。</li>
+</ol>
+
+<footer class="lesson-foot">
+  <p><span class="primary-source">本课首选原文：OWASP <a href="https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html">Authentication Cheat Sheet</a></span>——失败话术统一与锁定策略的出处（桌面取其简化版）。课程内衔接：<a href="0002-password-storage.html">第 2 课</a>（校验用的哈希）、<a href="0004-rbac-modeling.html">第 4 课</a>（会话里的角色怎么建模）。</p>
+  <p>顶号逻辑想看完整实现、锁屏计时器想对写法——随时回对话问你的老师。下一课预告：<strong>RBAC 建模</strong>——角色怎么设计才不会爆炸，权限点怎么定义才不会失控。</p>
+  <p class="next-link"><a href="0004-rbac-modeling.html">下一课：RBAC 建模 →</a> · <a href="../lessons/0002-password-storage.html">回看：第 2 课 · 密码怎么存</a> · <a href="../reference/standards.html">标准速查卡</a></p>
+</footer>
+
+</main>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

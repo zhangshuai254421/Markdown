@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>源码精读方法卡</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">REFERENCE · 速查卡 · 可打印</p>
+  <h1>源码精读方法卡</h1>
+  <div class="meta">
+    <span class="chip">来源:第 0011 课</span>
+    <span class="chip">链接验证日:2026-10-25</span>
+  </div>
+
+  <p class="lede">方法只有三步:<strong>定位 → 翻译 → 审问</strong>。
+  审问永远是三问:<strong>谁开票?谁销账?取消/超时谁管?</strong></p>
+
+  <h2>一、链接地图(TCS 实战)</h2>
+  <table>
+    <thead><tr><th>文件</th><th>角色</th><th>状态</th></tr></thead>
+    <tbody>
+      <tr><td><a href="https://github.com/dotnet/aspnetcore/blob/main/src/SignalR/clients/csharp/Client.Core/src/HubConnection.cs" target="_blank">HubConnection.cs</a></td><td>客户端总指挥:invoke/消息/断线</td><td>✓ 已验证</td></tr>
+      <tr><td><a href="https://github.com/dotnet/aspnetcore/blob/main/src/SignalR/clients/csharp/Client.Core/Internal/InvocationRequest.cs" target="_blank">InvocationRequest.cs</a></td><td>欠条封装:TCS + 取消注册</td><td>✓ TCS+RCA 已验证</td></tr>
+      <tr><td><a href="https://github.com/dotnet/aspnetcore/tree/main/src/SignalR/common/Shared" target="_blank">ClientResultsManager.cs</a></td><td>挂号处字典 _pendingInvocations</td><td>△ 符号已验证,路径以搜索为准</td></tr>
+      <tr><td><a href="https://github.com/dotnet/runtime/blob/main/src/libraries/System.Private.CoreLib/src/System/Threading/Tasks/TaskCompletionSource.cs" target="_blank">TaskCompletionSource.cs</a></td><td>类型本体 + "producer side of a Task"</td><td>△ 同构路径推定</td></tr>
+    </tbody>
+  </table>
+
+  <h2>二、符号搜索清单(Ctrl+F 六连)</h2>
+  <table>
+    <tbody>
+      <tr><td><code>TaskCompletionSource</code></td><td>欠条生产者 → 看构造选项</td></tr>
+      <tr><td><code>RunContinuationsAsynchronously</code></td><td>防重入构造 → 0002 坑①</td></tr>
+      <tr><td><code>TrySet</code></td><td>销账竞态纪律 → 0002</td></tr>
+      <tr><td><code>_pendingInvocations</code></td><td>挂号处字典 → 欠条编号</td></tr>
+      <tr><td><code>InvocationRequest</code></td><td>单张欠条的完整封装</td></tr>
+      <tr><td><code>CancellationToken.Register</code></td><td>取消分支的登记与摘除 → 0004</td></tr>
+    </tbody>
+  </table>
+
+  <h2>三、精读三步法</h2>
+  <table>
+    <tbody>
+      <tr><td>① 定位</td><td>GitHub 开文件 → 符号搜索锁定 TCS 现场</td></tr>
+      <tr><td>② 翻译</td><td>陌生符号 ↔ 课程术语(invocationId = 欠条编号,字典 = 挂号处)</td></tr>
+      <tr><td>③ 审问</td><td>谁开票 / 谁销账 / 取消超时谁管——答案写不齐就是没读懂</td></tr>
+    </tbody>
+  </table>
+
+  <h2>四、概念 ↔ 现场对照表(读一处认领一行)</h2>
+  <table>
+    <thead><tr><th>源码现场</th><th>课程概念</th><th>认领</th></tr></thead>
+    <tbody>
+      <tr><td>TCS 构造 + RunContinuationsAsynchronously</td><td>0001 开票 + 0002 坑①</td><td>☐</td></tr>
+      <tr><td>TryAdd(invocationId, …)</td><td>欠条编号 + 挂号处</td><td>☐</td></tr>
+      <tr><td>回复到达 → TrySet*</td><td>销账竞速(谁抢先)</td><td>☐</td></tr>
+      <tr><td>断线 → 批量失败 pending</td><td>广播终态 0004</td><td>☐</td></tr>
+      <tr><td>取消注册 → TrySetCanceled</td><td>取消分支 0004/0005</td><td>☐</td></tr>
+    </tbody>
+  </table>
+
+  <h2>五、误读急救</h2>
+  <table>
+    <tbody>
+      <tr><td>"TrySetResult 返回 false,是不是出 bug 了?"</td><td>不是——销账权被超时/取消判走是正常路径,机制竞争 ≠ 业务失败</td></tr>
+      <tr><td>"行号对不上/文件 404"</td><td>代码会搬家:退回符号搜索;这本身就是精读训练</td></tr>
+      <tr><td>"看不懂这层包装"</td><td>先翻自己的术语表,把新符号记下来,问老师拆一层</td></tr>
+    </tbody>
+  </table>
+
+  <h2>六、术语表增量</h2>
+  <table>
+    <tbody>
+      <tr><td><strong>精读 close reading</strong></td><td>带三问清单的慢读,逐符号对照自己的模型</td></tr>
+      <tr><td><strong>符号搜索</strong></td><td>按标识符而非行号定位代码——抗漂移的读法</td></tr>
+      <tr><td><strong>挂号处</strong></td><td>invocationId → 欠条 的映射字典(_pendingInvocations)</td></tr>
+      <tr><td><strong>广播终态</strong></td><td>连接级事件(断线)批量结算所有在途欠条</td></tr>
+    </tbody>
+  </table>
+
+  <hr class="footrule">
+  <footer class="course-foot">
+    <span>dotnet-Task异步学习 · 速查卡 · 配套课程:<a href="../lessons/0011-source-reading-signalr-tcs.html">第 0011 课</a></span>
+    <span><a href="../lessons/index.html">课程目录</a> · <a href="exceptions-速查卡.html">异常卡</a> · <a href="tcs-速查卡.html">TCS 卡</a></span>
+  </footer>
+
+</div>
+</body>
+</html>

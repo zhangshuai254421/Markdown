@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>面试速查卡</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">REFERENCE · 速查卡 · 毕业兵器</p>
+  <h1>面试速查卡:异步三大题 + 十问快答</h1>
+  <div class="meta">
+    <span class="chip">来源:第 0012 课(毕业课)</span>
+    <span class="chip">主推阅读:<a href="https://devblogs.microsoft.com/dotnet/how-async-await-really-works/" target="_blank">How async/await really works — Stephen Toub</a></span>
+  </div>
+
+  <p class="lede">答题三段式:<strong>结论 10 秒 → 机理 30 秒 → 纪律 15 秒</strong>。
+  面试官听到的是叙事,你掌握的是 12 课纵深。</p>
+
+  <h2>一、三大题 60 秒脚本</h2>
+
+  <h3>① 异步死锁为什么发生?</h3>
+  <table>
+    <tbody>
+      <tr><td>结论</td><td>同步等待 + 上下文回投 → 四节点循环等待</td></tr>
+      <tr><td>机理</td><td>UI 线程 .Result 阻塞自等 → 欠条等续延 → 续延 Post 回 UI 队列 → 不泵消息</td></tr>
+      <tr><td>纪律</td><td>库一律 ConfigureAwait(false);应用一路 async;遗留边界隔离</td></tr>
+      <tr><td>防身</td><td>ConfigureAwait 只管单个 await 的续延,不传染(三事实)</td></tr>
+    </tbody>
+  </table>
+
+  <h3>② sync-over-async 错在哪?</h3>
+  <table>
+    <tbody>
+      <tr><td>结论</td><td>同步代码等异步(.Result/.Wait/GetResult),三重代价</td></tr>
+      <tr><td>机理</td><td>死锁风险 + 钉死一个工人白烧 + 占用快于补充(约半秒一补)的饥饿放大</td></tr>
+      <tr><td>纪律</td><td>能改签名就一路 async;不能改就隔离封装并明知代价</td></tr>
+    </tbody>
+  </table>
+
+  <h3>③ Task vs Thread vs ValueTask?</h3>
+  <table>
+    <thead><tr><th></th><th>Thread</th><th>Task</th><th>ValueTask</th></tr></thead>
+    <tbody>
+      <tr><td>本质</td><td>OS 工人本身</td><td>可 await 的欠条</td><td>struct 欠条(省分配)</td></tr>
+      <tr><td>成本</td><td>创建贵(MB 栈)</td><td>堆分配一次</td><td>同步命中零分配</td></tr>
+      <tr><td>适用</td><td>专属常驻工人</td><td><strong>默认选择</strong></td><td>热路径,只消费一次</td></tr>
+    </tbody>
+  </table>
+
+  <h2>二、十问快答(目标每题 10 秒)</h2>
+  <table>
+    <thead><tr><th>问</th><th>答</th><th>课</th></tr></thead>
+    <tbody>
+      <tr><td>Task vs Thread?</td><td>工人 vs 欠条</td><td>0001</td></tr>
+      <tr><td>await 做了什么?</td><td>拆段+登记+提前返回,恢复走 MoveNext</td><td>0006</td></tr>
+      <tr><td>ConfigureAwait(false) 管什么?</td><td>单个 await 的续延不回投;不传染</td><td>0007</td></tr>
+      <tr><td>怎么加超时?</td><td>WaitAsync 最简;真中止靠令牌贯穿</td><td>0003</td></tr>
+      <tr><td>ValueTask 何时用?</td><td>热路径高频同步命中;只消费一次</td><td>0008</td></tr>
+      <tr><td>线程池饥饿机理?</td><td>占用快于约半秒一线的补充</td><td>0005/0008</td></tr>
+      <tr><td>async void 何时可以?</td><td>仅事件处理器;异常没人能接</td><td>0001/0007</td></tr>
+      <tr><td>WhenAny 超时的坑?</td><td>输家永挂;cts.Cancel() 收尾义务</td><td>0003/0009</td></tr>
+      <tr><td>TCS 口诀?</td><td>Set 断言独占,Try 竞而不炸;广播终态;RCA 防重入</td><td>0002</td></tr>
+      <tr><td>死锁四节点?</td><td>阻塞自等→等续延→回投队列→不泵消息</td><td>0007</td></tr>
+    </tbody>
+  </table>
+
+  <h2>三、异常题附加包(0010)</h2>
+  <table>
+    <tbody>
+      <tr><td>await vs Result 接异常</td><td>解包(原始,第一个)vs 打包(AggregateException 全量)</td></tr>
+      <tr><td>WhenAll 全异常</td><td>先留合成欠条本体,再拆 all.Exception.InnerExceptions</td></tr>
+      <tr><td>堆栈三写法</td><td>throw;保 / throw ex 毁 / EDI 存了原栈异地抛</td></tr>
+    </tbody>
+  </table>
+
+  <h2>四、毕业检查单</h2>
+  <table>
+    <tbody>
+      <tr><td>☐</td><td>画欠条两半 + 手写状态机骨架(GetResult 重抛点)</td></tr>
+      <tr><td>☐</td><td>60 秒死锁 + 判决尺 + WhenAny 竞速模板</td></tr>
+      <tr><td>☐</td><td>InvocationRequest.cs 认领五模式(精读卡对照表)</td></tr>
+      <tr><td>☐</td><td>三张核心卡脱口而出;十问全部 10 秒</td></tr>
+    </tbody>
+  </table>
+
+  <h2>五、间隔复习日历</h2>
+  <table>
+    <tbody>
+      <tr><td>D+1</td><td>三大题脚本口答;0011 回忆任务</td></tr>
+      <tr><td>D+3</td><td>0001→0006 热身回炉,错课重读</td></tr>
+      <tr><td>D+7</td><td>九张速查卡遮栏自测,卡壳的打印</td></tr>
+      <tr><td>D+14</td><td>综合测验重做;三大题讲给真人(Discussions 发帖亦可)</td></tr>
+    </tbody>
+  </table>
+
+  <hr class="footrule">
+  <footer class="course-foot">
+    <span>dotnet-Task异步学习 · 速查卡 · 配套课程:<a href="../lessons/0012-interview-special-topics.html">第 0012 课</a></span>
+    <span><a href="../lessons/index.html">课程目录</a> · <a href="tcs-速查卡.html">TCS 卡</a> · <a href="configureawait-速查卡.html">ConfigureAwait 卡</a> · <a href="exceptions-速查卡.html">异常卡</a></span>
+  </footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>R3 · 国内量化平台地图（中文生态）</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <p class="eyebrow">量化交易入门 · 参考文档 R3</p>
+  <h1>国内量化平台地图（中文生态）</h1>
+  <p class="lead">你的问题："国内有啥量化模型？国外全是英文，学习成本太高。"先校准两个词：你说的"数据掘金"，正式名称是<strong>掘金量化（MyQuant，myquant.cn）</strong>；你真正要找的是<strong>中文生态的量化平台</strong>。现成的"模型"（别人卖给你的策略）是另一个话题——文末有专门警告。这张地图的结论先给你：<strong>国内生态不仅成熟，而且你的 C# 路线在其中有一条全中文的通道</strong>。</p>
+
+  <h2>三种角色：先分清再比较</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>角色</th><th>职责</th><th>国内代表</th><th>你到哪一步了</th></tr></thead>
+    <tbody>
+      <tr><td><strong>数据源</strong></td><td>提供历史/实时行情</td><td>AKShare / Tushare / Baostock</td><td><a href="../lessons/0005-real-cndata-akshare.html">第 5 课</a>已上手</td></tr>
+      <tr><td><strong>研究回测平台</strong></td><td>写策略、跑回测、出报告</td><td>掘金 / 聚宽 / RQAlpha</td><td>掘金（第 2-3 课）已上手；自建引擎（第 7-8 课）已建</td></tr>
+      <tr><td><strong>实盘通道</strong></td><td>接券商柜台，真实下单</td><td>掘金 / QMT·MiniQMT / PTrade</td><td>模拟盘之后才需要（第 12 课）</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">很多平台身兼两角（掘金 = 回测 + 实盘；QMT 也带回测），但选型时仍按角色想：<strong>你缺的是数据、研究环境，还是下单通道？</strong></p>
+
+  <h2>主地图</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>平台</th><th>角色</th><th>语言</th><th>中文程度</th><th>何时轮到它</th></tr></thead>
+    <tbody>
+      <tr><td><a href="https://www.myquant.cn/docs2/faq">掘金量化</a></td><td>回测 + 实盘</td><td><strong>C#</strong> / C++ / Python / Matlab</td><td>官方文档全中文</td><td><strong>你的主通道，现在就可用</strong></td></tr>
+      <tr><td><a href="https://www.joinquant.com">聚宽 JoinQuant</a></td><td>在线研究回测</td><td>Python</td><td>全中文，中文社区最大</td><td>读经典策略库练归因</td></tr>
+      <tr><td><a href="https://github.com/ricequant/rqalpha">RQAlpha（米筐）</a></td><td>开源回测框架</td><td>Python</td><td><a href="https://rqalpha.readthedocs.io">中文文档</a></td><td>想读引擎源码时对照</td></tr>
+      <tr><td>vn.py（VeighNa）</td><td>开源实盘框架</td><td>Python</td><td>全中文社区</td><td>做期货才需要，暂不碰</td></tr>
+      <tr><td>QMT / MiniQMT</td><td>券商实盘终端</td><td>Python（本地运行）</td><td>全中文</td><td>实盘期比价</td></tr>
+      <tr><td>PTrade</td><td>券商实盘终端</td><td>Python（券商托管）</td><td>全中文</td><td>实盘期备选</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>C# 在国内生态的位置</h2>
+  <p>这张地图里最重要的一个事实：<strong>掘金量化是本课程覆盖的平台里，唯一把 C# 当一等公民的主流平台</strong>——官方支持中心（<a href="https://www.myquant.cn/docs2/faq">myquant.cn/docs2</a>）有专门的 C# SDK 板块，产品页明确列出 Python / C++ / <strong>C#</strong> / Matlab 四种语言的策略 SDK，文档、社区（<a href="https://bbs.myquant.cn/topic/624">掘金社区</a>）、回测、仿真、实盘全链路中文。其他平台清一色 Python 优先。</p>
+  <p>所以你担心的"英文成本"，现在已经被课程本身消除：<strong>第 2-3 课已经在掘金量化的 C# SDK 里完成</strong>，从安装终端、拿 token、写 <code>OnInit</code>/<code>OnBar</code> 到读绩效报告，全中文。事件循环、五要素、作弊识别这些心智模型，也已经在中文文档和 A 股数据上长出来了。</p>
+  <div class="insight"><p><strong>路线不变，三步走：</strong>① 学习期 = 掘金 C# SDK（第 2-3、6 课）+ 自建 C# 引擎与 AKShare 数据（第 5、7-8 课）；② 模拟盘 = 掘金终端仿真（全中文，C# SDK）；③ 实盘 = 掘金实盘，或与 QMT/PTrade 比价后再定。<strong>没有任何一步被迫离开中文。</strong></p></div>
+
+  <h2>实盘通道的门槛现实</h2>
+  <p>第 12 课提过 QMT/PTrade，这里补上数字（<a href="https://xueqiu.com/5521309053/243783874">雪球对比</a>、<a href="https://miniqmt.com/pages/qanda.html">MiniQMT 常见问题</a>，2025-2026 年口径）：</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>通道</th><th>运行方式</th><th>品种</th><th>资金门槛（随券商浮动大）</th></tr></thead>
+    <tbody>
+      <tr><td><strong>QMT / MiniQMT</strong></td><td>本地运行，自由度高，可外接数据（xtquant）</td><td>股票/两融/ETF/可转债/期权/期货</td><td>多数券商 50-300 万；低门槛渠道约 10 万甚至更低</td></tr>
+      <tr><td><strong>PTrade</strong></td><td>券商服务器托管，内置模板，新手友好</td><td>股票/两融/ETF/可转债</td><td>约 10-50 万，部分渠道更低</td></tr>
+      <tr><td><strong>掘金量化</strong></td><td>终端 + SDK（含 C#），仿真免费练习</td><td>股票/基金/期货等</td><td>仿真零门槛；实盘经合作券商，门槛另询</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">门槛数字时效性强、券商间差异大，实盘阶段动手前务必以当期券商政策为准——这正好是第 12 课"模拟盘通过后"的作业之一。</p>
+
+  <h2>警告：如果你说的"模型"是别人卖给你的现成策略</h2>
+  <div class="warning"><p><strong>国内卖"量化模型/策略/信号"的市场鱼龙混杂</strong>，而审查它们的工具你已经全有了——任何人在卖你策略，先问三件事（<a href="backtest-checklist.html">R2</a>）：① 回测报告过三关了吗（五宗罪检验 + 稳健性测试）？② 第 8 课的三个物理问题答得出吗（空头腿怎么建？T+1 怎么绕？涨跌停怎么成交）？③ 样本外只碰过一次的记录在哪？<strong>三问答不出，就是第 8 课说过的"两头吃"话术</strong>——回测漂亮是因为它有五宗罪里的至少一宗。</p></div>
+  <p>健康的替代品：聚宽社区的经典策略库（<a href="https://xueqiu.com/8287840120/65009358">社区干货索引</a>）和掘金社区（<a href="https://bbs.myquant.cn/topic/624">资源合集</a>）里有大量<strong>公开、免费、可读源码</strong>的策略——拿它们练第 10 课的归因（"这个策略暴露的是动量还是反转？"），比买任何"模型"都有价值。</p>
+
+  <h2>英文成本的诚实账</h2>
+  <p>哪些必须英文，哪些全程中文，算清楚就不焦虑了：</p>
+  <ul>
+    <li><strong>全程中文（课程主路径）</strong>：第 2-3 课掘金 C# SDK；读书路线（《打开量化投资的黑箱》《量化交易：自己动手做算法交易》《因子投资：方法与实践》都是中译/中文原著）；数据源文档；集思录、掘金、聚宽社区；QMT/PTrade 资料。</li>
+    <li><strong>已移除</strong>：第 2-3 课原先的 QuantConnect/LEAN 文档——2026-11-06 平台迁移后不再需要。</li>
+    <li><strong>可选英文（不是课程要求）</strong>：读海外开源引擎源码、读因子前沿的学术论文。想走更深时再碰；你第 7 课自建引擎的习惯，本来就是用读源码代替读论文。</li>
+  </ul>
+
+  <h2>行动三步（每步 30 分钟）</h2>
+  <div class="exercise">
+    <ol>
+      <li><strong>装掘金终端</strong>：myquant.cn 下载终端 → "量化研究 → SDK 下载" 选 C# → 跑通一个官方示例策略。对照作业：找出它的事件模型与第 7 课你引擎的同构点（<code>OnInit</code> 对应初始化？每根 K 线对应 <code>OnBar</code>？）。</li>
+      <li><strong>读两个公开策略</strong>：聚宽社区或掘金社区各挑一个经典策略（轮动、海龟、双均线任选），用第 10 课的语言写一句归因——"它暴露的是____因子，A 股物理对它的____有影响"。</li>
+      <li><strong>门槛调查（可留到模拟盘后）</strong>：给你开户的券商客服问一句"QMT/PTrade/掘金实盘的开通条件"——把答案记进你的第 12 课模拟盘日记。</li>
+    </ol>
+  </div>
+
+  <h3>速记（回看本页前先自测）</h3>
+  <p>不看上文：① 三种角色各举一个国内代表；② 国内唯一 C# 一等公民平台是哪家；③ 审"卖给你的模型"的三个问题。</p>
+
+  <div class="note"><p><strong>有后续问题随时问老师。</strong>掘金 SDK 装不上、示例跑不通、想让我帮你读某个公开策略的源码——都可以直接来。</p></div>
+
+  <nav class="lesson-nav">
+    <a href="glossary.html">术语表（R1）</a>
+    <a href="backtest-checklist.html">自查清单（R2）</a>
+    <a href="myquant-csharp-cheatsheet.html">掘金 C# 速查（R4）</a>
+    <a href="../lessons/0005-real-cndata-akshare.html">第 5 课：真实 A 股数据</a>
+    <a href="../lessons/0012-graduation-paper-trading.html">第 12 课：毕业与实盘</a>
+  </nav>
+</main>
+<script src="../assets/course-nav.js"></script>
+</body>
+</html>

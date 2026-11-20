@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>第8课 · 自建C#回测引擎（下）：A股物理定律</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+  <p class="eyebrow">量化交易入门 · 第 8 课 / 12</p>
+  <h1>自建 C# 回测引擎（下）：A 股物理定律</h1>
+  <p class="lead">第 7 课的引擎跑在"简化物理"里（T+0、可做空、无涨跌停——更像美股，课上简称"美股物理"）。今天把四条 A 股定律逐条写进代码：<strong>T+1、涨跌停、印花税单边、禁止做空</strong>。最后看一个重要事实：同一份策略思想，在美股成立，在 A 股可能根本无法表达——策略空间是由市场物理决定的。</p>
+  <p class="note">说明：掘金的回测已经内置这些 A 股规则。本课不是"平台做不到所以自己写"，而是"自己写一遍，才能真正读懂平台的报告"——这和第 7 课的动机一致。</p>
+
+  <h2>四条定律总览</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>定律</th><th>现实</th><th>引擎建模</th><th>若忽略会怎样</th></tr></thead>
+    <tbody>
+      <tr><td><strong>T+1</strong></td><td>当日买入，次日才能卖出</td><td>记录买入日，<code>canSell = 今天 &gt; 买入日</code></td><td>日内止损失效，隔夜风险被系统性低估</td></tr>
+      <tr><td><strong>涨跌停</strong></td><td>主板 ±10%（创业板/科创板 ±20%）</td><td>开盘涨停禁买入、开盘跌停禁卖出（保守处理）</td><td>假成交：你以为止损卖出了，现实中你在卖方长队里</td></tr>
+      <tr><td><strong>成本结构</strong></td><td>佣金约万2.5（最低5元）；印花税万5、<strong>仅股票卖出方</strong>（2023 年 8 月起）；<strong>ETF 免征</strong></td><td>双边佣金 + 单边印花税（股票）</td><td>成本低估，长周期回测收益虚高</td></tr>
+      <tr><td><strong>禁止做空</strong></td><td>融券 2024 年起监管连续收紧，实际近乎停摆</td><td>持仓只有 0/1 两状态，禁止负持仓</td><td>多空策略的空头腿凭空赚到不存在的钱</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">费率以多数券商零售档为参考，你的实际佣金以开户合同为准；过户费等零头项本课刻意不计（<a href="0007-own-engine-part1.html">第 7 课</a>的简化原则继续生效）。</p>
+
+  <h2>逐条写进引擎</h2>
+  <p>在引擎头部加常量，然后替换事件循环里成交判断的那一段：</p>
+  <p class="code-title">Program.cs — A 股物理版（在第 7 课基础上修改）</p>
+  <pre><code>// ---------- A股物理常数 ----------
+const double Commission = 0.00025;   // 佣金 万2.5
+const double MinFee     = 5;         // 佣金最低 5 元
+const double StampTax   = 0;         // 510300 是 ETF，免征印花税；个股改为 0.0005
+const double LimitPct   = 0.10;      // 涨跌停 ±10%（主板/多数ETF）
+
+DateTime lastBuyDay = default;
+
+for (int t = 200; t &lt; bars.Count; t++)
+{
+    int signal = Signal(bars, t);
+    var today = bars[t];
+    var prevClose = t &gt; 0 ? bars[t - 1].Close : today.Open;
+
+    bool limitUp   = today.Open &gt;= prevClose * (1 + LimitPct - 0.0005);
+    bool limitDown = today.Open &lt;= prevClose * (1 - LimitPct + 0.0005);
+    bool canSell   = shares &gt; 0 &amp;&amp; today.Date &gt; lastBuyDay;      // T+1
+
+    if (signal != prevSignal)
+    {
+        bool traded = false;
+
+        if (signal == 1 &amp;&amp; shares == 0 &amp;&amp; !limitUp)              // 涨停买单作废
+        {
+            double fill = today.Open;
+            shares = Math.Floor(cash * (1 - Commission) / fill);
+            cash -= shares * fill + Math.Max(shares * fill * Commission, MinFee);
+            lastBuyDay = today.Date;
+            traded = true;
+        }
+        else if (signal == 0 &amp;&amp; canSell &amp;&amp; !limitDown)           // 跌停卖单作废
+        {
+            double fill = today.Open;
+            cash += shares * fill - Math.Max(shares * fill * Commission, MinFee)
+                                  - shares * fill * StampTax;    // 印花税单边
+            shares = 0;
+            traded = true;
+        }
+
+        if (traded) prevSignal = signal;   // 只有成交才更新；被挡下则次日重试
+    }
+    equity.Add(cash + shares * today.Close);
+}</code></pre>
+  <p class="note"><strong>ETF 特别注意：</strong>印花税只对股票卖出征收，510300 这类 ETF <strong>免征</strong>。上面的代码默认 <code>StampTax = 0</code>，就是按 510300 的规则写的；如果你把它改成 <code>0.0005</code> 又用 ETF 跑，会凭空多扣 0.05%/次——这正是"加完四定律反而少 0.4 个点"的常见来源。想看印花税的真实影响，把标的换成个股（如 <code>SHSE.600000</code>）并把 <code>StampTax</code> 设回 <code>0.0005</code>。</p>
+  <p class="note"><strong>为什么 510300 的四定律前后差别很小？</strong>因为大多数定律"不绑定"：T+1 只在同日买卖时生效（50/200 很少同日反向）；涨跌停要求单日 ±10%（510300 极少触及）；禁止做空对只做多策略无影响；印花税对 ETF 本来就是 0。四定律不是"每条都要扣分"，而是"哪条会咬你，取决于策略和品种"——高频/日内/做空策略才会被它们重创。</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>定律</th><th>510300 日线双均线</th><th>高频 / 日内</th><th>个股多空</th></tr></thead>
+    <tbody>
+      <tr><td><strong>T+1</strong></td><td>很少绑定（很少同日反向）</td><td><strong>强绑定</strong></td><td><strong>强绑定</strong></td></tr>
+      <tr><td><strong>涨跌停</strong></td><td>很少绑定（极少 ±10%）</td><td><strong>强绑定</strong></td><td><strong>强绑定</strong></td></tr>
+      <tr><td><strong>印花税</strong></td><td>0（ETF 免征）</td><td><strong>强绑定</strong></td><td><strong>强绑定</strong>（卖出 0.05%）</td></tr>
+      <tr><td><strong>禁止做空</strong></td><td>无影响（只做多）</td><td>无影响</td><td><strong>强绑定</strong>（空头腿消失）</td></tr>
+    </tbody>
+  </table></div>
+  <div class="insight"><p><strong>为什么"开盘涨停禁买、开盘跌停禁卖"是保守且接近现实的方向</strong>：涨停时买方在长队里排队，你的买单大概率轮不到；跌停时卖方在长队里排队，你的卖单同样大概率轮不到。反过来（涨停卖出、跌停买入）成交是容易的。引擎按"轮不到"处理，就是把现实里最不利的情形计入回测——<strong>宁可回测难看，不可实盘意外</strong>。</p></div>
+
+  <h2>案例：美股成立，A 股失效</h2>
+  <p>学术文献里的经典策略"短期反转多空"：买入近期跌幅最大的股票、<strong>同时做空</strong>涨幅最大的股票（美股长期回测为正收益，Jegadeesh 1990 年代起有系列研究）。把它搬到 A 股会发生什么？</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>策略部件</th><th>美股</th><th>A 股个人</th></tr></thead>
+    <tbody>
+      <tr><td>买入近期大跌股</td><td>✓</td><td>✓（跌停买入反而容易成交）</td></tr>
+      <tr><td>做空近期大涨股</td><td>✓（融券便利）</td><td><strong>✗ 融券近乎停摆，空头腿消失</strong></td></tr>
+      <tr><td>当日止损离场</td><td>✓</td><td><strong>✗ T+1，隔夜跳空无法回避</strong></td></tr>
+    </tbody>
+  </table></div>
+  <p>结论不是"A 股没有策略可做"，而是：<strong>A 股个人的策略空间 = 只做多 + 空仓两状态 + 日线以上周期</strong>。引擎里的 0/1 两状态不是缺陷，是对物理的忠实。第 3 课的双均线恰好是"多/平"两态——它能在 A 股表达；第 10 课你会给这些"可表达的策略"一个学术分类。</p>
+  <div class="warning"><p><strong>小心"两头吃"的话术</strong>：任何在 A 股实盘宣传"多空对冲、日内高频"的个人策略，先问三个物理问题——空头腿怎么建？T+1 怎么绕？涨跌停怎么成交？答不出即视为虚假宣传（对照 <a href="../reference/backtest-checklist.html">R2 第三关</a>）。</p></div>
+
+  <h2>检验一下</h2>
+  <div class="quiz" data-answer="a"
+       data-explain-good="对。T+1 的引擎建模就是：今天 &gt; 买入日才允许卖出——当日买入的股票被物理锁仓一天。"
+       data-explain-bad="不对。T+1 限制的是'买入后的卖出时点'，不影响买入本身，也管不着先卖后买的顺序。">
+    <p class="quiz-question">T+1 在引擎里体现为什么？</p>
+    <button class="opt" data-key="a">买入次日才能卖</button>
+    <button class="opt" data-key="b">当日可买可卖啊</button>
+    <button class="opt" data-key="c">卖出次日才能买</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <div class="quiz" data-answer="a"
+       data-explain-good="对。涨停时买方排队、跌停时卖方排队——保守引擎直接判这些单'轮不到成交'。"
+       data-explain-bad="不对。恰恰相反：排队一侧的单最难成交。回测里按'最不利情形'建模，实盘才不会意外。">
+    <p class="quiz-question">引擎对涨跌停的保守处理？</p>
+    <button class="opt" data-key="a">涨停禁买跌停禁卖</button>
+    <button class="opt" data-key="b">涨停跌停都能成交</button>
+    <button class="opt" data-key="c">涨跌停日不产生信号</button>
+    <p class="feedback" hidden></p>
+  </div>
+
+  <div class="exercise">
+    <p><strong>动手（约 30 分钟）：</strong></p>
+    <ol>
+      <li>把四条定律装进第 7 课引擎，重跑双均线，对比三个数字（总收益/年化/回撤）与"简化物理版"的差异；再拿掘金的 510300 回测报告对照——你的规则实现和平台结果差在哪？<strong>用 510300 时 <code>StampTax</code> 保持 0</strong>；想测试印花税，换个股并把 <code>StampTax</code> 设为 <code>0.0005</code>。如果还要和同花顺对账，先过 <a href="../reference/backtest-data-reconciliation.html">R6</a>。</li>
+      <li>翻你的 CSV：找单日跌幅 ≥9% 的交易日，确认引擎在这些日子前后的持仓与成交符合四定律。</li>
+      <li>思考题：引擎里"跌停卖单作废"意味着该日你继续持有、次日再试——这与现实里"挂跌停价卖出排队"差在哪？哪个对你更不利？（提示：排队位置。）</li>
+      <li><strong>强制绑定测试（验证代码路径真的通）</strong>：把 <code>LimitPct</code> 改成 <code>0.01</code>、<code>StampTax</code> 改成 <code>0.005</code> 重跑，数字应该明显变化；确认后改回真实值。四定律在 510300 上"不绑定"不等于"没实现"。</li>
+    </ol>
+  </div>
+
+  <h3>自由回忆（隔天再做一遍效果更好）</h3>
+  <p>不看上文：① 四条定律各配一句"若忽略会怎样"；② A 股个人的策略空间一句话；③"涨停禁买、跌停禁卖"的现实直觉是什么。</p>
+  <button class="reveal-btn" data-reveal="recall">回忆后对照</button>
+  <div class="answer" id="recall" hidden>
+    <p>① T+1→隔夜风险被低估；涨跌停→假成交；成本单边印花→收益虚高；禁做空→空头腿虚增收益。② 只做多 + 空仓两状态 + 日线以上。③ 涨停买方长队、跌停卖方长队，你的单在队尾，保守回测按"轮不到成交"处理。</p>
+  </div>
+
+  <h2>下一步</h2>
+  <p><strong>本课主源推荐</strong>：《上海证券交易所交易规则》——你引擎里每条物理定律的原始出处（官网可下载 PDF）；读"交易时间、涨跌幅限制、成交原则"三节即可，比任何二手教程都权威。</p>
+  <p><strong>下一课预告</strong>：第 9 课《止损与仓位》——策略决定"何时进出"，仓位决定"错了伤多深"。止损写成状态机的出边，再用 2% 规则和凯利公式回答"该买多少"。</p>
+
+  <div class="note"><p><strong>卡住了？随时问老师。</strong>四定律装完后数字变化吓人？先别慌——把前后两版的三组数字发给老师，一起判断是物理起效还是代码有 bug。</p></div>
+
+  <nav class="lesson-nav">
+    <a href="0007-own-engine-part1.html">第 7 课：自建引擎（上）</a>
+    <a href="../reference/glossary.html">术语表（R1）</a>
+    <a href="../reference/backtest-checklist.html">自查清单（R2）</a>
+    <a href="../reference/backtest-data-reconciliation.html">数据对账（R6）</a>
+    <a href="0009-stop-loss-and-sizing.html">下一课：止损与仓位</a>
+  </nav>
+</main>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/course-nav.js"></script>
+</body>
+</html>

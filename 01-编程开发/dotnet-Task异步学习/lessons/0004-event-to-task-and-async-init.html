@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>0004 · 事件流→Task 与异步初始化</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">DOTNET · TASK SYSTEM · 第 0004 课</p>
+  <h1>事件流→Task 与异步初始化</h1>
+  <div class="meta">
+    <span class="chip">⏱ 预计 20–25 分钟</span>
+    <span class="chip">前置:第 0001–0003 课</span>
+    <span class="chip">交付:事件等待骨架 + 单飞初始化(连接就绪模式)</span>
+  </div>
+
+  <p class="lede">前三种模式解决的都是"回调式"API:结果<strong>必定</strong>会来一次。但更多库是
+  <strong>事件式</strong>的——事件可能触发 0 次、1 次或 N 次,时机完全不由你控制。
+  "等连接建立再发消息""等初始化完成再用客户端"——今天这两个骨架,
+  就是 SignalR、消息队列客户端里"等待就绪"的通用写法。</p>
+
+  <!-- ═══════════ 0. 隔日检索 ═══════════ -->
+  <h2>〇、隔日检索<span class="muted" style="font-size:.85rem">(先测后学:0003 还剩多少?)</span></h2>
+  <div id="warmup"></div>
+
+  <!-- ═══════════ 1. 事件→Task ═══════════ -->
+  <h2>一、模式一:等一次性事件发生</h2>
+
+  <p>场景:消息客户端 SDK 只提供 <code>Connected</code> 事件,你想给同事一个干净的
+  <code>await WaitForConnectedAsync()</code>。骨架四步,每一步都有理由:</p>
+
+  <div class="code-label">事件 → Task · 黄金骨架</div>
+<pre><code>public Task WaitForConnectedAsync()
+{
+    var tcs = new TaskCompletionSource(
+        TaskCreationOptions.RunContinuationsAsynchronously);
+
+    void OnConnected(object? s, EventArgs e)
+    {
+        _client.Connected -= OnConnected;   <span class="hl"> // ① 到达即退订——防泄漏</span>
+        tcs.TrySetResult();                 <span class="hl"> // ② Try*——取消等路径在竞争</span>
+    }
+
+    _client.Connected += OnConnected;       <span class="hl"> // ③ 先订阅……</span>
+
+    if (_client.IsConnected)                <span class="hl"> // ④ ……后检查(顺序是命门)</span>
+    {
+        OnConnected(_client, EventArgs.Empty);  <span class="cmt">// 已连接:复用同一清理逻辑</span>
+    }
+
+    return tcs.Task;
+}</code></pre>
+
+  <table>
+    <thead><tr><th>步骤</th><th>为什么非它不可</th></tr></thead>
+    <tbody>
+      <tr><td>③ 先订阅</td><td>若先检查再订阅,事件可能在两行代码之间触发——没人接住,await 永久悬挂</td></tr>
+      <tr><td>④ 后检查</td><td>事件可能在你订阅之前就已经发生过了("已发生"检查是兜底,不是可选项)</td></tr>
+      <tr><td>① 到达即退订</td><td>事件源(客户端对象)活得比欠条久;lambda 捕获着 tcs,不退订 = 整条引用链泄漏</td></tr>
+      <tr><td>② 用 TrySet*</td><td>"已连接"分支与事件分支可能竞争,后到者须安静放弃(0002 的竞速语义)</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <p class="callout-title"><span class="tag tag-source">源码视角</span>这就是框架"等待就绪"的骨架</p>
+    <p>各连接库"等待握手完成/传输激活"的内部实现,基本都是这四步加上 0003 的令牌传播
+    (取消时也要退订——完整生产版含取消,见文末速查卡)。官方把"事件模式(EAP)"包装成
+    Task 的推荐做法同样是 TCS,见 <a href="https://learn.microsoft.com/en-us/dotnet/standard/asynchronous-programming-patterns/task-based-asynchronous-pattern-tap" target="_blank">TAP 规范的互操作章节</a>。</p>
+  </div>
+
+  <h2>二、动手玩:亲手放跑一次事件</h2>
+
+  <p>这个 bug 极其隐蔽,不如现在就犯一次。操作顺序:</p>
+  <p><strong>实验 1</strong>:先点 ⚡(事件触发),再点 <code>A 版</code> → 看它如何永久悬挂。<br>
+  <strong>实验 2</strong>:重置,先点 ⚡,再点 <code>B 版</code> → 看它如何安全返回。<br>
+  <strong>实验 3</strong>:重置,先点 <code>A 版</code>(未连接,挂起),再点 ⚡ → 观察两种写法被唤醒的过程。</p>
+
+  <div id="eventrace"></div>
+  <script src="../assets/event-race-simulator.js"></script>
+  <script>
+    EventRaceSimulator.render(document.getElementById('eventrace'), {
+      eventName: 'Connected'
+    });
+  </script>
+
+  <div class="callout warn">
+    <p class="callout-title">实验后对照答案</p>
+    <p>① A 版的悬挂发生在"检查(false)→订阅"之间:事件已放走,订阅等来的是永远。<br>
+    ② B 版因为<strong>先站好位置</strong>,无论事件来早来晚都能接住:来晚了走处理器,来早了走检查兜底。<br>
+    ③ 记住顺序口诀:<em>先订阅,后检查;到达即退订;销账用 Try。</em></p>
+  </div>
+
+  <!-- ═══════════ 2. 异步初始化 ═══════════ -->
+  <h2>三、模式二:单飞异步初始化</h2>
+
+  <p><span class="tag tag-interview">面试高频</span>场景升级:连接不仅要"等",还要"建立"——而建立是异步的,
+  <strong>构造函数里不能 await</strong>。全项目的代码都要等它就绪。怎么设计?</p>
+
+  <p>天真版的坑:每个调用点都 <code>if (!ready) await ConnectAsync()</code>——两个请求同时发现未连接,
+  <strong>并发建立两条连接</strong>,第二条白白泄漏。标准解法叫<strong>单飞(single-flight)</strong>,
+  核心又是 TCS:</p>
+
+  <div class="code-label">单飞初始化 · 一张欠条,所有人在等</div>
+<pre><code>private TaskCompletionSource&lt;MessageClient&gt;? _initTcs;
+
+public Task&lt;MessageClient&gt; GetClientAsync()
+{
+    if (_initTcs is null)
+    {
+        var tcs = new TaskCompletionSource&lt;MessageClient&gt;(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        if (Interlocked.CompareExchange(ref _initTcs, tcs, null) is null)
+        {
+            _ = InitializeAsync(tcs);      <span class="cmt">// 只有抢到写入权的调用者启动初始化</span>
+        }
+    }
+
+    return _initTcs.Task;                  <span class="hl"> // 后来者直接 await 同一张欠条(0002 广播语义)</span>
+}
+
+private async Task InitializeAsync(TaskCompletionSource&lt;MessageClient&gt; tcs)
+{
+    try
+    {
+        var client = await CreateAndConnectAsync();
+        tcs.SetResult(client);             <span class="cmt">// 无竞态:唯一完成路径 → 用 Set*(断言,0002)</span>
+    }
+    catch (Exception ex)
+    {
+        tcs.SetException(ex);              <span class="cmt">// 失败也广播:所有等待者立刻拿到异常</span>
+        _initTcs = null;                   <span class="cmt">// 惯例:置空,允许下次调用重新尝试</span>
+    }
+}</code></pre>
+
+  <table>
+    <thead><tr><th>设计点</th><th>理由</th></tr></thead>
+    <tbody>
+      <tr><td><code>Interlocked.CompareExchange</code> 抢写入权</td><td>无锁保证"只有一个初始化启动者",其余并发调用者全部汇入同一张欠条</td></tr>
+      <tr><td>完成路径唯一 → <code>SetResult</code></td><td>没有竞争者,沿用"无竞态用 Set\*,让 bug 显形"的决策</td></tr>
+      <tr><td>失败时 <code>_initTcs = null</code></td><td>失败不该被缓存成永久状态;下次调用重新尝试,符合直觉</td></tr>
+      <tr><td>所有人都 <code>await</code> 同一个 <code>.Task</code></td><td>欠条终态不可变 → 广播安全(0002 的"为什么")在这里变现</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <p class="callout-title"><span class="tag tag-source">源码视角</span>这个模式的亲戚们</p>
+    <p>轻量替代:<code>Lazy&lt;Task&lt;T&gt;&gt;</code>(少了失败重试);标准件:Stephen Cleary 的
+    <a href="https://blog.stephencleary.com/2012/08/asynchronous-lazy-initialization.html" target="_blank">AsyncLazy</a>
+    与 Visual Studio 内部使用的 <code>Microsoft.VisualStudio.Threading.AsyncLazy</code>;
+    ASP.NET Core 里"等 HostedService 启动完成"的机制同属这一家。
+    本课手写版的价值:每一行你都明白为什么存在。</p>
+  </div>
+
+  <!-- ═══════════ 3. 检索练习 ═══════════ -->
+  <h2>四、检索练习<span class="muted" style="font-size:.85rem">(不看上文,凭记忆答)</span></h2>
+  <div id="quiz"></div>
+
+  <!-- ═══════════ 4. 复习钩子 ═══════════ -->
+  <h2>五、明天的回忆任务<span class="muted" style="font-size:.85rem">(30 秒,不翻书)</span></h2>
+  <details class="qa">
+    <summary>① 事件等待为什么必须"先订阅,后检查"?</summary>
+    若先检查后订阅,事件可能在两行之间触发,没人接住,await 永久悬挂。先站位置,检查只是兜底。
+  </details>
+  <details class="qa">
+    <summary>② 到达即退订,防的是什么?</summary>
+    事件源活得比欠条久,lambda 捕获 tcs 不放——不退订整条引用链泄漏。
+  </details>
+  <details class="qa">
+    <summary>③ 单飞初始化失败后的惯例处理?</summary>
+    把异常广播给所有等待者,然后置空状态允许下次重试——不缓存失败。</details>
+
+  <!-- ═══════════ 尾部 ═══════════ -->
+  <div class="callout ask no-print">
+    <p class="callout-title">卡住了?随时问你的老师</p>
+    <p>"CompareExchange 那行为什么不用 lock?""退订的时机能不能放到 finally?"
+    ——回 Claude Code 直接问,这是学习流程的一部分。</p>
+  </div>
+
+  <div class="next-up">
+    <p class="next-title">▸ 下一课:<a href="0005-task-states-and-lifecycle.html">0005 · Task 状态机与生命周期 →</a></p>
+    <p>你已经在代码里反复见到 <code>WaitingForActivation</code>、<code>RanToCompletion</code>、
+    <code>Faulted</code>。下一课把 Task 的五种状态一次讲透,补上模拟器里状态徽章背后的完整地图。
+    复习工具:<a href="../reference/event-init-速查卡.html">事件与异步初始化速查卡</a>(新增)。</p>
+  </div>
+
+  <hr class="footrule">
+  <footer class="course-foot">
+    <span>dotnet-Task异步学习 · 第 0004 课 · 主推阅读:<a href="https://blog.stephencleary.com/2012/08/asynchronous-lazy-initialization.html" target="_blank">Asynchronous Lazy Initialization — Stephen Cleary</a></span>
+    <span><a href="0003-timeout-control.html">上一课</a> · <a href="index.html">目录</a> · <a href="../reference/tcs-速查卡.html">TCS 速查卡</a> · <a href="../reference/event-init-速查卡.html">事件速查卡</a></span>
+  </footer>
+
+</div>
+<script src="../assets/quiz.js"></script>
+<script>
+  // ── 隔日检索热身(复习 0003)──
+  TeachQuiz.render(document.getElementById('warmup'), [
+    {
+      q: '【复习】WaitAsync 超时后,底层操作会?',
+      options: ['继续运行,不会被打断', '立刻取消,资源即释放', '暂停并等待恢复的指令', '自动重试直至最终成功'],
+      answer: 0,
+      explain: '超时只是弃等,底层照跑,迟到结果被竞速语义丢弃——超时 ≠ 取消。'
+    },
+    {
+      q: '【复习】想真正中止底层 HTTP 请求?',
+      options: ['把取消令牌传给底层调用', '再包一层 WaitAsync 即可', '把超时时间设置得更短些', '捕获超时异常后重试一次'],
+      answer: 0,
+      explain: 'CTS(TimeSpan) + 令牌贯穿底层(GetAsync(url, token)),触发才真中止、真释放。'
+    },
+    {
+      q: '【复习】令牌到点触发的异常是?',
+      options: ['抛出的是取消类家族异常', '抛出的是超时专用异常', '抛出的是聚合异常类型', '抛出的是无效操作异常'],
+      answer: 0,
+      explain: 'TaskCanceledException(OperationCanceledException 子类);catch-when 区分是否本次超时。'
+    },
+    {
+      q: '【复习】WaitAsync 超时抛出的异常是?',
+      options: ['抛出的是超时专用异常', '抛出的是取消类家族异常', '抛出的是聚合异常类型', '抛出的是无效操作异常'],
+      answer: 0,
+      explain: 'TimeoutException——语义明确表达"是超时";与令牌取消的异常族不同,捕获时要分开。'
+    }
+  ]);
+
+  // ── 本课检索练习 ──
+  TeachQuiz.render(document.getElementById('quiz'), [
+    {
+      q: '事件等待里,"先订阅后检查"防的是?',
+      options: ['事件在两行之间溜走了', '处理器内部抛出了异常', '事件被连续触发了多次', '取消令牌没有传递进去'],
+      answer: 0,
+      explain: '检查(false)与订阅之间事件触发,订阅等来的是永远。先站位置,检查只是兜底。'
+    },
+    {
+      q: '事件到达后退订,防的是什么?',
+      options: ['事件源会活得比欠条久', '退订才能让欠条完成', '事件处理器只能用一次', '退订是 TrySet 的前提'],
+      answer: 0,
+      explain: '长寿事件源 + lambda 捕获 tcs = 引用链泄漏。到达即退订是纪律。'
+    },
+    {
+      q: '单飞初始化中,后来的调用者拿到?',
+      options: ['同一张欠条,直接等待', '各自新建的独立欠条', '初始化完成前的 null', '一个等待用的专用锁'],
+      answer: 0,
+      explain: '所有调用者 await 同一个 _initTcs.Task——欠条终态不可变,广播给任意多人。'
+    },
+    {
+      q: '单飞初始化失败后的惯例做法?',
+      options: ['置空状态,允许下次重试', '永久缓存那次失败的异常', '自动立刻重新开始初始化', '让等待者无限期地悬挂'],
+      answer: 0,
+      explain: 'SetException 广播给所有等待者 + _initTcs = null——失败不被缓存成永久状态。'
+    }
+  ]);
+</script>
+</body>
+</html>
